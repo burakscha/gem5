@@ -6368,4 +6368,8 @@ decode QUADRANT default Unknown::unknown() {
 
         0x1e: M5Op::M5Op();
     }
+
+    // BURADAN SONRA TEK BİR KAPANAN PARANTEZ KALMALI
+    0x2B: SFK_SPILL(); // Direct decoding for our SFK_SPILL instruction
+
 }
