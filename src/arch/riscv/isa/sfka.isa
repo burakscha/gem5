@@ -1,52 +1,79 @@
-// -*- mode:c++ -*-
-
-// Copyright (c) 2025 Your Name
+// Copyright (c) 2024 The gem5 Project
 // All rights reserved.
 //
-// SFKA (Spill-Fill-Kill Architecture) custom instructions for RISC-V.
-
-//include "includes.isa"
-//include "bitfields.isa"
-//include "operands.isa"
-
-
-////////////////////////////////////////////////////////////////////
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met: redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer;
+// redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution;
+// neither the name of the copyright holders nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
 //
-// Custom SFKA Instruction Definitions.
-//
-////////////////////////////////////////////////////////////////////
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// SFK_SPILL: spill reg, [sfp+imm]
-// This instruction uses the RISC-V S-Type format.
-// We use CUSTOM_2 opcode (0x2B) and funct3 = 0x0.
+def format SfkMem(name, BaseISA) {{
+    // 'Store' formatındaki SFK talimatları için genel bir şablon.
+    // (SFK_SPILL ve gelecekteki SFK_KILL için kullanılacak)
+    class {name}(BaseISA.MemWrite):
+        __init__ = '''
+            super().__init__()
+            self.name = "{name}"
+            self.className = "{name}"
+        '''
+        // Bu talimatın assembly'de nasıl görüneceğini tanımlar.
+        // RISC-V S-formatına uygun: komut rs2, imm(rs1)
+        disasm = '{{
+            return f"{{self.name}} {{self.rs2_reg}}, {{self.imm_val}}({{self.rs1_reg}})"
+        }}'
 
-def instruction SFK_SPILL : S_FORMAT_BASE_OP<"sfk_spill", 0x2B, 0x0>
-{
-    // Attributes for the instruction
-    string op_name = "sfk_spill"; // A user-friendly name for debugging/tracing
-    string c_name = "SFK_SPILL";  // C++ class name for this instruction
+    // Bu şablonu kullanan bir talimatın tanımını yapar.
+    defInst = '''
+        {name} {{
+            // Hata almamızı engelleyen en kritik blok.
+            // MemWrite'dan miras aldığı için bu blok zorunludur.
+            // Asıl işlevi C++'da doldurulacak.
+            memacc_code = """
+                // C++ execution code will be handled here later.
+            """
+        }};
+    '''
+}};
 
-    // S_FORMAT_BASE_OP automatically provides the standard S-Type operands:
-    // Rs1_sd: Base address register (we will use this for SFP)
-    // Rs2_ud: Source register (value to spill)
-    // IMM12:  12-bit signed immediate offset
+def format SfkLoad(name, BaseISA) {{
+    // 'Load' formatındaki SFK talimatları için genel bir şablon.
+    // (SFK_FILL için kullanılacak)
+    class {name}(BaseISA.MemRead):
+        __init__ = '''
+            super().__init__()
+            self.name = "{name}"
+            self.className = "{name}"
+        '''
+        // Bu talimatın assembly'de nasıl görüneceğini tanımlar.
+        // RISC-V I-formatına uygun: komut rd, imm(rs1)
+        disasm = '{{
+            return f"{{self.name}} {{self.rd_reg}}, {{self.imm_val}}({{self.rs1_reg}})"
+        }}'
 
-    // Define the memory address calculation (Effective Address - EA)
-    // EA = Base Register (Rs1) + immediate offset
-    ea_code = {{ EA = rvSext(Rs1_sd + imm); }};
-
-    // Mark it as a store-like operation. The custom logic will be in C++.
-    mem_flags = [ IsStore ];
-
-    // The actual C++ execution logic will go here. For now, it's a placeholder.
-    execute = {{
-        // In Step 2, this block will be modified to interact with the Spill Store
-        // instead of the regular memory system.
-        // DPRINTF(RiscvSFK, "SFK_SPILL: Spilling R%d to [R%d + 0x%x] (EA=0x%x)\n",
-        //         Rs2, Rs1, (uint64_t)imm, (uint64_t)EA);
-    }};
-
-    // Define how the instruction should be displayed in traces (disassembly)
-    // Ex: sfk_spill x5, -20(x2)  (where x2 is our SFP register)
-    disassembly = "sfk_spill 'Rs2', 'imm'('Rs1')";
-}
+    defInst = '''
+        {name} {{
+            // Hata almamızı engelleyen en kritik blok.
+            // MemRead'dan miras aldığı için bu blok zorunludur.
+            memacc_code = """
+                // C++ execution code will be handled here later.
+            """
+        }};
+    '''
+}};
