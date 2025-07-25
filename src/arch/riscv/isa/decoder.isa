@@ -6368,9 +6368,10 @@ decode QUADRANT default Unknown::unknown() {
 
         0x1e: M5Op::M5Op();
 
-        // Opcode 0x2B -> OPCODE5 alanı 0x0A'dır.
         0x0A: decode FUNCT3 {
-            0x0: SFK_SPILL();
+            format Store {
+             0x0: SFK_SPILL();
+            }
             default: Unimplemented();
         }
     }
