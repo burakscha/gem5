@@ -71,10 +71,7 @@ def operands {{
     'Rp2': IntReg('ud', 'RP2 + 8', 'IsInteger', 3),
     'ra': IntReg('ud', 'ReturnAddrReg', 'IsInteger', 1),
     'sp': IntReg('ud', 'StackPointerReg', 'IsInteger', 2),
-    // New: Spill-Fill Pointer Register for SFKA
-    'SFP': IntReg('ud', 'SpillFillPointerReg', 'IsInteger', 9), // Use a new unique RegNum, e.g., 9
-                                                                          // This '9' is just an internal ID for gem5,
-                                                                          // not a RISC-V architectural register number.
+    'SFP': IntReg('ud', 'SpillFillPointerReg', 'IsInteger', 9),
     'spd': IntReg('ud', 'StackPointerReg', 'IsInteger', 1),
 
     'a0': IntReg('ud', '10', 'IsInteger', 1),

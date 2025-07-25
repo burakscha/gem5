@@ -5,13 +5,10 @@
 //
 // SFKA (Spill-Fill-Kill Architecture) custom instructions for RISC-V.
 
-namespace RiscvISA;
+//include "includes.isa"
+//include "bitfields.isa"
+//include "operands.isa"
 
-##include "includes.isa"
-##include "bitfields.isa"
-##include "operands.isa"
-##include "formats/formats.isa"
-##include "templates/templates.isa" // Possibly needed for common templates
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -20,53 +17,36 @@ namespace RiscvISA;
 ////////////////////////////////////////////////////////////////////
 
 // SFK_SPILL: spill reg, [sfp+imm]
-// This instruction is similar to RISC-V S-Type (Store) instructions.
-// S-Type Format: imm[11:5] rs2 rs1 funct3 imm[4:0] opcode
-// We will use CUSTOM_2 opcode (0x5B = 1011011) for SFKA instructions.
-// For SFK_SPILL, let's use funct3 = 0x0 (binary 000).
+// This instruction uses the RISC-V S-Type format.
+// We use CUSTOM_2 opcode (0x2B) and funct3 = 0x0.
 
-def instruction SFK_SPILL : S_FORMAT_BASE_OP<"sfk_spill", 0x2B, 0x0> 
+def instruction SFK_SPILL : S_FORMAT_BASE_OP<"sfk_spill", 0x2B, 0x0>
 {
     // Attributes for the instruction
     string op_name = "sfk_spill"; // A user-friendly name for debugging/tracing
     string c_name = "SFK_SPILL";  // C++ class name for this instruction
 
-    // Input operands for the instruction
-    // SFP_sd: The Spill-Fill Pointer register (base address)
-    // Rs2_ud: The source register (value to spill)
-    // IMM12: The immediate offset
-    def_src_operand R(SFP_sd); // SFP register (base address for spill space)
-    def_src_operand R(Rs2_ud); // Source register (value to be spilled)
-    def_src_operand I(IMM12);  // 12-bit signed immediate offset
+    // S_FORMAT_BASE_OP automatically provides the standard S-Type operands:
+    // Rs1_sd: Base address register (we will use this for SFP)
+    // Rs2_ud: Source register (value to spill)
+    // IMM12:  12-bit signed immediate offset
 
     // Define the memory address calculation (Effective Address - EA)
-    // EA = SFP + immediate offset
-    ea_code = {{ EA = rvSext(SFP_sd + imm); }}; // Use SFP_sd (our new register)
+    // EA = Base Register (Rs1) + immediate offset
+    ea_code = {{ EA = rvSext(Rs1_sd + imm); }};
 
-    // Define the execution behavior of the instruction
-    // According to Mattan's paper, a 'spill' doesn't directly write to *memory*,
-    // but "binds the value with a name in the spill space."
-    // For now, we will model this as a "write" operation, but with special flags
-    // to indicate it's not a regular memory access, but an access to our
-    // conceptual "spill store." The actual C++ logic for the spill store
-    // will come in Step 2.
-    // We'll use 'IsAtomic' and 'IsStore' flags for now, but these will be refined.
-    mem_flags = [ IsAtomic, IsStore ]; // Mark it as a store-like operation
+    // Mark it as a store-like operation. The custom logic will be in C++.
+    mem_flags = [ IsStore ];
 
-    // The actual C++ execution logic will go here.
-    // For now, we can add a simple debug print or leave it almost empty.
-    // The important part is that gem5's parser understands the instruction format.
+    // The actual C++ execution logic will go here. For now, it's a placeholder.
     execute = {{
-        // Placeholder: In future steps, this is where we'll
-        // add code to interact with our custom Spill Store.
-        // For now, let's just assert that it's a spill to illustrate.
-        // You can add a debug message here if you want to see it execute.
-        // e.g., DPRINTF(RiscvSFK, "SFK_SPILL: Spilling 0x%x from R%d to SFP+0x%x (EA=0x%x)\n",
-        //              (uint64_t)Rs2_ud, Rs2, (uint64_t)imm, (uint64_t)EA);
-        // This is a dummy assignment just to make the ISA compile without
-        // leaving a 'memory access' without a value. This will change later.
-        // Replace with actual spill store logic.
-        ignore(Rs2_ud);
-        ignore(EA);
+        // In Step 2, this block will be modified to interact with the Spill Store
+        // instead of the regular memory system.
+        // DPRINTF(RiscvSFK, "SFK_SPILL: Spilling R%d to [R%d + 0x%x] (EA=0x%x)\n",
+        //         Rs2, Rs1, (uint64_t)imm, (uint64_t)EA);
     }};
+
+    // Define how the instruction should be displayed in traces (disassembly)
+    // Ex: sfk_spill x5, -20(x2)  (where x2 is our SFP register)
+    disassembly = "sfk_spill 'Rs2', 'imm'('Rs1')";
 }

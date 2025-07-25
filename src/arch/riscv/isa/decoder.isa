@@ -37,10 +37,10 @@
 //
 
 // Include the C++ include directives (already there)
-##include "includes.isa"
+//include "includes.isa"
 
 // Add our new SFKA ISA definitions
-##include "sfka.isa" // <-- BU SATIRI EKLEYİN
+//include "sfka.isa"
 
 // In theory, all registers should be sign extended if not operating in the
 // full MXLEN register, but that will cause memory address out of range as it is
@@ -6367,9 +6367,11 @@ decode QUADRANT default Unknown::unknown() {
         }
 
         0x1e: M5Op::M5Op();
+
+        // Opcode 0x2B -> OPCODE5 alanı 0x0A'dır.
+        0x0A: decode FUNCT3 {
+            0x0: SFK_SPILL();
+            default: Unimplemented();
+        }
     }
-
-    // BURADAN SONRA TEK BİR KAPANAN PARANTEZ KALMALI
-    0x2B: SFK_SPILL(); // Direct decoding for our SFK_SPILL instruction
-
 }
