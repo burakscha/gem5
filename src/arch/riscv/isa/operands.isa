@@ -73,10 +73,6 @@ def operands {{
     'sp': IntReg('ud', 'StackPointerReg', 'IsInteger', 2),
     'spd': IntReg('ud', 'StackPointerReg', 'IsInteger', 1),
 
-    // --- BİZİM EKLENTİMİZ ---
-    'SFP': IntReg('ud', 'SpillFillPointerReg', 'IsInteger', 9),
-    // -------------------------
-
     'a0': IntReg('ud', '10', 'IsInteger', 1),
     'a1': IntReg('ud', '11', 'IsInteger', 2),
 

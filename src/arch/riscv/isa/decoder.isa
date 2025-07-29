@@ -39,8 +39,6 @@
 // Include the C++ include directives (already there)
 //include "includes.isa"
 
-// Add our new SFKA ISA definitions
-include "sfka.isa"
 
 // In theory, all registers should be sign extended if not operating in the
 // full MXLEN register, but that will cause memory address out of range as it is
@@ -6369,11 +6367,16 @@ decode QUADRANT default Unknown::unknown() {
         0x1e: M5Op::M5Op();
 
         // --- BİZİM ÖZEL OPCODE BLOĞUMUZ ---
-        0x2B : { // Our custom SFK opcode
-            // funct3 determines the specific SFK instruction
-            0b000: format Store({{ SfkMem("SFK_SPILL", Riscv) }});
-            0b001: format Load({{ SfkLoad("SFK_FILL", Riscv) }});
-            // Diğer talimatlar Aşama 2'de buraya eklenecek...
+        0x2B: decode FUNCT3 {
+            0x0: SFK_SPILL::sfk_spill({{
+                // Rs2'yi belleğe yaz
+                Mem_uw = Rs2_uw;
+            }});
+
+            0x1: SFK_FILL::sfk_fill({{
+                // Bellekten oku ve Rd'ye yükle
+                Rd = Mem_uw;
+            }});
         }
         // ---------------------------------
 

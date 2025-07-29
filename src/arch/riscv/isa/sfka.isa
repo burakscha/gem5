@@ -24,56 +24,34 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-def format SfkMem(name, BaseISA) {{
-    // 'Store' formatındaki SFK talimatları için genel bir şablon.
-    // (SFK_SPILL ve gelecekteki SFK_KILL için kullanılacak)
-    class {name}(BaseISA.MemWrite):
-        __init__ = '''
-            super().__init__()
-            self.name = "{name}"
-            self.className = "{name}"
-        '''
-        // Bu talimatın assembly'de nasıl görüneceğini tanımlar.
-        // RISC-V S-formatına uygun: komut rs2, imm(rs1)
-        disasm = '{{
-            return f"{{self.name}} {{self.rs2_reg}}, {{self.imm_val}}({{self.rs1_reg}})"
-        }}'
-
-    // Bu şablonu kullanan bir talimatın tanımını yapar.
-    defInst = '''
-        {name} {{
-            // Hata almamızı engelleyen en kritik blok.
-            // MemWrite'dan miras aldığı için bu blok zorunludur.
-            // Asıl işlevi C++'da doldurulacak.
-            memacc_code = """
-                // C++ execution code will be handled here later.
-            """
-        }};
-    '''
+def format SFK_SPILL(memacc_code, *opt_flags) {{
+    # S-type instruction format kullan
+    imm_code = """
+        imm = sext<12>(IMM5 | (IMM7 << 5));
+    """
+    ea_code = """
+        EA = Rs1 + imm;
+    """
+    
+    (header_output, decoder_output, decode_block, exec_output) = \
+        LoadStoreBase(name, Name, imm_code, ea_code, memacc_code, 
+                      mem_flags=[], inst_flags=opt_flags, 
+                      base_class='RiscvStaticInst', 
+                      exec_template_base='Store')
 }};
 
-def format SfkLoad(name, BaseISA) {{
-    // 'Load' formatındaki SFK talimatları için genel bir şablon.
-    // (SFK_FILL için kullanılacak)
-    class {name}(BaseISA.MemRead):
-        __init__ = '''
-            super().__init__()
-            self.name = "{name}"
-            self.className = "{name}"
-        '''
-        // Bu talimatın assembly'de nasıl görüneceğini tanımlar.
-        // RISC-V I-formatına uygun: komut rd, imm(rs1)
-        disasm = '{{
-            return f"{{self.name}} {{self.rd_reg}}, {{self.imm_val}}({{self.rs1_reg}})"
-        }}'
-
-    defInst = '''
-        {name} {{
-            // Hata almamızı engelleyen en kritik blok.
-            // MemRead'dan miras aldığı için bu blok zorunludur.
-            memacc_code = """
-                // C++ execution code will be handled here later.
-            """
-        }};
-    '''
+def format SFK_FILL(memacc_code, *opt_flags) {{
+    # I-type instruction format kullan
+    imm_code = """
+        imm = sext<12>(IMM12);
+    """
+    ea_code = """
+        EA = Rs1 + imm;
+    """
+    
+    (header_output, decoder_output, decode_block, exec_output) = \
+        LoadStoreBase(name, Name, imm_code, ea_code, memacc_code, 
+                      mem_flags=[], inst_flags=opt_flags, 
+                      base_class='RiscvStaticInst', 
+                      exec_template_base='Load')
 }};
