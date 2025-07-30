@@ -57,7 +57,7 @@ namespace RiscvISA;
 ##include "formats/formats.isa"
 
 //Include the Spill-Fill-Kill formats
-##include "sfka.isa"
+//##include "sfka.isa"
 
 //Include the decoder definition
 ##include "decoder.isa"
