@@ -1,7 +1,4 @@
-// -*- mode:c++ -*-
-
-// Copyright (c) 2015 RISC-V Foundation
-// Copyright (c) 2016 The University of Virginia
+// Copyright (c) 2024 The gem5 Project
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,37 +24,41 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-////////////////////////////////////////////////////////////////////
-//
-// RISCV ISA description file.
-//
-////////////////////////////////////////////////////////////////////
+// sfka.isa - ŞABLON DOSYASI
+def format SfkMem(name, BaseISA) {{
+    class {name}(BaseISA.MemWrite):
+        __init__ = '''
+            super().__init__()
+            self.name = "{name}"
+            self.className = "{name}"
+        '''
+        disasm = ' return f"{self.name} {self.rs2_reg}, {self.imm_val}({self.rs1_reg})" '
 
-//Include the C++ include directives
-##include "includes.isa"
+    defInst = '''
+        {name} {{
+            (in, "Rs1", IntReg),
+            (in, "Rs2", IntReg),
+            (out, "Mem", MemOp)
+            memacc_code = """ /* Şimdilik boş */ """
+        }};
+    '''
+}};
 
-////////////////////////////////////////////////////////////////////
-//
-// Namespace statement.  Everything below this line will be in the
-// RiscvISAInst namespace.
-//
+def format SfkLoad(name, BaseISA) {{
+    class {name}(BaseISA.MemRead):
+        __init__ = '''
+            super().__init__()
+            self.name = "{name}"
+            self.className = "{name}"
+        '''
+        disasm = ' return f"{self.name} {self.rd_reg}, {self.imm_val}({self.rs1_reg})" '
 
-namespace RiscvISA;
-
-//Include the bitfield definitions
-##include "bitfields.isa"
-
-//Include the operand_types and operand definitions
-##include "operands.isa"
-
-//Include the definitions for the instruction templates
-##include "templates/templates.isa"
-
-//Include the definitions for the instruction formats
-##include "formats/formats.isa"
-
-//Include the Spill-Fill-Kill formats
-//##include "sfka.isa"
-
-//Include the decoder definition
-##include "decoder.isa"
+    defInst = '''
+        {name} {{
+            (in, "Rs1", IntReg),
+            (in, "Mem", MemOp),
+            (out, "Rd", IntReg)
+            memacc_code = """ /* Şimdilik boş */ """
+        }};
+    '''
+}};
