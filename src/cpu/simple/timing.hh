@@ -46,6 +46,7 @@
 #include "cpu/simple/exec_context.hh"
 #include "cpu/translation.hh"
 #include "params/BaseTimingSimpleCPU.hh"
+#include <unordered_map>
 
 namespace gem5
 {
@@ -59,6 +60,10 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
     void init() override;
 
+    // SFK Instructions support - SADECE BURADA TANIMLI OLMALI
+    std::unordered_map<Addr, uint64_t> spillStore;
+    uint64_t sfp_reg = 0;
+
   private:
 
     /*
@@ -71,6 +76,12 @@ class TimingSimpleCPU : public BaseSimpleCPU
      * been processed, the "outstanding" counter is decremented. Once the
      * count is zero, the entire larger access is complete.
      */
+
+    // Our - SpillStore  
+    //std::unordered_map<Addr, uint64_t> spillStore;
+    //uint64_t sfp_reg;  // Special Frame Pointer register
+    //friend class Sfk_spill;
+
     class SplitMainSenderState : public Packet::SenderState
     {
       public:

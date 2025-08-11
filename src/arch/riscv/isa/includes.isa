@@ -98,6 +98,11 @@ output exec {{
 #include <string>
 #include <vector>
 
+// --- BİZİM EKLEDİĞİMİZ HEADER'LAR ---
+#include "cpu/simple/timing.hh"
+#include "cpu/exec_context.hh"
+// --- BİTİŞ ---
+
 #include "arch/generic/memhelpers.hh"
 #include "arch/riscv/faults.hh"
 #include "arch/riscv/fp_inst.hh"
