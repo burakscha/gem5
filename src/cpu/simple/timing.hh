@@ -63,6 +63,14 @@ class TimingSimpleCPU : public BaseSimpleCPU
     // SFK Instructions support - SADECE BURADA TANIMLI OLMALI
     std::unordered_map<Addr, uint64_t> spillStore;
     uint64_t sfp_reg = 0;
+    
+    // SFK Statistics
+    mutable gem5::statistics::Scalar sfk_spill_count;
+    mutable gem5::statistics::Scalar sfk_fill_count;
+    mutable gem5::statistics::Scalar sfk_kill_count;
+    mutable gem5::statistics::Scalar sfk_fkill_count;
+    mutable gem5::statistics::Scalar sfk_setsfp_count;
+    mutable gem5::statistics::Scalar sfk_incsfp_count;
 
   private:
 

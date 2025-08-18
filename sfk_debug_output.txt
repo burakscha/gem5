@@ -1,0 +1,28 @@
+warn: The se.py script is deprecated. It will be removed in future releases of  gem5.
+Global frequency set at 1000000000000 ticks per second
+warn: No dot file generated. Please install pydot to generate the dot file and pdf.
+src/mem/dram_interface.cc:692: warn: DRAM device capacity (8192 Mbytes) does not match the address range assigned (512 Mbytes)
+src/arch/riscv/isa.cc:320: info: RVV enabled, VLEN = 256 bits, ELEN = 64 bits
+src/arch/riscv/linux/se_workload.cc:73: warn: Unknown operating system; assuming Linux.
+src/base/statistics.hh:279: warn: One of the stats is a legacy stat. Legacy stat is a stat that does not belong to any statistics::Group. Legacy stat is deprecated.
+system.remote_gdb: Listening for connections on port 7000
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 25.0.0.0
+gem5 compiled Aug 18 2025 17:20:01
+gem5 started Aug 18 2025 17:37:37
+gem5 executing on 192.168.1.101, pid 51926
+command line: build/RISCV/gem5.opt configs/deprecated/example/se.py -c test_sfk
+
+**** REAL SIMULATION ****
+SFK_SETSFP #1: Value=0x1000
+SFK_INCSFP #1: Result=0x1100
+SFK_SPILL #1: Address=0x2000, Data=0x2000
+SFK_SPILL #2: Address=0x2008, Data=0x2008
+SFK_FILL #1: Address=0x2000 -> Data=0xDEADBEEF
+SFK_FILL #2: Address=0x2008 -> Data=0xCAFEBABE
+SFK_KILL #1: Address=0x2000
+  -> Killed address 0x2000
+SFK_FILL #3: Address=0x2000 -> Data=0x0 (after kill)
+Exiting @ tick 19000 because exiting with last active thread context

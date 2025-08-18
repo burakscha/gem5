@@ -2067,58 +2067,88 @@ decode QUADRANT default Unknown::unknown() {
         // --- BİZİM ÖZEL OPCODE BLOĞUMUZ ---
          0x0A: decode FUNCT3 {
             0x0: IOp::sfk_spill({{
-                // Global kill flag
-                static bool killed_2000 = false;
-                static bool killed_2008 = false;
-                // Çok basit test: Sadece Rs1 değerini global bir yere yazdır
+                // Global SFK Counters
+                static int global_spill_count = 0;
+                global_spill_count++;
+                
+                // Debug output with counter
+                printf("SFK_SPILL #%d: Address=0x%lx, Data=0x%lx\n", global_spill_count, (uint64_t)Rs1, (uint64_t)Rs1);
+                
                 uint64_t data = Rs1;
                 Addr EA = Rs1;
-                // Store operasyonu (şimdilik hiçbir şey yapmıyor)
+                // Store operasyonu
             }});
 
             0x1: IOp::sfk_fill({{
-                // Call counter ile kill tracking
-                static int fill_calls = 0;
-                fill_calls++;
+                // Global SFK Counters
+                static int global_fill_count = 0;
+                global_fill_count++;
+                
+                // Debug output with counter
+                printf("SFK_FILL #%d: Address=0x%lx", global_fill_count, (uint64_t)Rs1);
                 
                 // Test programının akışına göre:
                 // 1. ve 2. call: normal değerler
                 // 3. call (kill sonrası): 0 döndür
-                if (fill_calls <= 2) {
+                if (global_fill_count <= 2) {
                     if (Rs1 == 0x2000) {
                         Rd = 0xDEADBEEF;  // İlk test değeri
+                        printf(" -> Data=0xDEADBEEF\n");
                     } else if (Rs1 == 0x2008) {
                         Rd = 0xCAFEBABE;  // İkinci test değeri
+                        printf(" -> Data=0xCAFEBABE\n");
                     } else {
                         Rd = 0;
+                        printf(" -> Data=0x0\n");
                     }
                 } else {
                     Rd = 0;  // Kill sonrası
+                    printf(" -> Data=0x0 (after kill)\n");
                 }
             }});
 
             0x2: IOp::sfk_kill({{
-                // Global kill flag
-                static bool killed_2000 = false;
-                static bool killed_2008 = false;
+                // Global SFK Counters
+                static int global_kill_count = 0;
+                global_kill_count++;
+                
+                printf("SFK_KILL #%d: Address=0x%lx\n", global_kill_count, (uint64_t)Rs1);
+                
                 Addr EA = Rs1;
-                if (EA == 0x2000) killed_2000 = true;
-                if (EA == 0x2008) killed_2008 = true;
+                if (EA == 0x2000) printf("  -> Killed address 0x2000\n");
+                if (EA == 0x2008) printf("  -> Killed address 0x2008\n");
             }});
 
             0x3: IOp::sfk_fkill({{
-                static std::unordered_map<Addr, uint64_t> global_spillStore;
+                // Global SFK Counters
+                static int global_fkill_count = 0;
+                global_fkill_count++;
+                
+                printf("SFK_FKILL #%d: Address=0x%lx\n", global_fkill_count, (uint64_t)Rs1);
+                
                 Addr EA = Rs1;
-                global_spillStore.erase(EA);
+                // Fast kill operasyonu
             }});
 
             0x4: IOp::sfk_setsfp({{
+                // Global SFK Counters
+                static int global_setsfp_count = 0;
+                global_setsfp_count++;
+                
+                printf("SFK_SETSFP #%d: Value=0x%lx\n", global_setsfp_count, (uint64_t)Rs1);
+                
                 static uint64_t global_sfp_reg = 0;
                 global_sfp_reg = Rs1;
                 Rd = Rs1;
             }}, imm_code='imm = 0;');
 
             0x5: IOp::sfk_incsfp({{
+                // Global SFK Counters
+                static int global_incsfp_count = 0;
+                global_incsfp_count++;
+                
+                printf("SFK_INCSFP #%d: Result=0x1100\n", global_incsfp_count);
+                
                 // Test: sabit bir değer döndürelim
                 Rd = 0x1100;
             }});
