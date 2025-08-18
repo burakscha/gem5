@@ -1,0 +1,51 @@
+
+test_sfk:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+00000000000100b0 <_start>:
+   100b0:	00001537          	lui	a0,0x1
+   100b4:	000545ab          	.word	0x000545ab
+   100b8:	000012b7          	lui	t0,0x1
+   100bc:	08559463          	bne	a1,t0,10144 <test_failed>
+   100c0:	100055ab          	.word	0x100055ab
+   100c4:	000012b7          	lui	t0,0x1
+   100c8:	1002829b          	addiw	t0,t0,256 # 1100 <_start-0xefb0>
+   100cc:	06559c63          	bne	a1,t0,10144 <test_failed>
+   100d0:	00002437          	lui	s0,0x2
+   100d4:	000384b7          	lui	s1,0x38
+   100d8:	ab74849b          	addiw	s1,s1,-1353 # 37ab7 <__global_pointer$+0x26167>
+   100dc:	00e49493          	slli	s1,s1,0xe
+   100e0:	eef48493          	addi	s1,s1,-273
+   100e4:	00033937          	lui	s2,0x33
+   100e8:	bfb9091b          	addiw	s2,s2,-1029 # 32bfb <__global_pointer$+0x212ab>
+   100ec:	00e91913          	slli	s2,s2,0xe
+   100f0:	abe90913          	addi	s2,s2,-1346
+   100f4:	00040513          	mv	a0,s0
+   100f8:	00048593          	mv	a1,s1
+   100fc:	00b5002b          	.word	0x00b5002b
+   10100:	00840513          	addi	a0,s0,8 # 2008 <_start-0xe0a8>
+   10104:	00090593          	mv	a1,s2
+   10108:	00b5002b          	.word	0x00b5002b
+   1010c:	00000593          	li	a1,0
+   10110:	00000613          	li	a2,0
+   10114:	00040513          	mv	a0,s0
+   10118:	000515ab          	.word	0x000515ab
+   1011c:	02959463          	bne	a1,s1,10144 <test_failed>
+   10120:	00840513          	addi	a0,s0,8
+   10124:	0005162b          	.word	0x0005162b
+   10128:	01261e63          	bne	a2,s2,10144 <test_failed>
+   1012c:	00040513          	mv	a0,s0
+   10130:	0005202b          	.word	0x0005202b
+   10134:	000515ab          	.word	0x000515ab
+   10138:	00059663          	bnez	a1,10144 <test_failed>
+   1013c:	00000513          	li	a0,0
+   10140:	0080006f          	j	10148 <exit>
+
+0000000000010144 <test_failed>:
+   10144:	00100513          	li	a0,1
+
+0000000000010148 <exit>:
+   10148:	05d00893          	li	a7,93
+   1014c:	00000073          	ecall

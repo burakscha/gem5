@@ -77,11 +77,6 @@ class TimingSimpleCPU : public BaseSimpleCPU
      * count is zero, the entire larger access is complete.
      */
 
-    // Our - SpillStore  
-    //std::unordered_map<Addr, uint64_t> spillStore;
-    //uint64_t sfp_reg;  // Special Frame Pointer register
-    //friend class Sfk_spill;
-
     class SplitMainSenderState : public Packet::SenderState
     {
       public:
