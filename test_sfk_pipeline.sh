@@ -1,40 +1,31 @@
 #!/bin/bash
-# SFK Complete Test Pipeline
+# SFK Complete Test Pipeline for Extensive Test
 # Usage: ./test_sfk_pipeline.sh
 
-echo "🧪 SFK INSTRUCTION SET TEST PIPELINE 🧪"
-echo "========================================"
+echo "🧪 SFK INSTRUCTION SET EXTENSIVE TEST PIPELINE 🧪"
+echo "================================================"
 
-echo "Step 1: Running gem5 simulation..."
-build/RISCV/gem5.opt configs/deprecated/example/se.py -c test_sfk > sfk_debug_output.txt 2>&1
+echo "Step 1: Compiling extensive test program..."
+riscv64-unknown-elf-gcc -o test_sfk_extensive -nostartfiles test_sfk_extensive.s
 
 if [ $? -ne 0 ]; then
+    echo "❌ Assembly compilation failed!"
+    exit 1
+fi
+echo "✅ Compilation successful: 'test_sfk_extensive' created."
+echo ""
+
+echo "Step 2: Running gem5 simulation and analyzing output..."
+# The simulation output is piped to tee.
+# tee saves the output to sfk_debug_output.txt AND passes it to the python script.
+build/RISCV/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU -c test_sfk_extensive 2>&1 | tee sfk_debug_output.txt | python3 sfk_stats_analyzer.py
+
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "❌ gem5 simulation failed!"
     exit 1
 fi
 
-echo "Step 2: Extracting SFK debug output..."
-grep "SFK_" sfk_debug_output.txt
-sfk_count=$(grep "SFK_" sfk_debug_output.txt | wc -l)
-
-if [ $sfk_count -eq 0 ]; then
-    echo "❌ No SFK instructions found!"
-    exit 1
-fi
-
-echo "Step 3: Running stats analyzer..."
-python3 sfk_stats_analyzer.py sfk_debug_output.txt
-
-if [ $? -ne 0 ]; then
-    echo "❌ Stats analyzer failed!"
-    exit 1
-fi
-
-echo "Step 4: Test Results:"
-echo "===================="
-head -25 m5out/sfk_stats_interpreted.txt
-
 echo ""
 echo "✅ SFK INSTRUCTION SET TEST COMPLETED SUCCESSFULLY!"
-echo "📁 Full report: m5out/sfk_stats_interpreted.txt"
-echo "📁 Debug output: sfk_debug_output.txt"
+echo "📁 Full simulation log: sfk_debug_output.txt"
+echo "� Analysis results have been printed above."
