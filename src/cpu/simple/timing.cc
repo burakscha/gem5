@@ -44,6 +44,7 @@
 #include "arch/generic/decoder.hh"
 #include "base/compiler.hh"
 #include "cpu/exetrace.hh"
+#include "cpu/simple/spill_detector.hh"
 #include "debug/Config.hh"
 #include "debug/Drain.hh"
 #include "debug/ExecFaulting.hh"
@@ -463,6 +464,9 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
     if (traceData)
         traceData->setMem(addr, size, flags);
 
+    // REGISTER SPILL DETECTION: Track this load instruction
+    spillDetector.onLoadInstruction(addr, pc, curTick(), size);
+
     RequestPtr req = std::make_shared<Request>(
         addr, size, flags, dataRequestorId(), pc, thread->contextId());
     req->setByteEnable(byte_enable);
@@ -544,6 +548,9 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
 
     if (traceData)
         traceData->setMem(addr, size, flags);
+
+    // REGISTER SPILL DETECTION: Track this store instruction
+    spillDetector.onStoreInstruction(addr, pc, curTick(), size);
 
     RequestPtr req = std::make_shared<Request>(
         addr, size, flags, dataRequestorId(), pc, thread->contextId());
@@ -798,8 +805,14 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
         return;
     }
 
-    if (!t_info.stayAtPC)
+    if (!t_info.stayAtPC) {
+        // REGISTER SPILL DETECTION: Track instruction execution
+        SimpleThread* thread = t_info.thread;
+        const Addr pc = thread->pcState().instAddr();
+        spillDetector.onInstructionExecute(pc, curTick());
+        
         advancePC(fault);
+    }
 
     if (tryCompleteDrain())
         return;
