@@ -11,6 +11,31 @@
 #include <iostream>
 #include <iomanip>
 
+/*
+ * This file implements a simple register spill detection system.
+ * It tracks memory accesses and identifies potential spill patterns
+ * based on the observed load/store behavior.
+ * 
+ * This is where the real-time register spill detection happens.
+ * It is part of the gem5 simulator’s core code (not the test program or Python).
+ * It tracks every store and load instruction during simulation, using a C++ map to find store-load patterns that indicate register spills.
+ * When a spill is detected, it logs the event (e.g., to cpp_spill_log.txt).
+ * 
+ * === Important Notes ===
+ * 
+ * ! The CPU model (timing.cc) calls the spill detector every time a store or load instruction is executed, for every instruction in your program.
+ * 
+ * ! The spill detector keeps track of which memory addresses were recently written to (store) and then checks if a later load accesses the same address.
+ * 
+ * ! If a store is followed by a load to the same address (within a certain window), it is counted as a potential register spill.
+ * 
+ * --------------------------
+ * 
+ * The load does not have to come immediately after the store. The spill detector keeps track of recent stores, and if a load to the same address happens later—even after several other instructions—it can still detect the spill.
+ * 
+ * This is why the detector uses a map (like a table) to remember all recent store addresses. When a load happens, it checks if there was a store to that address earlier (within a reasonable window). If so, it counts as a potential register spill, even if other instructions happened in between.
+ */
+
 namespace gem5
 {
 

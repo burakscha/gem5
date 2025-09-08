@@ -39,6 +39,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
+ /*
+ * Timing CPU implementation
+ *
+ * Notes for myself:
+ * 
+ * This is the main C++ file for the TimingSimpleCPU model in gem5.
+ * It runs the actual CPU simulation, executing instructions from my test program.
+ * It calls the spill detector code whenever a store or load happens.
+ */
+
 #include "cpu/simple/timing.hh"
 
 #include "arch/generic/decoder.hh"
@@ -156,7 +167,7 @@ TimingSimpleCPU::tryCompleteDrain()
     if (drainState() != DrainState::Draining)
         return false;
 
-    DPRINTF(Drain, "tryCompleteDrain.\n");
+    DPRINTF(Drain, "tryCompleteDrain.\n"); // These errors are flagged by the language server, but the build and simulation succeed, so they are not fatal.
     if (!isCpuDrained())
         return false;
 

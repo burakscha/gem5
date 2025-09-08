@@ -6,6 +6,14 @@ that tracks store-load patterns using std::unordered_map as requested.
 
 Usage:
 ./build/X86/gem5.fast hello_world/sim_cpp.py
+
+
+
+Notes for myself:
+- a configuration script for gem5.
+- sets up the simulation environment: CPU type, memory, cache, and which binary to run (our register pressure test program).
+- tells gem5: "Run the simulation using these settings and this test program."
+- does not do any spill detection or low-level simulation itself—it just sets up and starts the process.
 """
 
 from gem5.components.boards.simple_board import SimpleBoard
@@ -50,7 +58,7 @@ board.set_se_binary_workload(
 # Run the simulation with integrated C++ spill detector
 simulator = Simulator(board=board)
 
-print("🚀 Starting simulation with C++ spill detection (Approach B)")
+print("🚀 Starting simulation with C++ spill detection (Approach B - low-level simulation)")
 print("📝 The C++ SpillDetector will track every store-load pattern in real-time")
 
 simulator.run()
@@ -62,4 +70,4 @@ print(
 )
 
 print("💾 C++ spill detection results saved to m5out/cpp_spill_log.txt")
-print("🎯 Approach B (C++ instruction-level analysis) completed!")
+print("🎯 C++ instruction-level analysis completed!")
