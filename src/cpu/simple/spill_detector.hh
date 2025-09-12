@@ -88,6 +88,7 @@ class SpillDetector
     void cleanupOldStores(Tick current_tick);
     bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick);
     void writeSpillToLog(const SpillEvent& spill);
+    void writeLogHeader();
 
   public:
     SpillDetector();
@@ -119,14 +120,9 @@ class SpillDetector
     uint64_t getTotalLoads() const { return total_loads; }
     
     /**
-     * Print comprehensive spill report
+     * Generate comprehensive spill report (console + file)
      */
     void printSpillReport();
-    
-    /**
-     * Write detailed spill log to file
-     */
-    void writeSpillReport(const std::string& filename);
     
     /**
      * Get spill rate as percentage

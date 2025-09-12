@@ -97,6 +97,8 @@ TimingSimpleCPU::TimingSimpleCPU(const BaseTimingSimpleCPUParams &p)
 
 TimingSimpleCPU::~TimingSimpleCPU()
 {
+    // Generate final spill detection report
+    spillDetector.printSpillReport();
 }
 
 DrainState
@@ -111,10 +113,12 @@ TimingSimpleCPU::drain()
     if (_status == Idle ||
         (_status == BaseSimpleCPU::Running && isCpuDrained())) {
         DPRINTF(Drain, "No need to drain.\n");
+        spillDetector.printSpillReport(); // Generate final spill report during drain
         activeThreads.clear();
         return DrainState::Drained;
     } else {
         DPRINTF(Drain, "Requesting drain.\n");
+        spillDetector.printSpillReport(); // Generate final spill report during drain
 
         // The fetch event can become descheduled if a drain didn't
         // succeed on the first attempt. We need to reschedule it if
@@ -172,6 +176,7 @@ TimingSimpleCPU::tryCompleteDrain()
         return false;
 
     DPRINTF(Drain, "CPU done draining, processing drain event\n");
+    spillDetector.printSpillReport(); // Generate final spill report when draining completes
     signalDrainDone();
 
     return true;
