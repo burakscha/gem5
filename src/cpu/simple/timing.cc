@@ -99,8 +99,6 @@ TimingSimpleCPU::~TimingSimpleCPU()
 {
     // Generate final spill detection report
     spillDetector.printSpillReport();
-    // Generate advanced statistics file (similar to stats.txt)
-    spillDetector.generateAdvancedStatisticsFile();
 }
 
 DrainState
@@ -116,13 +114,11 @@ TimingSimpleCPU::drain()
         (_status == BaseSimpleCPU::Running && isCpuDrained())) {
         DPRINTF(Drain, "No need to drain.\n");
         spillDetector.printSpillReport(); // Generate final spill report during drain
-        spillDetector.generateAdvancedStatisticsFile(); // Generate advanced statistics file
         activeThreads.clear();
         return DrainState::Drained;
     } else {
         DPRINTF(Drain, "Requesting drain.\n");
         spillDetector.printSpillReport(); // Generate final spill report during drain
-        spillDetector.generateAdvancedStatisticsFile(); // Generate advanced statistics file
 
         // The fetch event can become descheduled if a drain didn't
         // succeed on the first attempt. We need to reschedule it if
@@ -181,7 +177,6 @@ TimingSimpleCPU::tryCompleteDrain()
 
     DPRINTF(Drain, "CPU done draining, processing drain event\n");
     spillDetector.printSpillReport(); // Generate final spill report when draining completes
-    spillDetector.generateAdvancedStatisticsFile(); // Generate advanced statistics file
     signalDrainDone();
 
     return true;

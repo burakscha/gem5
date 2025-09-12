@@ -12,8 +12,8 @@
 ──────────────────────────────────────────────────────────────────────
    Line 10 | simInsts                     :       5701.0 (Total instructions)
    Line 11 | simOps                       :      10302.0 (Total ops + micro ops)
-   Line 15 | system.cpu.numCycles         :     909292.0 (CPU cycles)
-   Line 4  | simTicks                     :  454646000.0 (Simulation ticks)
+   Line 15 | system.cpu.numCycles         :      62994.0 (CPU cycles)
+   Line 4  | simTicks                     :   31497000.0 (Simulation ticks)
    Line 29 | commitStats0.numLoadInsts    :       1084.0 (Load instructions)
    Line 30 | commitStats0.numStoreInsts   :        943.0 (Store instructions)
    Line 128| executeStats0.numStoreInsts  :       2027.0 (Executed stores)
@@ -27,8 +27,8 @@
 
 ⚡ PERFORMANCE ANALYSIS:
 ──────────────────────────────────────────────────────────────────────
-   CPI (Cycles Per Instruction)         :      159.134
-   IPC (Instructions Per Cycle)         :     0.006284
+   CPI (Cycles Per Instruction)         :       11.025
+   IPC (Instructions Per Cycle)         :     0.090707
    Spill Rate (Memory Operations)       :        24.72%
    Spill Rate (All Instructions)        :         8.79%
    Memory Intensity                     :        35.56%
@@ -44,17 +44,17 @@
 
 🔍 DETAILED gem5 STATISTICS:
 ──────────────────────────────────────────────────────────────────────
-   finalTick                                          :     454646000.0
-   hostInstRate                                       :        325344.0
-   hostMemory                                         :     404960448.0
-   hostOpRate                                         :        587812.0
+   finalTick                                          :      31497000.0
+   hostInstRate                                       :        355225.0
+   hostMemory                                         :     405225632.0
+   hostOpRate                                         :        641709.0
    hostSeconds                                        :            0.02
-   hostTickRate                                       :   25973834552.0
+   hostTickRate                                       :    1965736753.0
    simFreq                                            : 1000000000000.0
    simInsts                                           :          5701.0
    simOps                                             :         10302.0
-   simSeconds                                         :        0.000455
-   simTicks                                           :     454646000.0
+   simSeconds                                         :         3.1e-05
+   simTicks                                           :      31497000.0
    system.clk_domain.clock                            :          1000.0
    system.cpu.commitStats0.committedControl::IsCall   :           112.0
    system.cpu.commitStats0.committedControl::IsCondControl :           986.0
@@ -141,8 +141,8 @@
    system.cpu.commitStats0.committedInstType::SimdWholeRegisterLoad :             0.0
    system.cpu.commitStats0.committedInstType::SimdWholeRegisterStore :             0.0
    system.cpu.commitStats0.committedInstType::total   :         10315.0
-   system.cpu.commitStats0.cpi                        :      159.134057
-   system.cpu.commitStats0.ipc                        :        0.006284
+   system.cpu.commitStats0.cpi                        :       11.024501
+   system.cpu.commitStats0.ipc                        :        0.090707
    system.cpu.commitStats0.numFpInsts                 :             0.0
    system.cpu.commitStats0.numInsts                   :          5714.0
    system.cpu.commitStats0.numInstsNotNOP             :             0.0
@@ -153,10 +153,129 @@
    system.cpu.commitStats0.numOpsNotNOP               :             0.0
    system.cpu.commitStats0.numStoreInsts              :           943.0
    system.cpu.commitStats0.numVecInsts                :             0.0
-   system.cpu.cpi                                     :      159.134057
+   system.cpu.cpi                                     :       11.024501
+   system.cpu.dcache.ReadReq.accesses::cpu.data       :          1084.0
+   system.cpu.dcache.ReadReq.accesses::total          :          1084.0
+   system.cpu.dcache.ReadReq.avgMissLatency::cpu.data :         64250.0
+   system.cpu.dcache.ReadReq.avgMissLatency::total    :         64250.0
+   system.cpu.dcache.ReadReq.avgMshrMissLatency::cpu.data :         63250.0
+   system.cpu.dcache.ReadReq.avgMshrMissLatency::total :         63250.0
+   system.cpu.dcache.ReadReq.hits::cpu.data           :          1028.0
+   system.cpu.dcache.ReadReq.hits::total              :          1028.0
+   system.cpu.dcache.ReadReq.missLatency::cpu.data    :       3598000.0
+   system.cpu.dcache.ReadReq.missLatency::total       :       3598000.0
+   system.cpu.dcache.ReadReq.missRate::cpu.data       :        0.051661
+   system.cpu.dcache.ReadReq.missRate::total          :        0.051661
+   system.cpu.dcache.ReadReq.misses::cpu.data         :            56.0
+   system.cpu.dcache.ReadReq.misses::total            :            56.0
+   system.cpu.dcache.ReadReq.mshrMissLatency::cpu.data :       3542000.0
+   system.cpu.dcache.ReadReq.mshrMissLatency::total   :       3542000.0
+   system.cpu.dcache.ReadReq.mshrMissRate::cpu.data   :        0.051661
+   system.cpu.dcache.ReadReq.mshrMissRate::total      :        0.051661
+   system.cpu.dcache.ReadReq.mshrMisses::cpu.data     :            56.0
+   system.cpu.dcache.ReadReq.mshrMisses::total        :            56.0
+   system.cpu.dcache.WriteReq.accesses::cpu.data      :           941.0
+   system.cpu.dcache.WriteReq.accesses::total         :           941.0
+   system.cpu.dcache.WriteReq.avgMissLatency::cpu.data :    56316.455696
+   system.cpu.dcache.WriteReq.avgMissLatency::total   :    56316.455696
+   system.cpu.dcache.WriteReq.avgMshrMissLatency::cpu.data :    55316.455696
+   system.cpu.dcache.WriteReq.avgMshrMissLatency::total :    55316.455696
+   system.cpu.dcache.WriteReq.hits::cpu.data          :           862.0
+   system.cpu.dcache.WriteReq.hits::total             :           862.0
+   system.cpu.dcache.WriteReq.missLatency::cpu.data   :       4449000.0
+   system.cpu.dcache.WriteReq.missLatency::total      :       4449000.0
+   system.cpu.dcache.WriteReq.missRate::cpu.data      :        0.083953
+   system.cpu.dcache.WriteReq.missRate::total         :        0.083953
+   system.cpu.dcache.WriteReq.misses::cpu.data        :            79.0
+   system.cpu.dcache.WriteReq.misses::total           :            79.0
+   system.cpu.dcache.WriteReq.mshrMissLatency::cpu.data :       4370000.0
+   system.cpu.dcache.WriteReq.mshrMissLatency::total  :       4370000.0
+   system.cpu.dcache.WriteReq.mshrMissRate::cpu.data  :        0.083953
+   system.cpu.dcache.WriteReq.mshrMissRate::total     :        0.083953
+   system.cpu.dcache.WriteReq.mshrMisses::cpu.data    :            79.0
+   system.cpu.dcache.WriteReq.mshrMisses::total       :            79.0
+   system.cpu.dcache.avgBlocked::no_mshrs             :             nan
+   system.cpu.dcache.avgBlocked::no_targets           :             nan
+   system.cpu.dcache.blockedCauses::no_mshrs          :             0.0
+   system.cpu.dcache.blockedCauses::no_targets        :             0.0
+   system.cpu.dcache.blockedCycles::no_mshrs          :             0.0
+   system.cpu.dcache.blockedCycles::no_targets        :             0.0
+   system.cpu.dcache.demandAccesses::cpu.data         :          2025.0
+   system.cpu.dcache.demandAccesses::total            :          2025.0
+   system.cpu.dcache.demandAvgMissLatency::cpu.data   :    59607.407407
+   system.cpu.dcache.demandAvgMissLatency::total      :    59607.407407
+   system.cpu.dcache.demandAvgMshrMissLatency::cpu.data :    58607.407407
+   system.cpu.dcache.demandAvgMshrMissLatency::total  :    58607.407407
+   system.cpu.dcache.demandHits::cpu.data             :          1890.0
+   system.cpu.dcache.demandHits::total                :          1890.0
+   system.cpu.dcache.demandMissLatency::cpu.data      :       8047000.0
+   system.cpu.dcache.demandMissLatency::total         :       8047000.0
+   system.cpu.dcache.demandMissRate::cpu.data         :        0.066667
+   system.cpu.dcache.demandMissRate::total            :        0.066667
+   system.cpu.dcache.demandMisses::cpu.data           :           135.0
+   system.cpu.dcache.demandMisses::total              :           135.0
+   system.cpu.dcache.demandMshrMissLatency::cpu.data  :       7912000.0
+   system.cpu.dcache.demandMshrMissLatency::total     :       7912000.0
+   system.cpu.dcache.demandMshrMissRate::cpu.data     :        0.066667
+   system.cpu.dcache.demandMshrMissRate::total        :        0.066667
+   system.cpu.dcache.demandMshrMisses::cpu.data       :           135.0
+   system.cpu.dcache.demandMshrMisses::total          :           135.0
+   system.cpu.dcache.overallAccesses::cpu.data        :          2025.0
+   system.cpu.dcache.overallAccesses::total           :          2025.0
+   system.cpu.dcache.overallAvgMissLatency::cpu.data  :    59607.407407
+   system.cpu.dcache.overallAvgMissLatency::total     :    59607.407407
+   system.cpu.dcache.overallAvgMshrMissLatency::cpu.data :    58607.407407
+   system.cpu.dcache.overallAvgMshrMissLatency::total :    58607.407407
+   system.cpu.dcache.overallHits::cpu.data            :          1890.0
+   system.cpu.dcache.overallHits::total               :          1890.0
+   system.cpu.dcache.overallMissLatency::cpu.data     :       8047000.0
+   system.cpu.dcache.overallMissLatency::total        :       8047000.0
+   system.cpu.dcache.overallMissRate::cpu.data        :        0.066667
+   system.cpu.dcache.overallMissRate::total           :        0.066667
+   system.cpu.dcache.overallMisses::cpu.data          :           135.0
+   system.cpu.dcache.overallMisses::total             :           135.0
+   system.cpu.dcache.overallMshrMissLatency::cpu.data :       7912000.0
+   system.cpu.dcache.overallMshrMissLatency::total    :       7912000.0
+   system.cpu.dcache.overallMshrMissRate::cpu.data    :        0.066667
+   system.cpu.dcache.overallMshrMissRate::total       :        0.066667
+   system.cpu.dcache.overallMshrMisses::cpu.data      :           135.0
+   system.cpu.dcache.overallMshrMisses::total         :           135.0
+   system.cpu.dcache.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.dcache.replacements                     :             0.0
+   system.cpu.dcache.tags.ageTaskId_1024::0           :            31.0
+   system.cpu.dcache.tags.ageTaskId_1024::1           :           104.0
+   system.cpu.dcache.tags.avgOccs::cpu.data           :        0.079514
+   system.cpu.dcache.tags.avgOccs::total              :        0.079514
+   system.cpu.dcache.tags.avgRefs                     :            15.0
+   system.cpu.dcache.tags.dataAccesses                :          4185.0
+   system.cpu.dcache.tags.occupancies::cpu.data       :       81.421851
+   system.cpu.dcache.tags.occupanciesTaskId::1024     :           135.0
+   system.cpu.dcache.tags.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.dcache.tags.ratioOccsTaskId::1024       :        0.131836
+   system.cpu.dcache.tags.sampledRefs                 :           135.0
+   system.cpu.dcache.tags.tagAccesses                 :          4185.0
+   system.cpu.dcache.tags.tagsInUse                   :       81.421851
+   system.cpu.dcache.tags.totalRefs                   :          2025.0
+   system.cpu.dcache.tags.warmupTick                  :        148000.0
+   system.cpu.dtb_walker_cache.avgBlocked::no_mshrs   :             nan
+   system.cpu.dtb_walker_cache.avgBlocked::no_targets :             nan
+   system.cpu.dtb_walker_cache.blockedCauses::no_mshrs :             0.0
+   system.cpu.dtb_walker_cache.blockedCauses::no_targets :             0.0
+   system.cpu.dtb_walker_cache.blockedCycles::no_mshrs :             0.0
+   system.cpu.dtb_walker_cache.blockedCycles::no_targets :             0.0
+   system.cpu.dtb_walker_cache.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.dtb_walker_cache.replacements           :             0.0
+   system.cpu.dtb_walker_cache.tags.avgRefs           :             nan
+   system.cpu.dtb_walker_cache.tags.dataAccesses      :             0.0
+   system.cpu.dtb_walker_cache.tags.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.dtb_walker_cache.tags.sampledRefs       :             0.0
+   system.cpu.dtb_walker_cache.tags.tagAccesses       :             0.0
+   system.cpu.dtb_walker_cache.tags.tagsInUse         :             0.0
+   system.cpu.dtb_walker_cache.tags.totalRefs         :             0.0
+   system.cpu.dtb_walker_cache.tags.warmupTick        :             0.0
    system.cpu.exec_context.thread_0.idleFraction      :             0.0
    system.cpu.exec_context.thread_0.notIdleFraction   :             1.0
-   system.cpu.exec_context.thread_0.numBusyCycles     :      909291.998
+   system.cpu.exec_context.thread_0.numBusyCycles     :       62993.998
    system.cpu.exec_context.thread_0.numCallsReturns   :           221.0
    system.cpu.exec_context.thread_0.numIdleCycles     :           0.002
    system.cpu.exec_context.thread_0.numMatAluAccesses :             0.0
@@ -176,116 +295,212 @@
    system.cpu.executeStats0.numNop                    :             0.0
    system.cpu.executeStats0.numStoreInsts             :          2027.0
    system.cpu.executeStats0.numVecAluAccesses         :             0.0
-   system.cpu.fetchStats0.branchRate                  :        0.001436
-   system.cpu.fetchStats0.fetchRate                   :        0.006284
+   system.cpu.fetchStats0.branchRate                  :        0.020732
+   system.cpu.fetchStats0.fetchRate                   :        0.090707
    system.cpu.fetchStats0.numBranches                 :          1306.0
    system.cpu.fetchStats0.numFetchSuspends            :             0.0
    system.cpu.fetchStats0.numInsts                    :          5714.0
    system.cpu.fetchStats0.numOps                      :         10315.0
+   system.cpu.icache.ReadReq.accesses::cpu.inst       :          7286.0
+   system.cpu.icache.ReadReq.accesses::total          :          7286.0
+   system.cpu.icache.ReadReq.avgMissLatency::cpu.inst :    59873.913043
+   system.cpu.icache.ReadReq.avgMissLatency::total    :    59873.913043
+   system.cpu.icache.ReadReq.avgMshrMissLatency::cpu.inst :    58873.913043
+   system.cpu.icache.ReadReq.avgMshrMissLatency::total :    58873.913043
+   system.cpu.icache.ReadReq.hits::cpu.inst           :          7056.0
+   system.cpu.icache.ReadReq.hits::total              :          7056.0
+   system.cpu.icache.ReadReq.missLatency::cpu.inst    :      13771000.0
+   system.cpu.icache.ReadReq.missLatency::total       :      13771000.0
+   system.cpu.icache.ReadReq.missRate::cpu.inst       :        0.031567
+   system.cpu.icache.ReadReq.missRate::total          :        0.031567
+   system.cpu.icache.ReadReq.misses::cpu.inst         :           230.0
+   system.cpu.icache.ReadReq.misses::total            :           230.0
+   system.cpu.icache.ReadReq.mshrMissLatency::cpu.inst :      13541000.0
+   system.cpu.icache.ReadReq.mshrMissLatency::total   :      13541000.0
+   system.cpu.icache.ReadReq.mshrMissRate::cpu.inst   :        0.031567
+   system.cpu.icache.ReadReq.mshrMissRate::total      :        0.031567
+   system.cpu.icache.ReadReq.mshrMisses::cpu.inst     :           230.0
+   system.cpu.icache.ReadReq.mshrMisses::total        :           230.0
+   system.cpu.icache.avgBlocked::no_mshrs             :             nan
+   system.cpu.icache.avgBlocked::no_targets           :             nan
+   system.cpu.icache.blockedCauses::no_mshrs          :             0.0
+   system.cpu.icache.blockedCauses::no_targets        :             0.0
+   system.cpu.icache.blockedCycles::no_mshrs          :             0.0
+   system.cpu.icache.blockedCycles::no_targets        :             0.0
+   system.cpu.icache.demandAccesses::cpu.inst         :          7286.0
+   system.cpu.icache.demandAccesses::total            :          7286.0
+   system.cpu.icache.demandAvgMissLatency::cpu.inst   :    59873.913043
+   system.cpu.icache.demandAvgMissLatency::total      :    59873.913043
+   system.cpu.icache.demandAvgMshrMissLatency::cpu.inst :    58873.913043
+   system.cpu.icache.demandAvgMshrMissLatency::total  :    58873.913043
+   system.cpu.icache.demandHits::cpu.inst             :          7056.0
+   system.cpu.icache.demandHits::total                :          7056.0
+   system.cpu.icache.demandMissLatency::cpu.inst      :      13771000.0
+   system.cpu.icache.demandMissLatency::total         :      13771000.0
+   system.cpu.icache.demandMissRate::cpu.inst         :        0.031567
+   system.cpu.icache.demandMissRate::total            :        0.031567
+   system.cpu.icache.demandMisses::cpu.inst           :           230.0
+   system.cpu.icache.demandMisses::total              :           230.0
+   system.cpu.icache.demandMshrMissLatency::cpu.inst  :      13541000.0
+   system.cpu.icache.demandMshrMissLatency::total     :      13541000.0
+   system.cpu.icache.demandMshrMissRate::cpu.inst     :        0.031567
+   system.cpu.icache.demandMshrMissRate::total        :        0.031567
+   system.cpu.icache.demandMshrMisses::cpu.inst       :           230.0
+   system.cpu.icache.demandMshrMisses::total          :           230.0
+   system.cpu.icache.overallAccesses::cpu.inst        :          7286.0
+   system.cpu.icache.overallAccesses::total           :          7286.0
+   system.cpu.icache.overallAvgMissLatency::cpu.inst  :    59873.913043
+   system.cpu.icache.overallAvgMissLatency::total     :    59873.913043
+   system.cpu.icache.overallAvgMshrMissLatency::cpu.inst :    58873.913043
+   system.cpu.icache.overallAvgMshrMissLatency::total :    58873.913043
+   system.cpu.icache.overallHits::cpu.inst            :          7056.0
+   system.cpu.icache.overallHits::total               :          7056.0
+   system.cpu.icache.overallMissLatency::cpu.inst     :      13771000.0
+   system.cpu.icache.overallMissLatency::total        :      13771000.0
+   system.cpu.icache.overallMissRate::cpu.inst        :        0.031567
+   system.cpu.icache.overallMissRate::total           :        0.031567
+   system.cpu.icache.overallMisses::cpu.inst          :           230.0
+   system.cpu.icache.overallMisses::total             :           230.0
+   system.cpu.icache.overallMshrMissLatency::cpu.inst :      13541000.0
+   system.cpu.icache.overallMshrMissLatency::total    :      13541000.0
+   system.cpu.icache.overallMshrMissRate::cpu.inst    :        0.031567
+   system.cpu.icache.overallMshrMissRate::total       :        0.031567
+   system.cpu.icache.overallMshrMisses::cpu.inst      :           230.0
+   system.cpu.icache.overallMshrMisses::total         :           230.0
+   system.cpu.icache.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.icache.replacements                     :            13.0
+   system.cpu.icache.tags.ageTaskId_1024::0           :            82.0
+   system.cpu.icache.tags.ageTaskId_1024::1           :           135.0
+   system.cpu.icache.tags.avgOccs::cpu.inst           :        0.198204
+   system.cpu.icache.tags.avgOccs::total              :        0.198204
+   system.cpu.icache.tags.avgRefs                     :       31.678261
+   system.cpu.icache.tags.dataAccesses                :         14802.0
+   system.cpu.icache.tags.occupancies::cpu.inst       :       101.48024
+   system.cpu.icache.tags.occupanciesTaskId::1024     :           217.0
+   system.cpu.icache.tags.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.icache.tags.ratioOccsTaskId::1024       :        0.423828
+   system.cpu.icache.tags.sampledRefs                 :           230.0
+   system.cpu.icache.tags.tagAccesses                 :         14802.0
+   system.cpu.icache.tags.tagsInUse                   :       101.48024
+   system.cpu.icache.tags.totalRefs                   :          7286.0
+   system.cpu.icache.tags.warmupTick                  :         77000.0
+   system.cpu.icache.writebacks::total                :            13.0
+   system.cpu.icache.writebacks::writebacks           :            13.0
    system.cpu.interrupts.clk_domain.clock             :          8000.0
-   system.cpu.ipc                                     :        0.006284
+   system.cpu.ipc                                     :        0.090707
+   system.cpu.itb_walker_cache.avgBlocked::no_mshrs   :             nan
+   system.cpu.itb_walker_cache.avgBlocked::no_targets :             nan
+   system.cpu.itb_walker_cache.blockedCauses::no_mshrs :             0.0
+   system.cpu.itb_walker_cache.blockedCauses::no_targets :             0.0
+   system.cpu.itb_walker_cache.blockedCycles::no_mshrs :             0.0
+   system.cpu.itb_walker_cache.blockedCycles::no_targets :             0.0
+   system.cpu.itb_walker_cache.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.itb_walker_cache.replacements           :             0.0
+   system.cpu.itb_walker_cache.tags.avgRefs           :             nan
+   system.cpu.itb_walker_cache.tags.dataAccesses      :             0.0
+   system.cpu.itb_walker_cache.tags.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.cpu.itb_walker_cache.tags.sampledRefs       :             0.0
+   system.cpu.itb_walker_cache.tags.tagAccesses       :             0.0
+   system.cpu.itb_walker_cache.tags.tagsInUse         :             0.0
+   system.cpu.itb_walker_cache.tags.totalRefs         :             0.0
+   system.cpu.itb_walker_cache.tags.warmupTick        :             0.0
    system.cpu.mmu.dtb.rdAccesses                      :          1084.0
    system.cpu.mmu.dtb.rdMisses                        :            11.0
-   system.cpu.mmu.dtb.walker.power_state.pwrStateResidencyTicks::UNDEFINED :     454646000.0
+   system.cpu.mmu.dtb.walker.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
    system.cpu.mmu.dtb.wrAccesses                      :           943.0
    system.cpu.mmu.dtb.wrMisses                        :             9.0
    system.cpu.mmu.itb.rdAccesses                      :             0.0
    system.cpu.mmu.itb.rdMisses                        :             0.0
-   system.cpu.mmu.itb.walker.power_state.pwrStateResidencyTicks::UNDEFINED :     454646000.0
+   system.cpu.mmu.itb.walker.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
    system.cpu.mmu.itb.wrAccesses                      :          7286.0
    system.cpu.mmu.itb.wrMisses                        :            37.0
-   system.cpu.numCycles                               :        909292.0
+   system.cpu.numCycles                               :         62994.0
    system.cpu.numWorkItemsCompleted                   :             0.0
    system.cpu.numWorkItemsStarted                     :             0.0
-   system.cpu.power_state.pwrStateResidencyTicks::ON  :     454646000.0
+   system.cpu.power_state.pwrStateResidencyTicks::ON  :      31497000.0
    system.cpu.thread_0.numInsts                       :             0.0
    system.cpu.thread_0.numMemRefs                     :             0.0
    system.cpu.thread_0.numOps                         :             0.0
    system.cpu.workload.numSyscalls                    :            11.0
    system.cpu_clk_domain.clock                        :           500.0
    system.cpu_voltage_domain.voltage                  :             1.0
-   system.mem_ctrls.avgGap                            :        48815.38
-   system.mem_ctrls.avgPriority_cpu.data::samples     :          1042.0
-   system.mem_ctrls.avgPriority_cpu.inst::samples     :          7286.0
-   system.mem_ctrls.avgRdBWSys                        : 143969154.0231301
+   system.mem_ctrls.avgGap                            :         82587.3
+   system.mem_ctrls.avgPriority_cpu.data::samples     :           135.0
+   system.mem_ctrls.avgPriority_cpu.inst::samples     :           230.0
+   system.mem_ctrls.avgPriority_writebacks::samples   :            13.0
+   system.mem_ctrls.avgRdBWSys                        : 741657935.6764137
    system.mem_ctrls.avgRdQLen                         :             1.0
-   system.mem_ctrls.avgWrBWSys                        : 15748516.42816609
-   system.mem_ctrls.avgWrQLen                         :           23.46
-   system.mem_ctrls.bytesReadSys                      :         65455.0
-   system.mem_ctrls.bytesReadWrQ                      :         10432.0
-   system.mem_ctrls.bytesWrittenSys                   :          7160.0
+   system.mem_ctrls.avgWrBWSys                        : 26415214.14737912
+   system.mem_ctrls.avgWrQLen                         :            5.56
+   system.mem_ctrls.bytesReadSys                      :         23360.0
+   system.mem_ctrls.bytesReadWrQ                      :             0.0
+   system.mem_ctrls.bytesWrittenSys                   :           832.0
    system.mem_ctrls.dram.avgBusLat                    :          5000.0
-   system.mem_ctrls.dram.avgMemAccLat                 :        22311.26
-   system.mem_ctrls.dram.avgQLat                      :         3561.26
-   system.mem_ctrls.dram.avgRdBW                      :      1155.29005
-   system.mem_ctrls.dram.avgWrBW                      :       13.513811
-   system.mem_ctrls.dram.busUtil                      :            9.13
-   system.mem_ctrls.dram.busUtilRead                  :            9.03
-   system.mem_ctrls.dram.busUtilWrite                 :            0.11
-   system.mem_ctrls.dram.bwInstRead::cpu.inst         :     128205241.0
-   system.mem_ctrls.dram.bwInstRead::total            :     128205241.0
-   system.mem_ctrls.dram.bwRead::cpu.data             :      15763913.0
-   system.mem_ctrls.dram.bwRead::cpu.inst             :     128205241.0
-   system.mem_ctrls.dram.bwRead::total                :     143969154.0
-   system.mem_ctrls.dram.bwTotal::cpu.data            :      31512429.0
-   system.mem_ctrls.dram.bwTotal::cpu.inst            :     128205241.0
-   system.mem_ctrls.dram.bwTotal::total               :     159717670.0
-   system.mem_ctrls.dram.bwWrite::cpu.data            :      15748516.0
-   system.mem_ctrls.dram.bwWrite::total               :      15748516.0
-   system.mem_ctrls.dram.bytesInstRead::cpu.inst      :         58288.0
-   system.mem_ctrls.dram.bytesInstRead::total         :         58288.0
-   system.mem_ctrls.dram.bytesPerActivate::0-127      :           134.0
-   system.mem_ctrls.dram.bytesPerActivate::1024-1151  :           356.0
-   system.mem_ctrls.dram.bytesPerActivate::128-255    :            68.0
-   system.mem_ctrls.dram.bytesPerActivate::256-383    :            77.0
-   system.mem_ctrls.dram.bytesPerActivate::384-511    :            58.0
-   system.mem_ctrls.dram.bytesPerActivate::512-639    :            56.0
-   system.mem_ctrls.dram.bytesPerActivate::640-767    :            45.0
-   system.mem_ctrls.dram.bytesPerActivate::768-895    :            27.0
-   system.mem_ctrls.dram.bytesPerActivate::896-1023   :            19.0
-   system.mem_ctrls.dram.bytesPerActivate::gmean      :       436.78858
-   system.mem_ctrls.dram.bytesPerActivate::mean       :      629.942857
-   system.mem_ctrls.dram.bytesPerActivate::samples    :           840.0
-   system.mem_ctrls.dram.bytesPerActivate::stdev      :      391.374603
-   system.mem_ctrls.dram.bytesPerActivate::total      :           840.0
-   system.mem_ctrls.dram.bytesRead::cpu.data          :          7167.0
-   system.mem_ctrls.dram.bytesRead::cpu.inst          :         58288.0
-   system.mem_ctrls.dram.bytesRead::total             :         65455.0
-   system.mem_ctrls.dram.bytesWritten::cpu.data       :          7160.0
-   system.mem_ctrls.dram.bytesWritten::total          :          7160.0
-   system.mem_ctrls.dram.dramBytesRead                :        525248.0
-   system.mem_ctrls.dram.dramBytesWritten             :          6144.0
-   system.mem_ctrls.dram.numReads::cpu.data           :          1084.0
-   system.mem_ctrls.dram.numReads::cpu.inst           :          7286.0
-   system.mem_ctrls.dram.numReads::total              :          8370.0
-   system.mem_ctrls.dram.numWrites::cpu.data          :           941.0
-   system.mem_ctrls.dram.numWrites::total             :           941.0
-   system.mem_ctrls.dram.pageHitRate                  :           89.82
+   system.mem_ctrls.dram.avgMemAccLat                 :        27394.52
+   system.mem_ctrls.dram.avgQLat                      :         8644.52
+   system.mem_ctrls.dram.avgRdBW                      :      741.657936
+   system.mem_ctrls.dram.avgWrBW                      :             0.0
+   system.mem_ctrls.dram.busUtil                      :            5.79
+   system.mem_ctrls.dram.busUtilRead                  :            5.79
+   system.mem_ctrls.dram.busUtilWrite                 :             0.0
+   system.mem_ctrls.dram.bwInstRead::cpu.inst         :     467346096.0
+   system.mem_ctrls.dram.bwInstRead::total            :     467346096.0
+   system.mem_ctrls.dram.bwRead::cpu.data             :     274311839.0
+   system.mem_ctrls.dram.bwRead::cpu.inst             :     467346096.0
+   system.mem_ctrls.dram.bwRead::total                :     741657936.0
+   system.mem_ctrls.dram.bwTotal::cpu.data            :     274311839.0
+   system.mem_ctrls.dram.bwTotal::cpu.inst            :     467346096.0
+   system.mem_ctrls.dram.bwTotal::total               :     741657936.0
+   system.mem_ctrls.dram.bytesInstRead::cpu.inst      :         14720.0
+   system.mem_ctrls.dram.bytesInstRead::total         :         14720.0
+   system.mem_ctrls.dram.bytesPerActivate::0-127      :            45.0
+   system.mem_ctrls.dram.bytesPerActivate::1024-1151  :             3.0
+   system.mem_ctrls.dram.bytesPerActivate::128-255    :            26.0
+   system.mem_ctrls.dram.bytesPerActivate::256-383    :            20.0
+   system.mem_ctrls.dram.bytesPerActivate::384-511    :             7.0
+   system.mem_ctrls.dram.bytesPerActivate::512-639    :             2.0
+   system.mem_ctrls.dram.bytesPerActivate::640-767    :             2.0
+   system.mem_ctrls.dram.bytesPerActivate::768-895    :             1.0
+   system.mem_ctrls.dram.bytesPerActivate::896-1023   :             2.0
+   system.mem_ctrls.dram.bytesPerActivate::gmean      :      145.069891
+   system.mem_ctrls.dram.bytesPerActivate::mean       :      215.703704
+   system.mem_ctrls.dram.bytesPerActivate::samples    :           108.0
+   system.mem_ctrls.dram.bytesPerActivate::stdev      :      228.436509
+   system.mem_ctrls.dram.bytesPerActivate::total      :           108.0
+   system.mem_ctrls.dram.bytesRead::cpu.data          :          8640.0
+   system.mem_ctrls.dram.bytesRead::cpu.inst          :         14720.0
+   system.mem_ctrls.dram.bytesRead::total             :         23360.0
+   system.mem_ctrls.dram.dramBytesRead                :         23360.0
+   system.mem_ctrls.dram.dramBytesWritten             :             0.0
+   system.mem_ctrls.dram.numReads::cpu.data           :           135.0
+   system.mem_ctrls.dram.numReads::cpu.inst           :           230.0
+   system.mem_ctrls.dram.numReads::total              :           365.0
+   system.mem_ctrls.dram.pageHitRate                  :           70.14
    system.mem_ctrls.dram.peakBW                       :         12800.0
-   system.mem_ctrls.dram.perBankRdBursts::0           :           273.0
-   system.mem_ctrls.dram.perBankRdBursts::1           :             4.0
-   system.mem_ctrls.dram.perBankRdBursts::10          :          1064.0
-   system.mem_ctrls.dram.perBankRdBursts::11          :            59.0
-   system.mem_ctrls.dram.perBankRdBursts::12          :            11.0
-   system.mem_ctrls.dram.perBankRdBursts::13          :           489.0
-   system.mem_ctrls.dram.perBankRdBursts::14          :            78.0
-   system.mem_ctrls.dram.perBankRdBursts::15          :           114.0
-   system.mem_ctrls.dram.perBankRdBursts::2           :           227.0
-   system.mem_ctrls.dram.perBankRdBursts::3           :           102.0
-   system.mem_ctrls.dram.perBankRdBursts::4           :          1620.0
-   system.mem_ctrls.dram.perBankRdBursts::5           :           965.0
-   system.mem_ctrls.dram.perBankRdBursts::6           :          1103.0
-   system.mem_ctrls.dram.perBankRdBursts::7           :           908.0
-   system.mem_ctrls.dram.perBankRdBursts::8           :           701.0
-   system.mem_ctrls.dram.perBankRdBursts::9           :           489.0
-   system.mem_ctrls.dram.perBankWrBursts::0           :             9.0
+   system.mem_ctrls.dram.perBankRdBursts::0           :            30.0
+   system.mem_ctrls.dram.perBankRdBursts::1           :             1.0
+   system.mem_ctrls.dram.perBankRdBursts::10          :            62.0
+   system.mem_ctrls.dram.perBankRdBursts::11          :            14.0
+   system.mem_ctrls.dram.perBankRdBursts::12          :             2.0
+   system.mem_ctrls.dram.perBankRdBursts::13          :            14.0
+   system.mem_ctrls.dram.perBankRdBursts::14          :             5.0
+   system.mem_ctrls.dram.perBankRdBursts::15          :            16.0
+   system.mem_ctrls.dram.perBankRdBursts::2           :             5.0
+   system.mem_ctrls.dram.perBankRdBursts::3           :             8.0
+   system.mem_ctrls.dram.perBankRdBursts::4           :            43.0
+   system.mem_ctrls.dram.perBankRdBursts::5           :            40.0
+   system.mem_ctrls.dram.perBankRdBursts::6           :            13.0
+   system.mem_ctrls.dram.perBankRdBursts::7           :            24.0
+   system.mem_ctrls.dram.perBankRdBursts::8           :            17.0
+   system.mem_ctrls.dram.perBankRdBursts::9           :            71.0
+   system.mem_ctrls.dram.perBankWrBursts::0           :             0.0
    system.mem_ctrls.dram.perBankWrBursts::1           :             0.0
-   system.mem_ctrls.dram.perBankWrBursts::10          :            30.0
-   system.mem_ctrls.dram.perBankWrBursts::11          :             3.0
+   system.mem_ctrls.dram.perBankWrBursts::10          :             0.0
+   system.mem_ctrls.dram.perBankWrBursts::11          :             0.0
    system.mem_ctrls.dram.perBankWrBursts::12          :             0.0
    system.mem_ctrls.dram.perBankWrBursts::13          :             0.0
    system.mem_ctrls.dram.perBankWrBursts::14          :             0.0
-   system.mem_ctrls.dram.perBankWrBursts::15          :             4.0
+   system.mem_ctrls.dram.perBankWrBursts::15          :             0.0
    system.mem_ctrls.dram.perBankWrBursts::2           :             0.0
    system.mem_ctrls.dram.perBankWrBursts::3           :             0.0
    system.mem_ctrls.dram.perBankWrBursts::4           :             0.0
@@ -293,77 +508,67 @@
    system.mem_ctrls.dram.perBankWrBursts::6           :             0.0
    system.mem_ctrls.dram.perBankWrBursts::7           :             0.0
    system.mem_ctrls.dram.perBankWrBursts::8           :             0.0
-   system.mem_ctrls.dram.perBankWrBursts::9           :            50.0
-   system.mem_ctrls.dram.power_state.pwrStateResidencyTicks::UNDEFINED :     454646000.0
-   system.mem_ctrls.dram.rank0.actBackEnergy          :     169838910.0
-   system.mem_ctrls.dram.rank0.actEnergy              :       3098760.0
+   system.mem_ctrls.dram.perBankWrBursts::9           :             0.0
+   system.mem_ctrls.dram.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.mem_ctrls.dram.rank0.actBackEnergy          :      13597350.0
+   system.mem_ctrls.dram.rank0.actEnergy              :        271320.0
    system.mem_ctrls.dram.rank0.actPowerDownEnergy     :             0.0
-   system.mem_ctrls.dram.rank0.averagePower           :      613.606223
-   system.mem_ctrls.dram.rank0.preBackEnergy          :      31561920.0
-   system.mem_ctrls.dram.rank0.preEnergy              :       1635645.0
+   system.mem_ctrls.dram.rank0.averagePower           :      580.596247
+   system.mem_ctrls.dram.rank0.preBackEnergy          :        644640.0
+   system.mem_ctrls.dram.rank0.preEnergy              :        144210.0
    system.mem_ctrls.dram.rank0.prePowerDownEnergy     :             0.0
-   system.mem_ctrls.dram.rank0.pwrStateTime::ACT      :     360059750.0
+   system.mem_ctrls.dram.rank0.pwrStateTime::ACT      :      28890000.0
    system.mem_ctrls.dram.rank0.pwrStateTime::ACT_PDN  :             0.0
-   system.mem_ctrls.dram.rank0.pwrStateTime::IDLE     :      79506250.0
+   system.mem_ctrls.dram.rank0.pwrStateTime::IDLE     :       1567000.0
    system.mem_ctrls.dram.rank0.pwrStateTime::PRE_PDN  :             0.0
-   system.mem_ctrls.dram.rank0.pwrStateTime::REF      :      15080000.0
+   system.mem_ctrls.dram.rank0.pwrStateTime::REF      :       1040000.0
    system.mem_ctrls.dram.rank0.pwrStateTime::SREF     :             0.0
-   system.mem_ctrls.dram.rank0.readEnergy             :      37142280.0
-   system.mem_ctrls.dram.rank0.refreshEnergy          :      35649120.0
+   system.mem_ctrls.dram.rank0.readEnergy             :       1170960.0
+   system.mem_ctrls.dram.rank0.refreshEnergy          :       2458560.0
    system.mem_ctrls.dram.rank0.selfRefreshEnergy      :             0.0
-   system.mem_ctrls.dram.rank0.totalEnergy            :     278973615.0
+   system.mem_ctrls.dram.rank0.totalEnergy            :      18287040.0
    system.mem_ctrls.dram.rank0.totalIdleTime          :             0.0
-   system.mem_ctrls.dram.rank0.writeEnergy            :         46980.0
-   system.mem_ctrls.dram.rank1.actBackEnergy          :     181783260.0
-   system.mem_ctrls.dram.rank1.actEnergy              :       2934540.0
+   system.mem_ctrls.dram.rank0.writeEnergy            :             0.0
+   system.mem_ctrls.dram.rank1.actBackEnergy          :      14178750.0
+   system.mem_ctrls.dram.rank1.actEnergy              :        506940.0
    system.mem_ctrls.dram.rank1.actPowerDownEnergy     :             0.0
-   system.mem_ctrls.dram.rank1.averagePower           :      583.602264
-   system.mem_ctrls.dram.rank1.preBackEnergy          :      21503520.0
-   system.mem_ctrls.dram.rank1.preEnergy              :       1552155.0
+   system.mem_ctrls.dram.rank1.averagePower           :      603.234594
+   system.mem_ctrls.dram.rank1.preBackEnergy          :        155040.0
+   system.mem_ctrls.dram.rank1.preEnergy              :        265650.0
    system.mem_ctrls.dram.rank1.prePowerDownEnergy     :             0.0
-   system.mem_ctrls.dram.rank1.pwrStateTime::ACT      :     385868500.0
+   system.mem_ctrls.dram.rank1.pwrStateTime::ACT      :      30177750.0
    system.mem_ctrls.dram.rank1.pwrStateTime::ACT_PDN  :             0.0
-   system.mem_ctrls.dram.rank1.pwrStateTime::IDLE     :      53697500.0
+   system.mem_ctrls.dram.rank1.pwrStateTime::IDLE     :        279250.0
    system.mem_ctrls.dram.rank1.pwrStateTime::PRE_PDN  :             0.0
-   system.mem_ctrls.dram.rank1.pwrStateTime::REF      :      15080000.0
+   system.mem_ctrls.dram.rank1.pwrStateTime::REF      :       1040000.0
    system.mem_ctrls.dram.rank1.pwrStateTime::SREF     :             0.0
-   system.mem_ctrls.dram.rank1.readEnergy             :      21455700.0
-   system.mem_ctrls.dram.rank1.refreshEnergy          :      35649120.0
+   system.mem_ctrls.dram.rank1.readEnergy             :       1435140.0
+   system.mem_ctrls.dram.rank1.refreshEnergy          :       2458560.0
    system.mem_ctrls.dram.rank1.selfRefreshEnergy      :             0.0
-   system.mem_ctrls.dram.rank1.totalEnergy            :     265332435.0
+   system.mem_ctrls.dram.rank1.totalEnergy            :      19000080.0
    system.mem_ctrls.dram.rank1.totalIdleTime          :             0.0
-   system.mem_ctrls.dram.rank1.writeEnergy            :        454140.0
-   system.mem_ctrls.dram.readBursts                   :          8207.0
-   system.mem_ctrls.dram.readRowHitRate               :           89.81
-   system.mem_ctrls.dram.readRowHits                  :          7371.0
-   system.mem_ctrls.dram.totBusLat                    :      41035000.0
-   system.mem_ctrls.dram.totMemAccLat                 :     183108500.0
-   system.mem_ctrls.dram.totQLat                      :      29227250.0
-   system.mem_ctrls.dram.writeBursts                  :            96.0
-   system.mem_ctrls.dram.writeRowHitRate              :           90.62
-   system.mem_ctrls.dram.writeRowHits                 :            87.0
-   system.mem_ctrls.mergedWrBursts                    :           820.0
+   system.mem_ctrls.dram.rank1.writeEnergy            :             0.0
+   system.mem_ctrls.dram.readBursts                   :           365.0
+   system.mem_ctrls.dram.readRowHitRate               :           70.14
+   system.mem_ctrls.dram.readRowHits                  :           256.0
+   system.mem_ctrls.dram.totBusLat                    :       1825000.0
+   system.mem_ctrls.dram.totMemAccLat                 :       9999000.0
+   system.mem_ctrls.dram.totQLat                      :       3155250.0
+   system.mem_ctrls.dram.writeBursts                  :             0.0
+   system.mem_ctrls.dram.writeRowHitRate              :             nan
+   system.mem_ctrls.dram.writeRowHits                 :             0.0
+   system.mem_ctrls.mergedWrBursts                    :             0.0
    system.mem_ctrls.neitherReadNorWriteReqs           :             0.0
    system.mem_ctrls.numRdRetry                        :             0.0
-   system.mem_ctrls.numReadWriteTurnArounds           :             6.0
-   system.mem_ctrls.numStayReadState                  :         17463.0
-   system.mem_ctrls.numStayWriteState                 :            93.0
+   system.mem_ctrls.numReadWriteTurnArounds           :             0.0
+   system.mem_ctrls.numStayReadState                  :           751.0
+   system.mem_ctrls.numStayWriteState                 :             0.0
    system.mem_ctrls.numWrRetry                        :             0.0
-   system.mem_ctrls.numWriteReadTurnArounds           :             6.0
-   system.mem_ctrls.power_state.pwrStateResidencyTicks::UNDEFINED :     454646000.0
-   system.mem_ctrls.priorityMaxLatency                :   0.00052264675
+   system.mem_ctrls.numWriteReadTurnArounds           :             0.0
+   system.mem_ctrls.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.mem_ctrls.priorityMaxLatency                :       5.495e-07
    system.mem_ctrls.priorityMinLatency                :       1.875e-08
-   system.mem_ctrls.rdPerTurnAround::1280-1407        :             1.0
-   system.mem_ctrls.rdPerTurnAround::1408-1535        :             1.0
-   system.mem_ctrls.rdPerTurnAround::2048-2175        :             2.0
-   system.mem_ctrls.rdPerTurnAround::256-383          :             1.0
-   system.mem_ctrls.rdPerTurnAround::384-511          :             1.0
-   system.mem_ctrls.rdPerTurnAround::gmean            :     1026.815434
-   system.mem_ctrls.rdPerTurnAround::mean             :          1295.0
-   system.mem_ctrls.rdPerTurnAround::samples          :             6.0
-   system.mem_ctrls.rdPerTurnAround::stdev            :      779.946665
-   system.mem_ctrls.rdPerTurnAround::total            :             6.0
-   system.mem_ctrls.rdQLenPdf::0                      :          8207.0
+   system.mem_ctrls.rdQLenPdf::0                      :           365.0
    system.mem_ctrls.rdQLenPdf::1                      :             0.0
    system.mem_ctrls.rdQLenPdf::10                     :             0.0
    system.mem_ctrls.rdQLenPdf::11                     :             0.0
@@ -395,64 +600,56 @@
    system.mem_ctrls.rdQLenPdf::7                      :             0.0
    system.mem_ctrls.rdQLenPdf::8                      :             0.0
    system.mem_ctrls.rdQLenPdf::9                      :             0.0
-   system.mem_ctrls.readBursts                        :          8370.0
-   system.mem_ctrls.readPktSize::0                    :           135.0
-   system.mem_ctrls.readPktSize::1                    :            14.0
-   system.mem_ctrls.readPktSize::2                    :           119.0
-   system.mem_ctrls.readPktSize::3                    :          8102.0
+   system.mem_ctrls.readBursts                        :           365.0
+   system.mem_ctrls.readPktSize::0                    :             0.0
+   system.mem_ctrls.readPktSize::1                    :             0.0
+   system.mem_ctrls.readPktSize::2                    :             0.0
+   system.mem_ctrls.readPktSize::3                    :             0.0
    system.mem_ctrls.readPktSize::4                    :             0.0
    system.mem_ctrls.readPktSize::5                    :             0.0
-   system.mem_ctrls.readPktSize::6                    :             0.0
-   system.mem_ctrls.readReqs                          :          8370.0
-   system.mem_ctrls.requestorReadAccesses::cpu.data   :          1084.0
-   system.mem_ctrls.requestorReadAccesses::cpu.inst   :          7286.0
-   system.mem_ctrls.requestorReadAvgLat::cpu.data     :        21709.87
-   system.mem_ctrls.requestorReadAvgLat::cpu.inst     :        21901.59
-   system.mem_ctrls.requestorReadBytes::cpu.data      :          6072.0
-   system.mem_ctrls.requestorReadBytes::cpu.inst      :         58288.0
-   system.mem_ctrls.requestorReadRate::cpu.data       : 13355445.775394483
-   system.mem_ctrls.requestorReadRate::cpu.inst       : 128205241.00069064
-   system.mem_ctrls.requestorReadTotalLat::cpu.data   :      23533500.0
-   system.mem_ctrls.requestorReadTotalLat::cpu.inst   :     159575000.0
-   system.mem_ctrls.requestorWriteAccesses::cpu.data  :           941.0
-   system.mem_ctrls.requestorWriteAvgLat::cpu.data    :       8473373.8
-   system.mem_ctrls.requestorWriteBytes::cpu.data     :           732.0
-   system.mem_ctrls.requestorWriteRate::cpu.data      : 1610043.8582985443
-   system.mem_ctrls.requestorWriteTotalLat::cpu.data  :    7973444750.0
-   system.mem_ctrls.servicedByWrQ                     :           163.0
-   system.mem_ctrls.totGap                            :     454520000.0
-   system.mem_ctrls.wrPerTurnAround::16               :             6.0
-   system.mem_ctrls.wrPerTurnAround::gmean            :            16.0
-   system.mem_ctrls.wrPerTurnAround::mean             :            16.0
-   system.mem_ctrls.wrPerTurnAround::samples          :             6.0
-   system.mem_ctrls.wrPerTurnAround::total            :             6.0
+   system.mem_ctrls.readPktSize::6                    :           365.0
+   system.mem_ctrls.readReqs                          :           365.0
+   system.mem_ctrls.requestorReadAccesses::cpu.data   :           135.0
+   system.mem_ctrls.requestorReadAccesses::cpu.inst   :           230.0
+   system.mem_ctrls.requestorReadAvgLat::cpu.data     :         27203.7
+   system.mem_ctrls.requestorReadAvgLat::cpu.inst     :        27506.52
+   system.mem_ctrls.requestorReadBytes::cpu.data      :          8640.0
+   system.mem_ctrls.requestorReadBytes::cpu.inst      :         14720.0
+   system.mem_ctrls.requestorReadRate::cpu.data       : 274311839.22278315
+   system.mem_ctrls.requestorReadRate::cpu.inst       : 467346096.4536305
+   system.mem_ctrls.requestorReadTotalLat::cpu.data   :       3672500.0
+   system.mem_ctrls.requestorReadTotalLat::cpu.inst   :       6326500.0
+   system.mem_ctrls.requestorWriteAccesses::writebacks :            13.0
+   system.mem_ctrls.requestorWriteAvgLat::writebacks  :             0.0
+   system.mem_ctrls.servicedByWrQ                     :             0.0
+   system.mem_ctrls.totGap                            :      31218000.0
    system.mem_ctrls.wrQLenPdf::0                      :             1.0
    system.mem_ctrls.wrQLenPdf::1                      :             1.0
    system.mem_ctrls.wrQLenPdf::10                     :             1.0
    system.mem_ctrls.wrQLenPdf::11                     :             1.0
    system.mem_ctrls.wrQLenPdf::12                     :             1.0
-   system.mem_ctrls.wrQLenPdf::13                     :             1.0
-   system.mem_ctrls.wrQLenPdf::14                     :             1.0
-   system.mem_ctrls.wrQLenPdf::15                     :             1.0
-   system.mem_ctrls.wrQLenPdf::16                     :             1.0
-   system.mem_ctrls.wrQLenPdf::17                     :             7.0
-   system.mem_ctrls.wrQLenPdf::18                     :             7.0
-   system.mem_ctrls.wrQLenPdf::19                     :             7.0
+   system.mem_ctrls.wrQLenPdf::13                     :             0.0
+   system.mem_ctrls.wrQLenPdf::14                     :             0.0
+   system.mem_ctrls.wrQLenPdf::15                     :             0.0
+   system.mem_ctrls.wrQLenPdf::16                     :             0.0
+   system.mem_ctrls.wrQLenPdf::17                     :             0.0
+   system.mem_ctrls.wrQLenPdf::18                     :             0.0
+   system.mem_ctrls.wrQLenPdf::19                     :             0.0
    system.mem_ctrls.wrQLenPdf::2                      :             1.0
-   system.mem_ctrls.wrQLenPdf::20                     :             7.0
-   system.mem_ctrls.wrQLenPdf::21                     :             7.0
-   system.mem_ctrls.wrQLenPdf::22                     :             7.0
-   system.mem_ctrls.wrQLenPdf::23                     :             7.0
-   system.mem_ctrls.wrQLenPdf::24                     :             7.0
-   system.mem_ctrls.wrQLenPdf::25                     :             6.0
-   system.mem_ctrls.wrQLenPdf::26                     :             6.0
-   system.mem_ctrls.wrQLenPdf::27                     :             6.0
-   system.mem_ctrls.wrQLenPdf::28                     :             6.0
-   system.mem_ctrls.wrQLenPdf::29                     :             6.0
+   system.mem_ctrls.wrQLenPdf::20                     :             0.0
+   system.mem_ctrls.wrQLenPdf::21                     :             0.0
+   system.mem_ctrls.wrQLenPdf::22                     :             0.0
+   system.mem_ctrls.wrQLenPdf::23                     :             0.0
+   system.mem_ctrls.wrQLenPdf::24                     :             0.0
+   system.mem_ctrls.wrQLenPdf::25                     :             0.0
+   system.mem_ctrls.wrQLenPdf::26                     :             0.0
+   system.mem_ctrls.wrQLenPdf::27                     :             0.0
+   system.mem_ctrls.wrQLenPdf::28                     :             0.0
+   system.mem_ctrls.wrQLenPdf::29                     :             0.0
    system.mem_ctrls.wrQLenPdf::3                      :             1.0
-   system.mem_ctrls.wrQLenPdf::30                     :             6.0
-   system.mem_ctrls.wrQLenPdf::31                     :             6.0
-   system.mem_ctrls.wrQLenPdf::32                     :             6.0
+   system.mem_ctrls.wrQLenPdf::30                     :             0.0
+   system.mem_ctrls.wrQLenPdf::31                     :             0.0
+   system.mem_ctrls.wrQLenPdf::32                     :             0.0
    system.mem_ctrls.wrQLenPdf::33                     :             0.0
    system.mem_ctrls.wrQLenPdf::34                     :             0.0
    system.mem_ctrls.wrQLenPdf::35                     :             0.0
@@ -490,65 +687,70 @@
    system.mem_ctrls.wrQLenPdf::7                      :             1.0
    system.mem_ctrls.wrQLenPdf::8                      :             1.0
    system.mem_ctrls.wrQLenPdf::9                      :             1.0
-   system.mem_ctrls.writeBursts                       :           941.0
-   system.mem_ctrls.writePktSize::0                   :            14.0
-   system.mem_ctrls.writePktSize::1                   :             3.0
-   system.mem_ctrls.writePktSize::2                   :            63.0
-   system.mem_ctrls.writePktSize::3                   :           861.0
+   system.mem_ctrls.writeBursts                       :            13.0
+   system.mem_ctrls.writePktSize::0                   :             0.0
+   system.mem_ctrls.writePktSize::1                   :             0.0
+   system.mem_ctrls.writePktSize::2                   :             0.0
+   system.mem_ctrls.writePktSize::3                   :             0.0
    system.mem_ctrls.writePktSize::4                   :             0.0
    system.mem_ctrls.writePktSize::5                   :             0.0
-   system.mem_ctrls.writePktSize::6                   :             0.0
-   system.mem_ctrls.writeReqs                         :           941.0
-   system.membus.pktCount::total                      :         18622.0
-   system.membus.pktCount_system.cpu.dcache_port::system.mem_ctrls.port :          4050.0
-   system.membus.pktCount_system.cpu.dcache_port::total :          4050.0
-   system.membus.pktCount_system.cpu.icache_port::system.mem_ctrls.port :         14572.0
-   system.membus.pktCount_system.cpu.icache_port::total :         14572.0
-   system.membus.pktSize::total                       :         72615.0
-   system.membus.pktSize_system.cpu.dcache_port::system.mem_ctrls.port :         14327.0
-   system.membus.pktSize_system.cpu.dcache_port::total :         14327.0
-   system.membus.pktSize_system.cpu.icache_port::system.mem_ctrls.port :         58288.0
-   system.membus.pktSize_system.cpu.icache_port::total :         58288.0
-   system.membus.power_state.pwrStateResidencyTicks::UNDEFINED :     454646000.0
-   system.membus.reqLayer2.occupancy                  :      10252000.0
+   system.mem_ctrls.writePktSize::6                   :            13.0
+   system.mem_ctrls.writeReqs                         :            13.0
+   system.membus.pktCount::total                      :           743.0
+   system.membus.pktCount_system.cpu.dcache.mem_side_port::system.mem_ctrls.port :           270.0
+   system.membus.pktCount_system.cpu.dcache.mem_side_port::total :           270.0
+   system.membus.pktCount_system.cpu.icache.mem_side_port::system.mem_ctrls.port :           473.0
+   system.membus.pktCount_system.cpu.icache.mem_side_port::total :           473.0
+   system.membus.pktSize::total                       :         24192.0
+   system.membus.pktSize_system.cpu.dcache.mem_side_port::system.mem_ctrls.port :          8640.0
+   system.membus.pktSize_system.cpu.dcache.mem_side_port::total :          8640.0
+   system.membus.pktSize_system.cpu.icache.mem_side_port::system.mem_ctrls.port :         15552.0
+   system.membus.pktSize_system.cpu.icache.mem_side_port::total :         15552.0
+   system.membus.power_state.pwrStateResidencyTicks::UNDEFINED :      31497000.0
+   system.membus.reqLayer2.occupancy                  :        430000.0
    system.membus.reqLayer2.utilization                :             0.0
-   system.membus.respLayer1.occupancy                 :      16556000.0
+   system.membus.respLayer1.occupancy                 :       1229500.0
    system.membus.respLayer1.utilization               :             0.0
-   system.membus.respLayer2.occupancy                 :       3431500.0
+   system.membus.respLayer2.occupancy                 :        729500.0
    system.membus.respLayer2.utilization               :             0.0
-   system.membus.snoopFanout::0                       :          9311.0
-   system.membus.snoopFanout::1                       :             0.0
-   system.membus.snoopFanout::max_value               :             0.0
-   system.membus.snoopFanout::mean                    :             0.0
+   system.membus.snoopFanout::0                       :           364.0
+   system.membus.snoopFanout::1                       :             1.0
+   system.membus.snoopFanout::2                       :             0.0
+   system.membus.snoopFanout::3                       :             0.0
+   system.membus.snoopFanout::4                       :             0.0
+   system.membus.snoopFanout::max_value               :             1.0
+   system.membus.snoopFanout::mean                    :         0.00274
    system.membus.snoopFanout::min_value               :             0.0
    system.membus.snoopFanout::overflows               :             0.0
-   system.membus.snoopFanout::samples                 :          9311.0
-   system.membus.snoopFanout::stdev                   :             0.0
-   system.membus.snoopFanout::total                   :          9311.0
+   system.membus.snoopFanout::samples                 :           365.0
+   system.membus.snoopFanout::stdev                   :        0.052342
+   system.membus.snoopFanout::total                   :           365.0
    system.membus.snoopFanout::underflows              :             0.0
    system.membus.snoopTraffic                         :             0.0
    system.membus.snoop_filter.hitMultiRequests        :             0.0
    system.membus.snoop_filter.hitMultiSnoops          :             0.0
-   system.membus.snoop_filter.hitSingleRequests       :             0.0
+   system.membus.snoop_filter.hitSingleRequests       :            14.0
    system.membus.snoop_filter.hitSingleSnoops         :             0.0
-   system.membus.snoop_filter.totRequests             :             0.0
+   system.membus.snoop_filter.totRequests             :           378.0
    system.membus.snoop_filter.totSnoops               :             0.0
    system.membus.snoops                               :             0.0
-   system.membus.transDist::ReadReq                   :          8370.0
-   system.membus.transDist::ReadResp                  :          8370.0
-   system.membus.transDist::WriteReq                  :           941.0
-   system.membus.transDist::WriteResp                 :           941.0
+   system.membus.transDist::ReadCleanReq              :           230.0
+   system.membus.transDist::ReadExReq                 :            79.0
+   system.membus.transDist::ReadExResp                :            79.0
+   system.membus.transDist::ReadResp                  :           286.0
+   system.membus.transDist::ReadSharedReq             :            56.0
+   system.membus.transDist::WritebackClean            :            13.0
    system.voltage_domain.voltage                      :             1.0
    system.workload.inst.arm                           :             0.0
    system.workload.inst.quiesce                       :             0.0
 
 🎯 SPILL TIMING ANALYSIS:
 ──────────────────────────────────────────────────────────────────────
-   Average Spill Latency                :   24,890,731 ticks
-   Min Spill Latency                    :       70,000 ticks
-   Max Spill Latency                    :  308,224,000 ticks
-   Median Spill Latency                 :    6,010,000 ticks
-   Std Dev Spill Latency                :   48,833,580 ticks
+   Average Spill Latency                :    1,625,563 ticks
+   Min Spill Latency                    :        2,000 ticks
+   Max Spill Latency                    :   20,914,000 ticks
+   Median Spill Latency                 :      270,000 ticks
+   Std Dev Spill Latency                :    3,236,947 ticks
 
 🔥 SPILL HOTSPOTS (Top Program Counters):
 ──────────────────────────────────────────────────────────────────────
@@ -587,7 +789,7 @@
    #15 | Memory Address 7fffffffea80:      9 spill events
 
 ====================================================================================================
-📊 ANALYSIS COMPLETE - Report Generated at 2025-09-12 14:38:13
+📊 ANALYSIS COMPLETE - Report Generated at 2025-09-12 14:58:01
 📁 Output Files Generated in: dashboard_output/
    - overview_dashboard.png: Main overview charts
    - spill_analysis_dashboard.png: Detailed spill analysis
