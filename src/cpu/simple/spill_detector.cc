@@ -145,14 +145,14 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
     
     // Check if we have a recent store to this address
     // This is where we use the C++ map to detect spill patterns
-    auto store_it = store_map.find(address);
-    
-    if (store_it != store_map.end()) {
+    auto store_it = store_map.find(address); // 🔍 SEARCHING: Does store contained by this address?
+
+    if (store_it != store_map.end()) {  // ✅ FOUND!
         const StoreInfo& store_info = store_it->second;
         
         // Check if this looks like a register spill
         if (isLikelySpill(store_info, pc, tick)) {
-            // SPILL DETECTED! Store followed by load to same address
+            // 🎯 SPILL DETECTED!! Store followed by load to same address
             total_spills_detected++;
             
             SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
@@ -191,7 +191,7 @@ SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick loa
     Tick time_diff = load_tick - store_info.tick;
     
     // Basic sanity check: Load must come after store
-    if (time_diff <= 0) {
+    if (time_diff <= 0) { // ❌ Load store'dan önce gelmiş || LOAD -❌-> STORE
         return false;
     }
     
