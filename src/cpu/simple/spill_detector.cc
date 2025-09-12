@@ -10,7 +10,7 @@
  * 
  * 1. Build the gem5 simulator with spill detection:
  *    $ cd "/Users/catnys/Documents/Academia/Register Spilling/gem5"
- *    $ scons build/X86/gem5.opt -j8
+ *    $ scons build/X86/gem5.opt -j12
  * 
  * 2. Run simulation with spill detection enabled:
  *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py -c tests/test-progs/hello/bin/x86/linux/hello --cpu-type=TimingSimpleCPU
@@ -102,7 +102,7 @@ namespace gem5
 {
 
 SpillDetector::SpillDetector()
-    : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0)
+    : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0), total_spills_logged(0)
 {
     // Reserve space for performance
     store_map.reserve(1000);
@@ -111,12 +111,13 @@ SpillDetector::SpillDetector()
     // Write header to log file (only once at the beginning)
     writeLogHeader();
     
-    std::cout << "🔍 C++ Spill Detector initialized (Approach B)" << std::endl;
+    // Silent initialization - no console output
 }
 
 SpillDetector::~SpillDetector()
 {
-    printSpillReport();
+    // Silent cleanup - no console output
+    // Only log file remains active
 }
 
 void
@@ -134,13 +135,7 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
         cleanupOldStores(tick);
     }
     
-    // Debug output for first few stores (so that we could visualize initial behavior)
-    if (total_stores <= 3) {  // Reduced debug output
-        std::cout << "  📝 Store #" << total_stores 
-                  << ": addr=0x" << std::hex << address 
-                  << ", pc=0x" << pc
-                  << ", tick=" << std::dec << tick << std::endl;
-    }
+    // Silent operation - no console output
 }
 
 void
@@ -164,14 +159,7 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
                            store_info.instruction_count, total_instructions);
             detected_spills.push_back(spill);
             
-            // Print immediate notification only for first few spills
-            if (total_spills_detected <= 5) {
-                std::cout << "  🎯 SPILL #" << total_spills_detected 
-                          << ": Store@0x" << std::hex << store_info.pc
-                          << " → Load@0x" << pc
-                          << " (addr=0x" << address
-                          << ", Δ" << std::dec << spill.tick_diff << " ticks)" << std::endl;
-            }
+            // Silent spill detection - no console output
             
             // Log to file for detailed analysis
             writeSpillToLog(spill);
@@ -182,35 +170,13 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
         }
     }
     
-    // Debug output for first few loads
-    if (total_loads <= 10) {
-        std::cout << "  📖 Load #" << total_loads 
-                  << ": addr=0x" << std::hex << address 
-                  << ", pc=0x" << pc
-                  << ", tick=" << std::dec << tick;
-        if (store_it != store_map.end()) {
-            std::cout << " [MATCH FOUND]";
-        }
-        std::cout << std::endl;
-    }
 }
 
 void
 SpillDetector::onInstructionExecute(Addr pc, Tick tick)
 {
     total_instructions++;
-    
-    // Progress reporting every 5,000 instructions with detailed report
-    if (total_instructions % 5000 == 0) {
-        std::cout << "  📊 Instructions: " << total_instructions
-                  << ", Spills: " << total_spills_detected
-                  << ", Active stores tracked: " << store_map.size() << std::endl;
-        
-        // Show full detailed report at 5000 instructions
-        if (total_instructions == 5000) {
-            printSpillReport();
-        }
-    }
+    // No progress reporting - clean execution until final report
 }
 
 
@@ -224,37 +190,17 @@ SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick loa
 {
     Tick time_diff = load_tick - store_info.tick;
     
-    // Heuristic 1: Time window check
-    // Spills typically happen within a reasonable time window
-    if (time_diff <= 0 || time_diff > MAX_SPILL_WINDOW) {
+    // Basic sanity check: Load must come after store
+    if (time_diff <= 0) {
         return false;
     }
     
-    // Heuristic 2: Instruction proximity
-    // If store and load are the same instruction, it's likely not a spill
-    // Yani, eğer store ve load işlemleri aynı instruction (aynı PC adresi) tarafından yapıldıysa, 
-    //bu bir spill olarak sayılmaz ve fonksiyon false döner.
-    /*
-    
-    Eğer aynı instruction hem store hem de load yapıyorsa (örneğin bir döngüde aynı komut sürekli çalışıyorsa), 
-    bu genellikle bir register spill değildir; çünkü bu durumda veri belleğe yazılıp hemen tekrar okunmuyor olabilir, sadece döngüsel bir erişim olabilir.
-    
-    Aynı instruction (aynı PC) hem store hem load yaparsa → spill değildir.
-    Farklı instruction'lar (farklı PC) aynı adrese önce store sonra load yaparsa → spill olarak tespit edilir.
-
-    
-    */
+    // Different instructions check: If store and load are the same instruction, it's not a spill
     if (store_info.pc == load_pc) {
         return false;
     }
     
-    // Heuristic 3: Reasonable time difference
-    // Too immediate suggests data forwarding, but be more permissive for longer times
-    // Allow longer time windows to catch more spills
-    if (time_diff < 10 || time_diff > 10000000) {  // Increased from 50000 to 10M ticks
-        return false;
-    }
-    
+    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
     return true;
 }
 
@@ -315,6 +261,8 @@ SpillDetector::writeSpillToLog(const SpillEvent& spill)
                  << spill.tick_diff << ","
                  << spill.store_inst_count << ","
                  << spill.load_inst_count << std::endl;
+        
+        total_spills_logged++; // Increment counter when actually written to log
     }
 }
 
@@ -331,7 +279,7 @@ SpillDetector::printSpillReport() const
     std::cout << "  Store Instructions: " << total_stores << std::endl;
     std::cout << "  Load Instructions: " << total_loads << std::endl;
     std::cout << "  Total Memory Operations: " << (total_stores + total_loads) << std::endl;
-    std::cout << "  Total Spills Detected: " << detected_spills.size() << std::endl;
+    std::cout << "  Total Spills Detected: " << detected_spills.size() << " (vector) | " << total_spills_logged << " (logged to file)" << std::endl;
     
     std::cout << "\n📈 A. TEMEL ORANLAR:" << std::endl;
     
@@ -438,143 +386,7 @@ SpillDetector::reset()
     total_stores = 0;
     total_loads = 0;
     total_spills_detected = 0;
-}
-
-void
-SpillDetector::writeAdvancedStatistics() const
-{
-    std::ofstream stats_file("m5out/spill_advanced_statistics.txt");
-    if (!stats_file.is_open()) {
-        std::cerr << "❌ Error: Could not open spill_advanced_statistics.txt for writing" << std::endl;
-        return;
-    }
-    
-    // Write gem5-style header
-    stats_file << "---------- Begin Simulation Statistics ----------\n";
-    stats_file << "\n# Register Spill Detection Advanced Statistics\n";
-    stats_file << "# Generated by gem5 SpillDetector\n";
-    stats_file << "# Analysis of register spill behavior during simulation\n\n";
-    
-    // Basic execution metrics
-    stats_file << "spillDetector.total_instructions " << total_instructions << " # Total instructions executed\n";
-    stats_file << "spillDetector.total_memory_operations " << (total_stores + total_loads) << " # Total memory operations (stores + loads)\n";
-    stats_file << "spillDetector.total_stores " << total_stores << " # Total store instructions\n";
-    stats_file << "spillDetector.total_loads " << total_loads << " # Total load instructions\n";
-    stats_file << "spillDetector.total_spills_detected " << total_spills_detected << " # Total register spills detected\n\n";
-    
-    // Calculate rates and percentages
-    uint64_t total_memory_operations = total_stores + total_loads;
-    double spill_rate_memory = total_memory_operations > 0 ? 
-        (static_cast<double>(total_spills_detected) / total_memory_operations) * 100.0 : 0.0;
-    double spill_rate_instructions = total_instructions > 0 ? 
-        (static_cast<double>(total_spills_detected) / total_instructions) * 100.0 : 0.0;
-    double memory_intensity = total_instructions > 0 ? 
-        (static_cast<double>(total_stores + total_loads) / total_instructions) * 100.0 : 0.0;
-    double store_load_ratio = total_loads > 0 ? 
-        static_cast<double>(total_stores) / total_loads : 0.0;
-    
-    stats_file << "spillDetector.spill_rate_memory_ops " << std::fixed << std::setprecision(4) << spill_rate_memory << " # Percentage of memory operations that are spills\n";
-    stats_file << "spillDetector.spill_rate_instructions " << std::fixed << std::setprecision(4) << spill_rate_instructions << " # Percentage of instructions that trigger spills\n";
-    stats_file << "spillDetector.memory_intensity " << std::fixed << std::setprecision(4) << memory_intensity << " # Percentage of instructions that are memory operations\n";
-    stats_file << "spillDetector.store_load_ratio " << std::fixed << std::setprecision(4) << store_load_ratio << " # Ratio of stores to loads\n\n";
-    
-    // Performance impact analysis
-    if (total_memory_operations > 0) {
-        stats_file << "# Performance Impact Analysis\n";
-        stats_file << "spillDetector.non_spill_memory_ops " << (total_memory_operations - total_spills_detected) << " # Memory operations that are not spills\n";
-        stats_file << "spillDetector.spill_overhead_percentage " << std::fixed << std::setprecision(2) << spill_rate_memory << " # Estimated overhead due to spills\n\n";
-    }
-    
-    // Temporal analysis
-    if (!detected_spills.empty()) {
-        std::vector<Tick> tick_differences;
-        for (const auto& spill : detected_spills) {
-            tick_differences.push_back(spill.tick_diff);
-        }
-        
-        std::sort(tick_differences.begin(), tick_differences.end());
-        
-        Tick min_latency = tick_differences.front();
-        Tick max_latency = tick_differences.back();
-        Tick median_latency = tick_differences[tick_differences.size() / 2];
-        Tick total_latency = 0;
-        for (Tick diff : tick_differences) {
-            total_latency += diff;
-        }
-        Tick avg_latency = total_latency / tick_differences.size();
-        
-        stats_file << "# Temporal Analysis\n";
-        stats_file << "spillDetector.min_spill_latency " << min_latency << " # Minimum ticks between store and load in spills\n";
-        stats_file << "spillDetector.max_spill_latency " << max_latency << " # Maximum ticks between store and load in spills\n";
-        stats_file << "spillDetector.avg_spill_latency " << avg_latency << " # Average ticks between store and load in spills\n";
-        stats_file << "spillDetector.median_spill_latency " << median_latency << " # Median ticks between store and load in spills\n\n";
-    }
-    
-    // Hotspot analysis
-    std::map<Addr, int> pc_frequency;
-    std::map<Addr, int> address_frequency;
-    
-    for (const auto& spill : detected_spills) {
-        pc_frequency[spill.store_pc]++;
-        pc_frequency[spill.load_pc]++;
-        address_frequency[spill.address]++;
-    }
-    
-    if (!pc_frequency.empty()) {
-        stats_file << "# Hotspot Analysis\n";
-        
-        // Find top spill-causing PCs
-        std::vector<std::pair<int, Addr>> sorted_pcs;
-        for (const auto& pc_count : pc_frequency) {
-            sorted_pcs.push_back({pc_count.second, pc_count.first});
-        }
-        std::sort(sorted_pcs.rbegin(), sorted_pcs.rend());
-        
-        stats_file << "spillDetector.unique_pc_addresses " << pc_frequency.size() << " # Number of unique PC addresses involved in spills\n";
-        stats_file << "spillDetector.unique_memory_addresses " << address_frequency.size() << " # Number of unique memory addresses involved in spills\n";
-        
-        // Top 5 hotspot PCs
-        int top_count = std::min(5, static_cast<int>(sorted_pcs.size()));
-        for (int i = 0; i < top_count; i++) {
-            stats_file << "spillDetector.hotspot_pc_" << (i+1) << " 0x" << std::hex << sorted_pcs[i].second 
-                      << " # PC with " << std::dec << sorted_pcs[i].first << " spill events\n";
-        }
-        stats_file << "\n";
-    }
-    
-    // Memory address distribution
-    if (!address_frequency.empty()) {
-        std::vector<std::pair<int, Addr>> sorted_addresses;
-        for (const auto& addr_count : address_frequency) {
-            sorted_addresses.push_back({addr_count.second, addr_count.first});
-        }
-        std::sort(sorted_addresses.rbegin(), sorted_addresses.rend());
-        
-        stats_file << "# Memory Address Analysis\n";
-        int top_addr_count = std::min(5, static_cast<int>(sorted_addresses.size()));
-        for (int i = 0; i < top_addr_count; i++) {
-            stats_file << "spillDetector.hotspot_address_" << (i+1) << " 0x" << std::hex << sorted_addresses[i].second 
-                      << " # Memory address with " << std::dec << sorted_addresses[i].first << " spill events\n";
-        }
-        stats_file << "\n";
-    }
-    
-    // Detection efficiency
-    stats_file << "# Detection System Metrics\n";
-    stats_file << "spillDetector.active_store_map_size " << store_map.size() << " # Current number of tracked store operations\n";
-    stats_file << "spillDetector.detection_window_ticks " << MAX_SPILL_WINDOW << " # Maximum time window for spill detection\n";
-    stats_file << "spillDetector.max_store_entries " << MAX_STORE_ENTRIES << " # Maximum store entries tracked simultaneously\n\n";
-    
-    stats_file << "---------- End Simulation Statistics ----------\n";
-    stats_file.close();
-    
-    std::cout << "📊 Advanced statistics written to m5out/spill_advanced_statistics.txt" << std::endl;
-}
-
-void
-SpillDetector::generateAdvancedStatisticsFile() const
-{
-    writeAdvancedStatistics();
+    total_spills_logged = 0;
 }
 
 } // namespace gem5

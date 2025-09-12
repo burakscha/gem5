@@ -89,7 +89,8 @@ class SpillDetector
               size(data_size), instruction_count(inst_count) {}
     };
     
-    // Structure to store information about a detected spill
+    // Structure to store information about a detected spill, AKA Spill Object
+    // In the paper it is called "Spill Store" as cited below: 
     struct SpillEvent {
         Addr store_pc;         // PC of the store instruction
         Addr load_pc;          // PC of the load instruction  
@@ -120,6 +121,7 @@ class SpillDetector
     uint64_t total_stores;
     uint64_t total_loads;
     uint64_t total_spills_detected;
+    mutable uint64_t total_spills_logged;    // Counter for spills actually written to log file
     
     // Configuration parameters
     static const Tick MAX_SPILL_WINDOW = 10000000;  // Max ticks between store-load for spill (10M ticks)
@@ -165,11 +167,6 @@ class SpillDetector
      * Generate comprehensive spill report (console only)
      */
     void printSpillReport() const;
-    
-    /**
-     * Generate advanced statistics file (similar to stats.txt format)
-     */
-    void generateAdvancedStatisticsFile() const;
     
     /**
      * Reset all counters and clear maps
