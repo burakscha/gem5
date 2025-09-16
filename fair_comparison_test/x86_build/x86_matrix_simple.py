@@ -18,7 +18,7 @@ system.clk_domain.voltage_domain = VoltageDomain()
 system.mem_ranges = [AddrRange("512MiB")]
 
 # Create X86 CPU
-system.cpu = X86TimingSimpleCPU()
+system.cpu = X86AtomicSimpleCPU()
 
 # Create memory bus
 system.membus = SystemXBar()
@@ -46,7 +46,7 @@ system.system_port = system.membus.cpu_side_ports
 
 # Set binary path - our X86 matrix test
 thispath = os.path.dirname(os.path.realpath(__file__))
-binary_path = os.path.join(thispath, "x86_matrix_linux")
+binary_path = os.path.join(thispath, "x86_matrix_minimal")
 
 # Check if binary exists, otherwise use default hello
 if os.path.exists(binary_path):

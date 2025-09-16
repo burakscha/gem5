@@ -38,7 +38,7 @@ system.system_port = system.membus.cpu_side_ports
 
 # Set binary path - our RISC-V matrix test
 thispath = os.path.dirname(os.path.realpath(__file__))
-binary_path = os.path.join(thispath, "riscv_matrix_linux")
+binary_path = os.path.join(thispath, "riscv_matrix_minimal")
 
 # Check if binary exists, otherwise use default hello
 if os.path.exists(binary_path):
