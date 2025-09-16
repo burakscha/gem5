@@ -123,8 +123,9 @@ class SpillDetector
     uint64_t total_spills_detected;
     mutable uint64_t total_spills_logged;    // Counter for spills actually written to log file
     
-    // Configuration parameters
-    static const Tick MAX_SPILL_WINDOW = 10000000;  // Max ticks between store-load for spill (10M ticks)
+    // Configuration parameters - more sensitive detection for architecture comparison
+    static const Tick MIN_SPILL_WINDOW = 1000;      // Min ticks between store-load for spill (more sensitive)
+    static const Tick MAX_SPILL_WINDOW = 500000;    // Max ticks between store-load for spill (500K ticks window)
     static const unsigned MAX_STORE_ENTRIES = 10000; // Max stored addresses to track
     
     // Helper methods
