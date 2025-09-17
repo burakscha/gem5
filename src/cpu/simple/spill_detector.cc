@@ -12,6 +12,19 @@
  *    $ rm -rf build/X86/
  *    $ rm -rf m5out/*
  *    # Clear all previous compilation and simulation outputs
+ *
+ * NOTE FOR FAIR COMPARISON (x86):
+ * Arrange the simulator output under a dedicated folder for fair
+ * comparison runs. For x86 place the `m5out` contents inside:
+ *
+ *    gem5/fair_comparison/x86_build/m5out/
+ *
+ * The simplest workflow is to run the simulator as usual and then move
+ * the generated `m5out/` directory into the desired fair_comparison path.
+ * Example:
+ *    $ ./build/X86/gem5.opt <args...>
+ *    $ mkdir -p fair_comparison/x86_build/m5out
+ *    $ mv m5out/* fair_comparison/x86_build/m5out/
  * 
  * 2. Create and implement the SpillDetector header file:
  *    $ vim src/cpu/simple/spill_detector.hh

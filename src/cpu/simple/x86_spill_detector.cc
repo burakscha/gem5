@@ -40,14 +40,23 @@
  *    $ vim src/cpu/simple/SConscript
  *    # Add Source('spill_detector.cc') to include new source file
  * 
- * 7. Compile the gem5 simulator with spill detection:
+ * 7. Compile the gem5 simulator with spill detection (x86 step-by-step):
+ *    # Build the simulator binary for x86
  *    $ scons build/X86/gem5.opt -j12
- *    # Build X86 architecture with TimingSimpleCPU and spill detection
- * 
- * 8. Run simulation with register spill detection:
+ *    # Note: consider using -j$(nproc) for parallel builds on multicore machines
+ *
+ * 8. Run simulation with register spill detection (x86 example):
+ *    # Run the hello workload and generate m5out in the repository root
  *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU --caches --cmd=tests/test-progs/hello/bin/x86/linux/hello
- *    # Execute hello program with spill detection enabled
- *    # Result: Detected 501 register spills successfully
+ *    # After the run completes, create the fair comparison folder and move outputs
+ *    $ mkdir -p fair_comparison/x86_build/m5out
+ *    $ mv m5out/* fair_comparison/x86_build/m5out/
+ *
+ * 9. Verify spill detection output (x86 fair-comparison layout):
+ *    $ ls -la fair_comparison/x86_build/m5out/
+ *    $ head -20 fair_comparison/x86_build/m5out/spill_stats.txt
+ *    $ grep "^SPILL" fair_comparison/x86_build/m5out/spill_stats.txt | wc -l
+ *    # Confirm 501 spill events were logged to spill_stats.txt
  * 
  * 9. Verify spill detection output:
  *    $ ls -la m5out/
@@ -128,7 +137,7 @@
  * This is where the real-time register spill detection happens.
  * It is part of the gem5 simulator’s core code (not the test program or Python).
  * It tracks every store and load instruction during simulation, using a C++ map to find store-load patterns that indicate register spills.
- * When a spill is detected, it logs the event (e.g., to cpp_spill_log.txt).
+ * When a spill is detected, it logs the event (e.g., to spill_log.txt).
  * 
  * === Important Notes ===
  * 
@@ -317,7 +326,7 @@ void
 SpillDetector::printSpillReport() const
 {
     // Silent operation - no console output
-    // All spill detection results are logged to m5out/spill_log.txt
+    // All spill detection results are logged to m5out/spill_stats.txt
     // This method remains for compatibility but produces no output
 }
 
