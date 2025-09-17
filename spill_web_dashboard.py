@@ -9,7 +9,7 @@ detailed insights into register spilling behavior.
 
 Data Sources:
 - m5out/stats.txt: gem5 simulation statistics 
-- m5out/cpp_spill_log.txt: Custom spill detection log
+- m5out/spill_log.txt: Custom spill detection log
 - m5out/config.json: Simulation configuration (optional)
 
 Author: Register Spilling Research Team
@@ -365,7 +365,7 @@ class SpillAnalysisWebDashboard:
    Line 30 | commitStats0.numStoreInsts   : {self.gem5_stats.get('system.cpu.commitStats0.numStoreInsts', 'N/A'):>12} (Store instructions)
    Line 128| executeStats0.numStoreInsts  : {self.gem5_stats.get('system.cpu.executeStats0.numStoreInsts', 'N/A'):>12} (Executed stores)
 
-🎯 SPILL DETECTION RESULTS (from cpp_spill_log.txt):
+🎯 SPILL DETECTION RESULTS (from spill_log.txt):
 {'─'*70}
    Total Spill Events Detected          : {self.summary_stats['total_spills']:>12,}
    Unique Memory Addresses Involved     : {self.spill_data['memory_address'].nunique() if self.spill_data is not None else 'N/A':>12}
@@ -501,7 +501,7 @@ class SpillAnalysisWebDashboard:
                     'Category': 'spill_analysis',
                     'Metric': metric,
                     'Value': value,
-                    'Source': 'cpp_spill_log.txt',
+                    'Source': 'spill_log.txt',
                     'Description': description
                 })
         

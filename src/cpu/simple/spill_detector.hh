@@ -14,7 +14,7 @@
  *    - Purpose: Replace complex file-based analysis with simple console output
  * 
  * 2. Discovery Phase: Empty spill log issue identification
- *    - Issue: spill_log.txt was empty, indicating detection criteria too restrictive
+ *    - Issue: spill_stats.txt was empty, indicating detection criteria too restrictive
  *    - Command: ./build/X86/gem5.opt configs/deprecated/example/se.py -c tests/test-progs/hello/bin/x86/linux/hello --cpu-type=TimingSimpleCPU
  *    - Analysis: Detection window of 50K ticks was insufficient for real programs
  * 
@@ -35,7 +35,7 @@
  *    - Output format: Console-based detailed breakdown with percentages
  * 
  * 6. File Output: CSV logging system
- *    - Created cpp_spill_log.txt with detailed spill data
+ *    - Created spill_stats.txt with detailed spill data
  *    - Format: CSV-style with headers and field descriptions
 *    - Location: m5out/spill_stats.txt (automatically generated)
  * 
