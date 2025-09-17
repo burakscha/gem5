@@ -28,6 +28,23 @@ test: $(TARGET)
 	@if [ -f $(TARGET) ]; then echo "Binary exists: $(TARGET)"; else echo "Binary not found!"; fi
 	@file $(TARGET) || echo "File command not available"
 
+# Build target for the register-spill matrix test
+## Dedicated native build for matrix_spill (avoids top-level -static)
+MCC = gcc
+MFLAGS = -O2 -march=native -fno-tree-vectorize -funroll-loops -std=c11 -Wall -Wextra
+
+.PHONY: all matrix_spill matrix_spill_native clean
+
+all: matrix_spill_native
+
+matrix_spill: matrix_spill_native
+
+matrix_spill_native: matrix_spill.c
+	$(MCC) $(MFLAGS) -o matrix_spill matrix_spill.c
+
+clean:
+	rm -f matrix_spill
+
 clean:
 	rm -f $(TARGET) dockcross-x64
 
