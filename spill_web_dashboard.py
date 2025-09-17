@@ -36,11 +36,11 @@ class SpillAnalysisWebDashboard:
         Initialize the dashboard with gem5 output directory
         
         Args:
-            gem5_output_dir (str): Path to gem5 output directory containing stats.txt, cpp_spill_log.txt etc.
+            gem5_output_dir (str): Path to gem5 output directory containing stats.txt, spill_stats.txt etc.
         """
         self.gem5_dir = Path(gem5_output_dir)
         self.stats_file = self.gem5_dir / "stats.txt"
-        self.spill_log_file = self.gem5_dir / "cpp_spill_log.txt" 
+    self.spill_log_file = self.gem5_dir / "spill_stats.txt" 
         self.config_file = self.gem5_dir / "config.json"
         
         # Data containers
@@ -106,8 +106,8 @@ class SpillAnalysisWebDashboard:
     
     def load_spill_data(self):
         """
-        Load spill detection data from cpp_spill_log.txt
-        Data Source: m5out/cpp_spill_log.txt
+    Load spill detection data from spill_stats.txt
+    Data Source: m5out/spill_stats.txt
         """
         print(f"\n🎯 Loading spill data from: {self.spill_log_file}")
         
@@ -136,7 +136,7 @@ class SpillAnalysisWebDashboard:
                         })
         
         self.spill_data = pd.DataFrame(spill_rows)
-        print(f"✅ Loaded {len(self.spill_data)} spill events from cpp_spill_log.txt")
+    print(f"✅ Loaded {len(self.spill_data)} spill events from spill_stats.txt")
         
         if len(self.spill_data) > 0:
             print(f"   🔍 Unique memory addresses: {self.spill_data['memory_address'].nunique()}")

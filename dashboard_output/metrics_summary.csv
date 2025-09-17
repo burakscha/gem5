@@ -705,8 +705,8 @@ derived_metrics,total_spills,501.0,calculated,Total spill events detected
 derived_metrics,spill_rate_memory,24.71632955106068,calculated,Spill rate as percentage of memory operations
 derived_metrics,spill_rate_instructions,8.787931941764603,calculated,Spill rate as percentage of all instructions
 derived_metrics,memory_intensity,35.55516576039292,calculated,Memory operations as percentage of all instructions
-spill_analysis,unique_memory_addresses,160.0,cpp_spill_log.txt,Unique memory addresses involved in spills
-spill_analysis,unique_store_pcs,299.0,cpp_spill_log.txt,Unique store PC addresses
+spill_analysis,unique_memory_addresses,160.0,spill_stats.txt,Unique memory addresses involved in spills
+spill_analysis,unique_store_pcs,299.0,spill_stats.txt,Unique store PC addresses
 spill_analysis,unique_load_pcs,306.0,cpp_spill_log.txt,Unique load PC addresses
 spill_analysis,avg_spill_latency,1625562.874251497,cpp_spill_log.txt,Average spill latency in ticks
 spill_analysis,min_spill_latency,2000.0,cpp_spill_log.txt,Minimum spill latency in ticks

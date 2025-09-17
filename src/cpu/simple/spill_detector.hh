@@ -37,7 +37,7 @@
  * 6. File Output: CSV logging system
  *    - Created cpp_spill_log.txt with detailed spill data
  *    - Format: CSV-style with headers and field descriptions
- *    - Location: m5out/cpp_spill_log.txt (automatically generated)
+*    - Location: m5out/spill_stats.txt (automatically generated)
  * 
  * CURRENT FUNCTIONALITY:
  * - Real-time spill detection during simulation
@@ -133,7 +133,7 @@ class SpillDetector
     bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
-    void writeAdvancedStatistics() const;
+  void writeAdvancedStatistics() const;
 
   public:
     SpillDetector();
