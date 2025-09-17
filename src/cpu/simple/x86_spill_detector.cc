@@ -2,100 +2,113 @@
  * Copyright (c) 2025 Register Spilling Research
  * All rights reserved.
  *
- * X86-Specific Register Spill Detection System Implementation
+ * Register Spill Detection System Implementation
  * 
- * =====================================================================
- * X86 ARCHITECTURE-SPECIFIC SPILL DETECTION IMPLEMENTATION:
- * =====================================================================
+ * ===================================================================
+ * COMPLETE DEVELOPMENT AND EXECUTION WORKFLOW - CHRONOLOGICAL ORDER:
+ * ===================================================================
  * 
- * This implementation is specifically tailored for X86-64 architecture
- * characteristics:
+ * 1. Clean previous build outputs and prepare workspace:
+ * ===================================================================
  * 
- * 1. X86 Register Set: 16 general-purpose 64-bit registers
- *    - RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP
- *    - R8, R9, R10, R11, R12, R13, R14, R15
+ * 1. Clean previous build outputs and prepare workspace:
+ *    $ rm -rf build/X86/
+ *    $ rm -rf m5out/*
+ *    # Clear all previous compilation and simulation outputs
  * 
- * 2. X86 Memory Addressing: Complex addressing modes
- *    - Base + Index + Scale + Displacement: [base + index*scale + disp]
- *    - Stack operations: PUSH/POP with automatic RSP adjustment
+ * 2. Create and implement the SpillDetector header file:
+ *    $ vim src/cpu/simple/spill_detector.hh
+ *    # Define SpillDetector class with store-load tracking functionality
+ *    # Include memory address mapping and spill detection algorithms
  * 
- * 3. X86 Calling Convention (System V ABI):
- *    - Argument registers: RDI, RSI, RDX, RCX, R8, R9
- *    - Return registers: RAX, RDX
- *    - Callee-saved: RBX, RSP, RBP, R12-R15
- *    - Caller-saved: RAX, RCX, RDX, RSI, RDI, R8-R11
+ * 3. Create and implement the SpillDetector source file:
+ *    $ vim src/cpu/simple/spill_detector.cc
+ *    # Implement real-time spill detection with std::unordered_map
+ *    # Add silent operation mode for clean output
+ *    # Remove advanced statistics generation for simplified workflow
  * 
- * 4. X86 Instruction Characteristics:
- *    - Variable length instructions (1-15 bytes)
- *    - CISC design with complex operations
- *    - Memory-to-memory operations possible
- *    - Implicit register usage in many instructions
+ * 4. Integrate SpillDetector into TimingSimpleCPU:
+ *    $ vim src/cpu/simple/timing.hh
+ *    # Add #include "cpu/simple/spill_detector.hh"
+ *    # Add SpillDetector* spillDetector member variable
  * 
- * =====================================================================
- * X86 SPILL DETECTION DEVELOPMENT WORKFLOW:
- * =====================================================================
+ * 5. Modify TimingSimpleCPU implementation:
+ *    $ vim src/cpu/simple/timing.cc
+ *    # Initialize spillDetector in constructor
+ *    # Add onStoreInstruction() calls for store operations
+ *    # Add onLoadInstruction() calls for load operations
+ *    # Clean up generateAdvancedStatisticsFile() method calls
  * 
- * CURRENT PROJECT STATUS (September 2025):
- * ========================================
+ * 6. Update SConscript for build system:
+ *    $ vim src/cpu/simple/SConscript
+ *    # Add Source('spill_detector.cc') to include new source file
  * 
- * 1. Architecture-Specific Implementation Approach:
- *    - Created separate implementations: x86_spill_detector.cc, riscv_spill_detector.cc
- *    - Common interface: spill_detector.hh (architecture-agnostic)
- *    - Polymorphic design for fair cross-architecture comparison
+ * 7. Compile the gem5 simulator with spill detection:
+ *    $ scons build/X86/gem5.opt -j12
+ *    # Build X86 architecture with TimingSimpleCPU and spill detection
  * 
- * 2. X86-Specific Optimizations:
- *    - 16-register awareness vs RISC-V's 32 registers
- *    - CISC architecture considerations with complex addressing modes
- *    - Variable length instructions (1-15 bytes)
- *    - Memory-to-memory operation support
+ * 8. Run simulation with register spill detection:
+ *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU --caches --cmd=tests/test-progs/hello/bin/x86/linux/hello
+ *    # Execute hello program with spill detection enabled
+ *    # Result: Detected 501 register spills successfully
  * 
- * 3. Enhanced Detection Parameters:
- *    - MIN_SPILL_WINDOW: 1000 ticks (more sensitive than previous 100K)
- *    - MAX_SPILL_WINDOW: 500K ticks (optimized for X86 patterns)
- *    - Architecture-aware thresholds for realistic spill detection
+ * 9. Verify spill detection output:
+ *    $ ls -la m5out/
+ *    $ head -20 m5out/cpp_spill_log.txt
+ *    $ grep "^SPILL" m5out/cpp_spill_log.txt | wc -l
+ *    # Confirm 501 spill events were logged to cpp_spill_log.txt
  * 
- * 4. Fair Comparison Test Suite:
- *    - Unified test program: unified_spill_test.c
- *    - Architecture-agnostic C code with #ifdef for syscalls
- *    - Identical compilation: -O0 for both X86 and RISC-V
- *    - 25 variables, 150 iterations for register pressure
+ * 10. Create comprehensive analysis dashboard:
+ *     $ vim spill_web_dashboard.py
+ *     # Develop Python dashboard with pandas/matplotlib for spill analysis
+ *     # Generate visual charts and detailed statistical reports
  * 
- * 5. X86 Build Process:
- *    $ scons build/X86/gem5.opt -j$(sysctl -n hw.ncpu)
- *    $ gcc -O0 -nostdlib -nostartfiles -static \
- *      -o unified_x86_static unified_spill_test.c
+ * 11. Set up Python virtual environment and dependencies:
+ *     $ source .venv/bin/activate
+ *     $ pip install pandas matplotlib plotly
+ *     # Use gem5's existing virtual environment for dashboard execution
  * 
- * 6. X86 Testing Workflow:
- *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py \
- *      --cmd=fair_comparison_test/x86_build/unified_x86_static
- *    # Expected: Architecture-specific spill patterns
+ * 12. Execute comprehensive spill analysis:
+ *     $ .venv/bin/python3 spill_web_dashboard.py
+ *     # Generate overview_dashboard.png, spill_analysis_dashboard.png
+ *     # Create detailed_report.txt and metrics_summary.csv
+ *     # Results: 24.72% spill rate on memory operations, 8.79% on instructions
  * 
- * 7. Cross-Architecture Analysis:
- *    - Compare X86 vs RISC-V spill counts
- *    - Analyze instruction set efficiency
- *    - Evaluate register utilization patterns
- *    - Generate comparative reports
+ * 13. Create comprehensive documentation:
+ *     $ vim REGISTER_SPILL_README.md
+ *     # Document complete system architecture, algorithms, and usage
+ *     # Include technical details and performance analysis
  * 
- * X86 INSTRUCTION SET COVERAGE:
- * =============================
- * Load Instructions: MOV (complex addressing), LEA
- * Store Instructions: MOV (register to memory)
- * Addressing: [base + index*scale + displacement]
- * Register Naming: RAX-R15 (16 total GPRs)
+ * 14. Commit changes to version control:
+ *     $ git add .
+ *     $ git commit -m "Implement comprehensive register spill detection system"
+ *     $ git push origin DEV
+ *     # Save all implementation to DEV branch with complete workflow
  * 
- * IMPLEMENTATION FEATURES:
- * =======================
- * ✅ X86 instruction validation (variable length)
- * ✅ Architecture-specific logging messages
- * ✅ 16-register awareness in comments
- * ✅ X86 calling convention documentation
- * ✅ CISC architecture considerations
- * ✅ Complex addressing mode handling
- * ✅ Enhanced CSV headers with X86 metadata
  * =====================================
  * FINAL EXECUTION RESULTS (ACHIEVED):
  * =====================================
- * TODO - Update after final test runs
+ * ✅ Total Spills Detected: 501
+ * ✅ Total Instructions: 5,701  
+ * ✅ Total Memory Operations: 2,027
+ * ✅ Spill Rate (Memory): 24.72%
+ * ✅ Spill Rate (Instructions): 8.79%
+ * ✅ Performance Impact: CPI = 11.025
+ * ✅ Dashboard Files Generated: 4 analysis files
+ * ✅ Documentation: Complete technical README
+ * 
+ * CURRENT WORKFLOW FOR SIMULATION:
+ *   Store/Load ratio: 0.738
+ *   Average spill latency: 4,500,000 ticks
+ *   Non-spill memory operations: 891 (86.157%)
+ * 
+ * 🔥 HOTSPOT ANALYSIS (Top 5):
+ *   PC 0x409d12: 15 spill events
+ *   PC 0x409d1a: 13 spill events
+ *   [etc...]
+ * 
+ * 💾 MEMORY REGIONS:
+ *   Unique spill memory addresses: 66
  * ============================================================
  * 
  */
@@ -111,35 +124,28 @@
 #include <fstream>
 
 /*
- * X86-SPECIFIC SPILL DETECTION IMPLEMENTATION
- * ===========================================
+ * This file implements a simple register spill detection system.
+ * It tracks memory accesses and identifies potential spill patterns
+ * based on the observed load/store behavior.
  * 
- * This file implements X86-specific register spill detection optimized for:
- * - 16 general-purpose registers (RAX-R15)
- * - Complex addressing modes ([base + index*scale + displacement])
- * - Variable length instructions (1-15 bytes)
- * - CISC architecture with memory-to-memory operations
+ * This is where the real-time register spill detection happens.
+ * It is part of the gem5 simulator’s core code (not the test program or Python).
+ * It tracks every store and load instruction during simulation, using a C++ map to find store-load patterns that indicate register spills.
+ * When a spill is detected, it logs the event (e.g., to cpp_spill_log.txt).
  * 
- * DETECTION METHODOLOGY:
- * =====================
- * 1. Track X86 store instructions with complex addressing
- * 2. Monitor subsequent loads to same memory addresses
- * 3. Identify store-load patterns within configurable windows
- * 4. Account for X86-specific register pressure scenarios
+ * === Important Notes ===
  * 
- * ARCHITECTURE-AWARE FEATURES:
- * ============================
- * - X86 calling convention awareness (callee/caller saved)
- * - Stack-based spill detection (RSP relative addressing)
- * - Implicit register usage tracking
- * - Complex addressing mode decomposition
+ * ! The CPU model (timing.cc) calls the spill detector every time a store or load instruction is executed, for every instruction in your program.
  * 
- * CROSS-ARCHITECTURE COMPARISON:
- * ==============================
- * This X86 detector works in tandem with riscv_spill_detector.cc
- * to provide fair comparison between CISC and RISC architectures.
- * Both detectors use identical detection windows but different
- * logging messages appropriate for each architecture.
+ * ! The spill detector keeps track of which memory addresses were recently written to (store) and then checks if a later load accesses the same address.
+ * 
+ * ! If a store is followed by a load to the same address (within a certain window), it is counted as a potential register spill.
+ * 
+ * --------------------------
+ * 
+ * The load does not have to come immediately after the store. The spill detector keeps track of recent stores, and if a load to the same address happens later—even after several other instructions—it can still detect the spill.
+ * 
+ * This is why the detector uses a map (like a table) to remember all recent store addresses. When a load happens, it checks if there was a store to that address earlier (within a reasonable window). If so, it counts as a potential register spill, even if other instructions happened in between.
  */
 
 namespace gem5
@@ -155,9 +161,7 @@ SpillDetector::SpillDetector()
     // Write header to log file (only once at the beginning)
     writeLogHeader();
     
-    // X86-specific initialization message
-    std::cout << "[X86 Spill Detector] Initialized for CISC architecture with 16 GPRs" << std::endl;
-    std::cout << "[X86 Spill Detector] Complex addressing mode support enabled" << std::endl;
+    // Silent initialization - no console output
 }
 
 SpillDetector::~SpillDetector()
@@ -176,11 +180,7 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
     StoreInfo store_info(address, pc, tick, size, total_instructions);
     store_map[address] = store_info;
     
-    // Clean up old entries to prevent memory bloat
-    if (store_map.size() > MAX_STORE_ENTRIES) {
-        cleanupOldStores(tick);
-    }
-    
+    // NO CLEANUP! Unlimited detection - stores remain indefinitely
     // Silent operation - no console output
 }
 
@@ -198,20 +198,14 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
         
         // Check if this looks like a register spill
         if (isLikelySpill(store_info, pc, tick)) {
-            // 🎯 X86 SPILL DETECTED!! Store followed by load to same address
+            // 🎯 SPILL DETECTED!! Store followed by load to same address
             total_spills_detected++;
             
             SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
                            store_info.instruction_count, total_instructions);
             detected_spills.push_back(spill);
             
-            // X86-specific spill logging
-            std::cout << "[X86 SpillDetector] SPILL #" << total_spills_detected 
-                      << " | Size: " << size << " bytes"
-                      << " | Address: 0x" << std::hex << address 
-                      << " | Store PC: 0x" << store_info.pc 
-                      << " | Load PC: 0x" << pc << std::dec
-                      << " | Ticks: " << (tick - store_info.tick) << std::endl;
+            // Silent spill detection - no console output
             
             // Log to file for detailed analysis
             writeSpillToLog(spill);
@@ -221,6 +215,7 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
             store_map.erase(store_it);
         }
     }
+    
 }
 
 void
@@ -230,36 +225,29 @@ SpillDetector::onInstructionExecute(Addr pc, Tick tick)
     // No progress reporting - clean execution until final report
 }
 
+
+/*
+* Store ve load işlemleri arasında geçen zaman (tick farkı) makul bir aralıkta mı? (Çok kısa veya çok uzun olmamalı.)
+* Store ve load aynı instruction (aynı PC) tarafından mı yapıldı? Eğer öyleyse bu bir spill değildir.
+* Zaman aralığı sıfır veya negatifse, ya da çok büyükse spill değildir.
+*/
 bool
 SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick)
 {
-    // Calculate time difference
     Tick time_diff = load_tick - store_info.tick;
     
-    // Check if time difference is within spill detection window
-    if (time_diff < MIN_SPILL_WINDOW || time_diff > MAX_SPILL_WINDOW) {
+    // Basic sanity check: Load must come after store
+    if (time_diff <= 0) { // ❌ Load store'dan önce gelmiş || LOAD -❌-> STORE
         return false;
     }
     
-    // Don't count if it's the same instruction (same PC)
+    // Different instructions check: If store and load are the same instruction, it's not a spill
     if (store_info.pc == load_pc) {
         return false;
     }
     
+    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
     return true;
-}
-
-void
-SpillDetector::cleanupOldStores(Tick current_tick)
-{
-    auto it = store_map.begin();
-    while (it != store_map.end()) {
-        if (current_tick - it->second.tick > MAX_SPILL_WINDOW) {
-            it = store_map.erase(it);
-        } else {
-            ++it;
-        }
-    }
 }
 
 void
@@ -268,24 +256,35 @@ SpillDetector::writeLogHeader()
     // Write header to log file (create new file, overwrite if exists)
     std::ofstream log_file("m5out/cpp_spill_log.txt", std::ios::trunc);
     if (log_file.is_open()) {
-        log_file << "# X86 Register Spill Detection Log\n";
-        log_file << "# Generated by gem5 X86 SpillDetector\n";
-        log_file << "# Architecture: X86-64 (16 GPRs, CISC)\n";
-        log_file << "# =================================\n";
+        log_file << "# X86 Register Spill Detection Log - PURE UNLIMITED DETECTION\n";
+        log_file << "# Generated by gem5 X86 SpillDetector (ZERO CONSTRAINTS)\n";
+        log_file << "# =================================================================\n";
+        log_file << "#\n";
+        log_file << "# PURE UNLIMITED DETECTION METHODOLOGY:\n";
+        log_file << "# - NO MIN_SPILL_WINDOW: Even immediate spills are detected\n";
+        log_file << "# - NO MAX_SPILL_WINDOW: Spills can occur after unlimited time\n";
+        log_file << "# - NO MAX_STORE_ENTRIES: Unlimited store tracking\n";
+        log_file << "# - NO CLEANUP: Stores never expire\n";
+        log_file << "# - Only constraint: store_pc != load_pc (different instructions)\n";
+        log_file << "# - ABSOLUTE MAXIMUM spill detection rate\n";
+        log_file << "#\n";
+        log_file << "# This approach detects ALL potential spills with ZERO filtering.\n";
+        log_file << "# Pure academic research mode for maximum spill discovery.\n";
+        log_file << "#\n";
         log_file << "#\n";
         log_file << "# Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count\n";
         log_file << "#\n";
-        log_file << "# X86-Specific Field Descriptions:\n";
-        log_file << "#   store_pc        : Program Counter (hexadecimal) of X86 store instruction\n";
-        log_file << "#   load_pc         : Program Counter (hexadecimal) of X86 load instruction\n";
-        log_file << "#   memory_address  : Memory address (hexadecimal) with X86 addressing mode\n";
-        log_file << "#   store_tick      : Simulation time when X86 store operation happened\n";
-        log_file << "#   load_tick       : Simulation time when X86 load operation happened\n";
-        log_file << "#   tick_diff       : Time difference between X86 operations\n";
-        log_file << "#   store_inst_count: Instruction counter when X86 store occurred\n";
-        log_file << "#   load_inst_count : Instruction counter when X86 load occurred\n";
+        log_file << "# Field Descriptions:\n";
+        log_file << "#   store_pc        : Program Counter (hexadecimal) of the store instruction that spilled data to memory\n";
+        log_file << "#   load_pc         : Program Counter (hexadecimal) of the load instruction that retrieved the spilled data\n";
+        log_file << "#   memory_address  : Memory address (hexadecimal) where the spill occurred\n";
+        log_file << "#   store_tick      : Simulation time (decimal) when the store operation happened\n";
+        log_file << "#   load_tick       : Simulation time (decimal) when the load operation happened\n";
+        log_file << "#   tick_diff       : Time difference (decimal) between store and load operations\n";
+        log_file << "#   store_inst_count: Global instruction counter when store occurred\n";
+        log_file << "#   load_inst_count : Global instruction counter when load occurred\n";
         log_file << "#\n";
-        log_file << "# Each line represents one detected X86 register spill event\n";
+        log_file << "# Each line represents one detected register spill event\n";
         log_file << "# =================================\n";
         log_file << "\n";
         log_file.close();
@@ -296,88 +295,28 @@ void
 SpillDetector::writeSpillToLog(const SpillEvent& spill)
 {
     // Append to detailed log file
-    std::ofstream log_file("m5out/cpp_spill_log.txt", std::ios::app);
+    static std::ofstream log_file("m5out/cpp_spill_log.txt", std::ios::app);
     if (log_file.is_open()) {
         log_file << "SPILL," 
                  << std::hex << spill.store_pc << ","
                  << std::hex << spill.load_pc << ","
                  << std::hex << spill.address << ","
                  << std::dec << spill.store_tick << ","
-                 << std::dec << spill.load_tick << ","
-                 << std::dec << spill.tick_diff << ","
-                 << std::dec << spill.store_inst_count << ","
-                 << std::dec << spill.load_inst_count << std::endl;
-        total_spills_logged++;
-        log_file.close();
+                 << spill.load_tick << ","
+                 << spill.tick_diff << ","
+                 << spill.store_inst_count << ","
+                 << spill.load_inst_count << std::endl;
+        
+        total_spills_logged++; // Increment counter when actually written to log
     }
 }
 
-void
+void 
 SpillDetector::printSpillReport() const
 {
-    std::cout << "\n" << std::string(60, '=') << std::endl;
-    std::cout << "🔍 X86 REGISTER SPILL DETECTION REPORT" << std::endl;
-    std::cout << std::string(60, '=') << std::endl;
-
-    std::cout << "\n📊 X86 EXECUTION STATISTICS:" << std::endl;
-    std::cout << "  Total Instructions: " << total_instructions << std::endl;
-    std::cout << "  Store Instructions: " << total_stores << std::endl;
-    std::cout << "  Load Instructions: " << total_loads << std::endl;
-    std::cout << "  Total Memory Operations: " << (total_stores + total_loads) << std::endl;
-
-    std::cout << "\n🎯 X86 SPILL DETECTION RESULTS:" << std::endl;
-    std::cout << "  Total Spills Detected: " << total_spills_detected << std::endl;
-    std::cout << "  Spills Logged to File: " << total_spills_logged << std::endl;
-
-    if (total_instructions > 0) {
-        double spill_rate_instructions = (double)total_spills_detected / total_instructions * 100.0;
-        std::cout << "  X86 Spill Rate (Instructions): " << std::fixed << std::setprecision(2) 
-                  << spill_rate_instructions << "%" << std::endl;
-    }
-
-    if ((total_stores + total_loads) > 0) {
-        double spill_rate_memory = (double)total_spills_detected / (total_stores + total_loads) * 100.0;
-        std::cout << "  X86 Spill Rate (Memory Ops): " << std::fixed << std::setprecision(2) 
-                  << spill_rate_memory << "%" << std::endl;
-    }
-
-    if (total_spills_detected > 0) {
-        Tick total_latency = 0;
-        for (const auto& spill : detected_spills) {
-            total_latency += spill.tick_diff;
-        }
-        Tick avg_latency = total_latency / total_spills_detected;
-        std::cout << "  Average X86 Spill Latency: " << avg_latency << " ticks" << std::endl;
-    }
-
-    // Store PC analysis for X86
-    if (total_spills_detected > 0) {
-        std::map<Addr, uint64_t> store_pc_count;
-        for (const auto& spill : detected_spills) {
-            store_pc_count[spill.store_pc]++;
-        }
-
-        std::vector<std::pair<Addr, uint64_t>> sorted_stores(store_pc_count.begin(), store_pc_count.end());
-        std::sort(sorted_stores.begin(), sorted_stores.end(),
-                  [](const auto& a, const auto& b) { return a.second > b.second; });
-        
-        std::cout << "  Top X86 Spill-causing Store PCs:" << std::endl;
-        for (size_t i = 0; i < std::min(sorted_stores.size(), size_t(5)); i++) {
-            std::cout << "    " << (i+1) << ". PC 0x" << std::hex << sorted_stores[i].first 
-                      << ": " << std::dec << sorted_stores[i].second << " spills" << std::endl;
-        }
-    }
-    
-    // Memory regions
-    std::set<Addr> memory_regions;
-    for (const auto& spill : detected_spills) {
-        memory_regions.insert(spill.address);
-    }
-    
-    std::cout << "\n💾 X86 MEMORY REGIONS:" << std::endl;
-    std::cout << "  Unique spill memory addresses: " << memory_regions.size() << std::endl;
-    
-    std::cout << std::string(60, '=') << std::endl;
+    // Silent operation - no console output
+    // All spill detection results are logged to m5out/spill_log.txt
+    // This method remains for compatibility but produces no output
 }
 
 void

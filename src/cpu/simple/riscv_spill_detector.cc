@@ -113,6 +113,9 @@
 #include <iostream>
 #include <iomanip>
 #include <set>
+#include <cmath>
+#include <map>
+#include <string>
 #include <map>
 #include <algorithm>
 #include <fstream>
@@ -165,8 +168,11 @@ SpillDetector::SpillDetector()
 
 SpillDetector::~SpillDetector()
 {
-    // Silent cleanup - no console output
-    // Only log file remains active
+    // Print final statistics when detector is destroyed  
+    printSpillReport();
+    
+    // Clean shutdown
+    std::cout << "[RISC-V Spill Detector] Detection complete - statistics logged" << std::endl;
 }
 
 void
@@ -274,8 +280,62 @@ SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick loa
         return false;
     }
     
-    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
-    return true;
+    // Multi-factor loop vs spill detection algorithm
+    // Same sophisticated detection logic as X86
+    
+    // Factor 1: PC distance analysis for RISC-V (fixed 4-byte instructions)
+    // RISC-V loops typically have very tight instruction distances (4-8 bytes)
+    Addr pc_distance = (load_pc > store_info.pc) ? 
+                       (load_pc - store_info.pc) : 
+                       (store_info.pc - load_pc);
+    bool likely_loop_pc = (pc_distance <= 8); // RISC-V loop threshold (2 instructions)
+    
+    // Factor 2: Timing consistency - loops have very consistent timing
+    // Check if this store-load pair has been seen with similar timing before
+    std::string pc_pair = std::to_string(store_info.pc) + "->" + std::to_string(load_pc);
+    auto timing_it = pc_timing_patterns.find(pc_pair);
+    bool likely_loop_timing = false;
+    
+    if (timing_it != pc_timing_patterns.end()) {
+        // Calculate coefficient of variation for timing
+        double avg_time = timing_it->second.total_time / timing_it->second.count;
+        double variance = (timing_it->second.sum_squares / timing_it->second.count) - (avg_time * avg_time);
+        double cv = (avg_time > 0) ? (sqrt(variance) / avg_time) : 0.0;
+        
+        // Loops have very consistent timing (CV < 5%)
+        likely_loop_timing = (cv < 0.05 && timing_it->second.count > 10);
+    }
+    
+    // Update timing statistics
+    if (timing_it == pc_timing_patterns.end()) {
+        pc_timing_patterns[pc_pair] = {time_diff, time_diff * time_diff, 1};
+    } else {
+        timing_it->second.total_time += time_diff;
+        timing_it->second.sum_squares += (time_diff * time_diff);
+        timing_it->second.count++;
+    }
+    
+    // Factor 3: Repetition count - loops execute hundreds/thousands of times
+    auto rep_it = pc_repetition_count.find(pc_pair);
+    bool likely_loop_repetition = false;
+    
+    if (rep_it == pc_repetition_count.end()) {
+        pc_repetition_count[pc_pair] = 1;
+    } else {
+        rep_it->second++;
+        likely_loop_repetition = (rep_it->second > 500); // High repetition = likely loop
+    }
+    
+    // Factor 4: Frequency analysis - loops execute very frequently
+    // Spills are typically less frequent than loop counters
+    bool likely_loop_frequency = (time_diff < 500); // Very frequent = likely loop
+    
+    // Final decision: If multiple factors indicate loop behavior, it's not a spill
+    bool likely_loop = (likely_loop_pc && likely_loop_timing) || 
+                       (likely_loop_pc && likely_loop_repetition) ||
+                       (likely_loop_timing && likely_loop_frequency);
+    
+    return !likely_loop; // If it's likely a loop, it's NOT a spill
 }
 
 void

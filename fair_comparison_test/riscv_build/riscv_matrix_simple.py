@@ -17,8 +17,14 @@ system.clk_domain.voltage_domain = VoltageDomain()
 # Set memory size
 system.mem_ranges = [AddrRange("512MiB")]
 
+# IMPORTANT: Set memory mode to timing for TimingSimpleCPU
+system.mem_mode = "timing"
+
 # Create RISC-V CPU
 system.cpu = RiscvTimingSimpleCPU()
+
+# Add interrupt controller for RISC-V
+system.cpu.interrupts = [RiscvInterrupts()]
 
 # Create memory bus
 system.membus = SystemXBar()

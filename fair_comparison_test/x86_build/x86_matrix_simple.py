@@ -17,8 +17,11 @@ system.clk_domain.voltage_domain = VoltageDomain()
 # Set memory size
 system.mem_ranges = [AddrRange("512MiB")]
 
+# IMPORTANT: Set memory mode to timing for TimingSimpleCPU
+system.mem_mode = "timing"
+
 # Create X86 CPU
-system.cpu = X86AtomicSimpleCPU()
+system.cpu = X86TimingSimpleCPU()
 
 # Create memory bus
 system.membus = SystemXBar()
@@ -66,6 +69,8 @@ system.cpu.createThreads()
 
 # Set up simulation
 root = Root(full_system=False, system=system)
+
+# IMPORTANT: Set memory mode to timing for TimingSimpleCPU
 m5.instantiate()
 
 print("Beginning X86 Matrix Spill Test!")
