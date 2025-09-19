@@ -1,3 +1,87 @@
+# Using Docker x86 Containers for Cross-Platform Builds
+
+## Starting a Container
+To start an x86 Ubuntu container for building or running x86 binaries:
+```sh
+docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+```
+
+## Stopping the Container
+Inside the container terminal, type:
+```sh
+exit
+# or
+Ctrl + D
+```
+
+## Listing Running Containers
+```sh
+docker ps
+```
+
+## Listing All Containers (Running and Stopped)
+```sh
+docker ps -a
+```
+
+## Stopping a Background Container
+```sh
+docker stop <container_id>
+```
+
+## Removing Unused Containers
+```sh
+docker rm <container_id>
+```
+
+## Removing Unused Images
+```sh
+docker image prune
+```
+
+> Note: If you use the first command above to start your container, it will be automatically removed when you exit (because of the `--rm` flag).
+# Docker x86 Konteyner Kullanımı
+
+## Konteyner Açma
+Bir x86 Ubuntu konteyneri başlatmak için:
+```sh
+docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+```
+
+## Konteyneri Kapatma
+Konteyner terminalinde:
+```sh
+exit
+# veya
+Ctrl + D
+```
+
+## Çalışan Konteynerleri Listeleme
+```sh
+docker ps
+```
+
+## Tüm Konteynerleri Listeleme (Çalışan/Duran)
+```sh
+docker ps -a
+```
+
+## Arka Plandaki Konteyneri Durdurma
+```sh
+docker stop <container_id>
+```
+
+## Kullanılmayan Konteynerleri Silme
+```sh
+docker rm <container_id>
+```
+
+## Kullanılmayan İmajları Silme
+```sh
+docker image prune
+```
+
+> Not: Yukarıdaki ilk komutla başlatılan konteyner, `exit` ile otomatik silinir (`--rm` parametresi sayesinde).
 # The gem5 Simulator
 This is the repository for the gem5 simulator. It contains the full source code
 for the simulator and all tests and regressions.
