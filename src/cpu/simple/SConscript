@@ -43,7 +43,19 @@ Source('noncaching.cc')
 
 SimObject('BaseTimingSimpleCPU.py', sim_objects=['BaseTimingSimpleCPU'])
 Source('timing.cc')
-Source('spill_detector.cc')
+
+# Architecture-aware spill detector inclusion
+# Gemini's recommended approach: Clean build system selection
+if env['CONF']['USE_X86_ISA']:
+    Source('x86_spill_detector.cc')
+    print("Building with X86 Spill Detector (16 GPRs, CISC)")
+elif env['CONF']['USE_RISCV_ISA']:
+    Source('riscv_spill_detector.cc')
+    print("Building with RISC-V Spill Detector (32 GPRs, RISC)")
+else:
+    # Fallback to general spill detector for other architectures
+    Source('spill_detector.cc')
+    print("Building with General Spill Detector")
 
 DebugFlag('SimpleCPU')
 DebugFlag('SpillDetector')

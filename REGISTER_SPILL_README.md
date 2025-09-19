@@ -55,7 +55,7 @@ Line 30  | commitStats0.numStoreInsts    : Committed store instructions
 Line 128 | executeStats0.numStoreInsts   : Executed store instructions
 ```
 
-#### C) Custom Spill Log (cpp_spill_log.txt)
+#### C) Custom Spill Log (spill_stats.txt)
 ```csv
 # Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count
 SPILL,400abc,500def,7fff1234,1000,1050,50,100,105
@@ -77,7 +77,7 @@ SPILL,400abc,500def,7fff1234,1000,1050,50,100,105
     └── isLikelySpill() → Spill Detection
     ↓
 📝 Data Output
-    ├── cpp_spill_log.txt                      // CSV detailed logging
+    ├── spill_stats.txt                       // CSV detailed logging
     └── detected_spills vector                 // In-memory storage
 ```
 
@@ -235,7 +235,7 @@ ls -la dashboard_output/
 ## 📁 Output Files
 
 ### Generated Data Files
-1. **m5out/cpp_spill_log.txt** - Detailed CSV log of all spill events
+1. **m5out/spill_stats.txt** - Detailed CSV log of all spill events
 2. **m5out/stats.txt** - Standard gem5 simulation statistics
 3. **dashboard_output/overview_dashboard.png** - Main visualization charts
 4. **dashboard_output/spill_analysis_dashboard.png** - Detailed spill analysis

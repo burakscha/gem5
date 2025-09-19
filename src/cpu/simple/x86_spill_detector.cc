@@ -12,19 +12,6 @@
  *    $ rm -rf build/X86/
  *    $ rm -rf m5out/*
  *    # Clear all previous compilation and simulation outputs
- *
- * NOTE FOR FAIR COMPARISON (x86):
- * Arrange the simulator output under a dedicated folder for fair
- * comparison runs. For x86 place the `m5out` contents inside:
- *
- *    gem5/fair_comparison/x86_build/m5out/
- *
- * The simplest workflow is to run the simulator as usual and then move
- * the generated `m5out/` directory into the desired fair_comparison path.
- * Example:
- *    $ ./build/X86/gem5.opt <args...>
- *    $ mkdir -p fair_comparison/x86_build/m5out
- *    $ mv m5out/* fair_comparison/x86_build/m5out/
  * 
  * 2. Create and implement the SpillDetector header file:
  *    $ vim src/cpu/simple/spill_detector.hh
@@ -53,14 +40,23 @@
  *    $ vim src/cpu/simple/SConscript
  *    # Add Source('spill_detector.cc') to include new source file
  * 
- * 7. Compile the gem5 simulator with spill detection:
+ * 7. Compile the gem5 simulator with spill detection (x86 step-by-step):
+ *    # Build the simulator binary for x86
  *    $ scons build/X86/gem5.opt -j12
- *    # Build X86 architecture with TimingSimpleCPU and spill detection
- * 
- * 8. Run simulation with register spill detection:
+ *    # Note: consider using -j$(nproc) for parallel builds on multicore machines
+ *
+ * 8. Run simulation with register spill detection (x86 example):
+ *    # Run the hello workload and generate m5out in the repository root
  *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU --caches --cmd=tests/test-progs/hello/bin/x86/linux/hello
- *    # Execute hello program with spill detection enabled
- *    # Result: Detected 501 register spills successfully
+ *    # After the run completes, create the fair comparison folder and move outputs
+ *    $ mkdir -p fair_comparison/x86_build/m5out
+ *    $ mv m5out/* fair_comparison/x86_build/m5out/
+ *
+ * 9. Verify spill detection output (x86 fair-comparison layout):
+ *    $ ls -la fair_comparison/x86_build/m5out/
+ *    $ head -20 fair_comparison/x86_build/m5out/spill_stats.txt
+ *    $ grep "^SPILL" fair_comparison/x86_build/m5out/spill_stats.txt | wc -l
+ *    # Confirm 501 spill events were logged to spill_stats.txt
  * 
  * 9. Verify spill detection output:
  *    $ ls -la m5out/
@@ -123,7 +119,7 @@
  * 
  */
 
-#include "cpu/simple/spill_detector.hh"
+#include "cpu/simple/x86_spill_detector.hh"
 #include "base/trace.hh"
 #include "debug/SpillDetector.hh"
 #include <iostream>
@@ -141,7 +137,7 @@
  * This is where the real-time register spill detection happens.
  * It is part of the gem5 simulator’s core code (not the test program or Python).
  * It tracks every store and load instruction during simulation, using a C++ map to find store-load patterns that indicate register spills.
- * When a spill is detected, it logs the event (e.g., to cpp_spill_log.txt).
+ * When a spill is detected, it logs the event (e.g., to spill_log.txt).
  * 
  * === Important Notes ===
  * 
@@ -329,112 +325,9 @@ SpillDetector::writeSpillToLog(const SpillEvent& spill)
 void 
 SpillDetector::printSpillReport() const
 {
-    // Console output
-    std::cout << "\n" << std::string(60, '=') << std::endl;
-    std::cout << "🔍 C++ REGISTER SPILL DETECTION REPORT" << std::endl;
-    std::cout << std::string(60, '=') << std::endl;
-    
-    std::cout << "\n📊 EXECUTION STATISTICS:" << std::endl;
-    std::cout << "  Total Instructions: " << total_instructions << std::endl;
-    std::cout << "  Store Instructions: " << total_stores << std::endl;
-    std::cout << "  Load Instructions: " << total_loads << std::endl;
-    std::cout << "  Total Memory Operations: " << (total_stores + total_loads) << std::endl;
-    std::cout << "  Total Spills Detected: " << detected_spills.size() << " (vector) | " << total_spills_logged << " (logged to file)" << std::endl;
-    
-    std::cout << "\n📈 A. TEMEL ORANLAR:" << std::endl;
-    
-    uint64_t total_memory_ops = total_stores + total_loads;
-    
-    // Spill Rate (Memory Op bazında)
-    if (total_memory_ops > 0) {
-        double spill_rate_memory = (double(detected_spills.size()) / total_memory_ops) * 100.0;
-        std::cout << "  ✅ Spill Rate (Memory Op bazında): " << std::fixed << std::setprecision(3) 
-                  << spill_rate_memory << "%" << std::endl;
-    }
-    
-    // Spill Rate (Instruction bazında)
-    if (total_instructions > 0) {
-        double spill_rate_instructions = (double(detected_spills.size()) / total_instructions) * 100.0;
-        std::cout << "  ✅ Spill Rate (Instruction bazında): " << std::fixed << std::setprecision(3) 
-                  << spill_rate_instructions << "%" << std::endl;
-    }
-    
-    // Memory Intensity
-    if (total_instructions > 0) {
-        double memory_intensity = (double(total_memory_ops) / total_instructions) * 100.0;
-        std::cout << "  ✅ Memory Intensity: " << std::fixed << std::setprecision(2) 
-                  << memory_intensity << "% of instructions" << std::endl;
-    }
-    
-    // Store/Load Ratio
-    if (total_loads > 0) {
-        double store_load_ratio = double(total_stores) / total_loads;
-        std::cout << "  ✅ Store/Load Ratio: " << std::fixed << std::setprecision(3) 
-                  << store_load_ratio << std::endl;
-    }
-    
-    std::cout << "\n🚀 B. PERFORMANCE IMPACT:" << std::endl;
-    
-    // Average Spill Latency
-    if (!detected_spills.empty()) {
-        Tick total_latency = 0;
-        for (const auto& spill : detected_spills) {
-            total_latency += spill.tick_diff;
-        }
-        double avg_latency = double(total_latency) / detected_spills.size();
-        std::cout << "  ✅ Average Spill Latency: " << std::fixed << std::setprecision(1) 
-                  << avg_latency << " ticks" << std::endl;
-    }
-    
-    // Spill Frequency (spills per instruction)
-    if (total_instructions > 0) {
-        double spill_frequency = double(detected_spills.size()) / total_instructions;
-        std::cout << "  ✅ Spill Frequency: " << std::scientific << std::setprecision(3)
-                  << spill_frequency << " spills/instruction" << std::endl;
-    }
-    
-    // Memory Pressure (active pending stores)
-    std::cout << "  ✅ Memory Pressure: " << store_map.size() 
-              << " active pending stores" << std::endl;
-    
-    std::cout << "\n🔥 HOTSPOT ANALYSIS:" << std::endl;
-    
-    // Find most frequent store PCs
-    std::map<Addr, uint64_t> store_pc_count;
-    for (const auto& spill : detected_spills) {
-        store_pc_count[spill.store_pc]++;
-    }
-    
-    if (store_pc_count.empty()) {
-        std::cout << "  No store hotspots detected." << std::endl;
-    } else {
-        // Convert to vector for sorting
-        std::vector<std::pair<Addr, uint64_t>> sorted_stores;
-        for (const auto& entry : store_pc_count) {
-            sorted_stores.push_back({entry.first, entry.second});
-        }
-        
-        // Sort by frequency (descending)
-        std::sort(sorted_stores.begin(), sorted_stores.end(),
-                  [](const auto& a, const auto& b) { return a.second > b.second; });
-        
-        std::cout << "  Top Spill-causing Store PCs:" << std::endl;
-        for (size_t i = 0; i < std::min(sorted_stores.size(), size_t(5)); i++) {
-            std::cout << "    " << (i+1) << ". PC 0x" << std::hex << sorted_stores[i].first 
-                      << ": " << std::dec << sorted_stores[i].second << " spills" << std::endl;
-        }
-    }
-    
-    // Memory regions
-    std::set<Addr> memory_regions;
-    for (const auto& spill : detected_spills) {
-        memory_regions.insert(spill.address);
-    }
-    
-    std::cout << "\n💾 MEMORY REGIONS:" << std::endl;
-    std::cout << "  Unique spill memory addresses: " << memory_regions.size() << std::endl;
-    
-    std::cout << std::string(60, '=') << std::endl;
+    // Silent operation - no console output
+    // All spill detection results are logged to m5out/spill_stats.txt
+    // This method remains for compatibility but produces no output
 }
 
 void

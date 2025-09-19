@@ -5,7 +5,7 @@
 
 📂 DATA SOURCES:
    • gem5 Statistics: m5out/stats.txt
-   • Spill Detection Log: m5out/cpp_spill_log.txt
+   • Spill Detection Log: m5out/spill_stats.txt
    • Configuration: m5out/config.json
 
 📊 CORE INSTRUCTION STATISTICS (from stats.txt):
@@ -18,7 +18,7 @@
    Line 30 | commitStats0.numStoreInsts   :        943.0 (Store instructions)
    Line 128| executeStats0.numStoreInsts  :       2027.0 (Executed stores)
 
-🎯 SPILL DETECTION RESULTS (from cpp_spill_log.txt):
+🎯 SPILL DETECTION RESULTS (from spill_stats.txt):
 ──────────────────────────────────────────────────────────────────────
    Total Spill Events Detected          :          501
    Unique Memory Addresses Involved     :          160

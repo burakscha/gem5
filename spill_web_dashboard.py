@@ -9,7 +9,7 @@ detailed insights into register spilling behavior.
 
 Data Sources:
 - m5out/stats.txt: gem5 simulation statistics 
-- m5out/cpp_spill_log.txt: Custom spill detection log
+- m5out/spill_log.txt: Custom spill detection log
 - m5out/config.json: Simulation configuration (optional)
 
 Author: Register Spilling Research Team
@@ -36,11 +36,11 @@ class SpillAnalysisWebDashboard:
         Initialize the dashboard with gem5 output directory
         
         Args:
-            gem5_output_dir (str): Path to gem5 output directory containing stats.txt, cpp_spill_log.txt etc.
+            gem5_output_dir (str): Path to gem5 output directory containing stats.txt, spill_stats.txt etc.
         """
         self.gem5_dir = Path(gem5_output_dir)
         self.stats_file = self.gem5_dir / "stats.txt"
-        self.spill_log_file = self.gem5_dir / "cpp_spill_log.txt" 
+    self.spill_log_file = self.gem5_dir / "spill_stats.txt" 
         self.config_file = self.gem5_dir / "config.json"
         
         # Data containers
@@ -106,8 +106,8 @@ class SpillAnalysisWebDashboard:
     
     def load_spill_data(self):
         """
-        Load spill detection data from cpp_spill_log.txt
-        Data Source: m5out/cpp_spill_log.txt
+    Load spill detection data from spill_stats.txt
+    Data Source: m5out/spill_stats.txt
         """
         print(f"\n🎯 Loading spill data from: {self.spill_log_file}")
         
@@ -136,7 +136,7 @@ class SpillAnalysisWebDashboard:
                         })
         
         self.spill_data = pd.DataFrame(spill_rows)
-        print(f"✅ Loaded {len(self.spill_data)} spill events from cpp_spill_log.txt")
+    print(f"✅ Loaded {len(self.spill_data)} spill events from spill_stats.txt")
         
         if len(self.spill_data) > 0:
             print(f"   🔍 Unique memory addresses: {self.spill_data['memory_address'].nunique()}")
@@ -365,7 +365,7 @@ class SpillAnalysisWebDashboard:
    Line 30 | commitStats0.numStoreInsts   : {self.gem5_stats.get('system.cpu.commitStats0.numStoreInsts', 'N/A'):>12} (Store instructions)
    Line 128| executeStats0.numStoreInsts  : {self.gem5_stats.get('system.cpu.executeStats0.numStoreInsts', 'N/A'):>12} (Executed stores)
 
-🎯 SPILL DETECTION RESULTS (from cpp_spill_log.txt):
+🎯 SPILL DETECTION RESULTS (from spill_log.txt):
 {'─'*70}
    Total Spill Events Detected          : {self.summary_stats['total_spills']:>12,}
    Unique Memory Addresses Involved     : {self.spill_data['memory_address'].nunique() if self.spill_data is not None else 'N/A':>12}
@@ -501,7 +501,7 @@ class SpillAnalysisWebDashboard:
                     'Category': 'spill_analysis',
                     'Metric': metric,
                     'Value': value,
-                    'Source': 'cpp_spill_log.txt',
+                    'Source': 'spill_log.txt',
                     'Description': description
                 })
         

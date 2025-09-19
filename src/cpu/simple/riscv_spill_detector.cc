@@ -2,123 +2,107 @@
  * Copyright (c) 2025 Register Spilling Research
  * All rights reserved.
  *
- * Register Spill Detection System Implementation
+ * RISC-V-Specific Register Spill Detection System Implementation
  * 
- * ===================================================================
- * COMPLETE DEVELOPMENT AND EXECUTION WORKFLOW - CHRONOLOGICAL ORDER:
- * ===================================================================
+ * =====================================================================
+ * RISC-V ARCHITECTURE-SPECIFIC SPILL DETECTION IMPLEMENTATION:
+ * =====================================================================
  * 
- * 1. Clean previous build outputs and prepare workspace:
- *    $ rm -rf build/X86/
- *    $ rm -rf m5out/*
- *    # Clear all previous compilation and simulation outputs
- *
- * NOTE FOR FAIR COMPARISON (x86):
- * Arrange the simulator output under a dedicated folder for fair
- * comparison runs. For x86 place the `m5out` contents inside:
- *
- *    gem5/fair_comparison/x86_build/m5out/
- *
- * The simplest workflow is to run the simulator as usual and then move
- * the generated `m5out/` directory into the desired fair_comparison path.
- * Example:
- *    $ ./build/X86/gem5.opt <args...>
- *    $ mkdir -p fair_comparison/x86_build/m5out
- *    $ mv m5out/* fair_comparison/x86_build/m5out/
+ * This implementation is specifically tailored for RISC-V architecture
+ * characteristics:
  * 
- * 2. Create and implement the SpillDetector header file:
- *    $ vim src/cpu/simple/spill_detector.hh
- *    # Define SpillDetector class with store-load tracking functionality
- *    # Include memory address mapping and spill detection algorithms
+ * 1. RISC-V Register Set: 32 general-purpose 64-bit registers
+ *    - x0 (zero): Always zero, cannot be written
+ *    - x1 (ra): Return address register
+ *    - x2 (sp): Stack pointer
+ *    - x3 (gp): Global pointer
+ *    - x4 (tp): Thread pointer
+ *    - x5-x7, x28-x31 (t0-t6): Temporary registers
+ *    - x8-x9, x18-x27 (s0-s11): Saved registers
+ *    - x10-x17 (a0-a7): Argument/return registers
  * 
- * 3. Create and implement the SpillDetector source file:
- *    $ vim src/cpu/simple/spill_detector.cc
- *    # Implement real-time spill detection with std::unordered_map
- *    # Add silent operation mode for clean output
- *    # Remove advanced statistics generation for simplified workflow
+ * 2. RISC-V Memory Addressing: Simple addressing mode
+ *    - Base + Immediate: rs1 + immediate (12-bit signed)
+ *    - No complex addressing modes like X86
+ *    - Load/Store instructions: LW, SW, LD, SD
  * 
- * 4. Integrate SpillDetector into TimingSimpleCPU:
- *    $ vim src/cpu/simple/timing.hh
- *    # Add #include "cpu/simple/spill_detector.hh"
- *    # Add SpillDetector* spillDetector member variable
+ * 3. RISC-V Calling Convention:
+ *    - Argument registers: a0-a7 (x10-x17)
+ *    - Return registers: a0-a1 (x10-x11)
+ *    - Callee-saved: s0-s11 (x8-x9, x18-x27), sp (x2)
+ *    - Caller-saved: t0-t6 (x5-x7, x28-x31), a0-a7 (x10-x17)
  * 
- * 5. Modify TimingSimpleCPU implementation:
- *    $ vim src/cpu/simple/timing.cc
- *    # Initialize spillDetector in constructor
- *    # Add onStoreInstruction() calls for store operations
- *    # Add onLoadInstruction() calls for load operations
- *    # Clean up generateAdvancedStatisticsFile() method calls
+ * 4. RISC-V Instruction Characteristics:
+ *    - Fixed 32-bit instruction length
+ *    - RISC design with simple operations
+ *    - Load-store architecture (no memory-memory ops)
+ *    - Explicit register usage in all instructions
  * 
- * 6. Update SConscript for build system:
- *    $ vim src/cpu/simple/SConscript
- *    # Add Source('spill_detector.cc') to include new source file
+ * =====================================================================
+ * RISC-V SPILL DETECTION DEVELOPMENT WORKFLOW:
+ * =====================================================================
  * 
- * 7. Compile the gem5 simulator with spill detection:
- *    $ scons build/X86/gem5.opt -j12
- *    # Build X86 architecture with TimingSimpleCPU and spill detection
+ * CURRENT PROJECT STATUS (September 2025):
+ * ========================================
  * 
- * 8. Run simulation with register spill detection:
- *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU --caches --cmd=tests/test-progs/hello/bin/x86/linux/hello
- *    # Execute hello program with spill detection enabled
- *    # Result: Detected 501 register spills successfully
+ * 1. Architecture-Specific Implementation Approach:
+ *    - Created separate implementations: x86_spill_detector.cc, riscv_spill_detector.cc
+ *    - Common interface: spill_detector.hh (architecture-agnostic)
+ *    - Polymorphic design for fair cross-architecture comparison
  * 
- * 9. Verify spill detection output:
- *    $ ls -la m5out/
- *    $ head -20 m5out/spill_stats.txt
- *    $ grep "^SPILL" m5out/spill_stats.txt | wc -l
- *    # Confirm 501 spill events were logged to spill_stats.txt
+ * 2. RISC-V-Specific Optimizations:
+ *    - 32-register awareness vs X86's 16 registers
+ *    - RISC load-store architecture considerations
+ *    - Fixed 32-bit instruction patterns
+ *    - Simple addressing mode analysis (base + immediate)
  * 
- * 10. Create comprehensive analysis dashboard:
- *     $ vim spill_web_dashboard.py
- *     # Develop Python dashboard with pandas/matplotlib for spill analysis
- *     # Generate visual charts and detailed statistical reports
+ * 3. Enhanced Detection Parameters:
+ *    - MIN_SPILL_WINDOW: 1000 ticks (more sensitive than previous 100K)
+ *    - MAX_SPILL_WINDOW: 500K ticks (optimized for RISC-V patterns)
+ *    - Architecture-aware thresholds for realistic spill detection
  * 
- * 11. Set up Python virtual environment and dependencies:
- *     $ source .venv/bin/activate
- *     $ pip install pandas matplotlib plotly
- *     # Use gem5's existing virtual environment for dashboard execution
+ * 4. Fair Comparison Test Suite:
+ *    - Unified test program: unified_spill_test.c
+ *    - Architecture-agnostic C code with #ifdef for syscalls
+ *    - Identical compilation: -O0 for both X86 and RISC-V
+ *    - 25 variables, 150 iterations for register pressure
  * 
- * 12. Execute comprehensive spill analysis:
- *     $ .venv/bin/python3 spill_web_dashboard.py
- *     # Generate overview_dashboard.png, spill_analysis_dashboard.png
- *     # Create detailed_report.txt and metrics_summary.csv
- *     # Results: 24.72% spill rate on memory operations, 8.79% on instructions
+ * 5. RISC-V Build Process:
+ *    $ scons build/RISCV/gem5.opt -j$(sysctl -n hw.ncpu)
+ *    $ riscv64-elf-gcc -O0 -nostdlib -nostartfiles -static \
+ *      -o unified_riscv_static unified_spill_test.c
  * 
- * 13. Create comprehensive documentation:
- *     $ vim REGISTER_SPILL_README.md
- *     # Document complete system architecture, algorithms, and usage
- *     # Include technical details and performance analysis
+ * 6. RISC-V Testing Workflow:
+ *    $ ./build/RISCV/gem5.opt configs/deprecated/example/se.py \
+ *      --cmd=fair_comparison_test/riscv_build/unified_riscv_static
+ *    # Expected: Architecture-specific spill patterns
  * 
- * 14. Commit changes to version control:
- *     $ git add .
- *     $ git commit -m "Implement comprehensive register spill detection system"
- *     $ git push origin DEV
- *     # Save all implementation to DEV branch with complete workflow
+ * 7. Cross-Architecture Analysis:
+ *    - Compare X86 vs RISC-V spill counts
+ *    - Analyze instruction set efficiency
+ *    - Evaluate register utilization patterns
+ *    - Generate comparative reports
  * 
+ * RISC-V INSTRUCTION SET COVERAGE:
+ * ===============================
+ * Load Instructions: LB, LH, LW, LD, LBU, LHU, LWU
+ * Store Instructions: SB, SH, SW, SD
+ * Addressing: rs1 + imm12 (simple base + offset)
+ * Register Naming: x0-x31 (ABI names: zero, ra, sp, gp, tp, t0-t6, s0-s11, a0-a7)
+ * 
+ * IMPLEMENTATION FEATURES:
+ * =======================
+ * ✅ RISC-V instruction validation (size-based)
+ * ✅ Architecture-specific logging messages
+ * ✅ 32-register awareness in comments
+ * ✅ RISC-V calling convention documentation
+ * ✅ Load-store architecture considerations
+ * ✅ Fixed 32-bit instruction handling
+ * ✅ Enhanced CSV headers with RISC-V metadata
  * =====================================
  * FINAL EXECUTION RESULTS (ACHIEVED):
  * =====================================
- * ✅ Total Spills Detected: 501
- * ✅ Total Instructions: 5,701  
- * ✅ Total Memory Operations: 2,027
- * ✅ Spill Rate (Memory): 24.72%
- * ✅ Spill Rate (Instructions): 8.79%
- * ✅ Performance Impact: CPI = 11.025
- * ✅ Dashboard Files Generated: 4 analysis files
- * ✅ Documentation: Complete technical README
- * 
- * CURRENT WORKFLOW FOR SIMULATION:
- *   Store/Load ratio: 0.738
- *   Average spill latency: 4,500,000 ticks
- *   Non-spill memory operations: 891 (86.157%)
- * 
- * 🔥 HOTSPOT ANALYSIS (Top 5):
- *   PC 0x409d12: 15 spill events
- *   PC 0x409d1a: 13 spill events
- *   [etc...]
- * 
- * 💾 MEMORY REGIONS:
- *   Unique spill memory addresses: 66
+ * TODO - Update after final test runs
  * ============================================================
  * 
  */
@@ -129,6 +113,9 @@
 #include <iostream>
 #include <iomanip>
 #include <set>
+#include <cmath>
+#include <map>
+#include <string>
 #include <map>
 #include <algorithm>
 #include <fstream>
@@ -171,19 +158,49 @@ SpillDetector::SpillDetector()
     // Write header to log file (only once at the beginning)
     writeLogHeader();
     
-    // Silent initialization - no console output
+    // RISC-V Architecture-Specific Initialization
+    std::cout << "[RISC-V SpillDetector] Initializing RISC-V-specific register spill detection..." << std::endl;
+    std::cout << "[RISC-V SpillDetector] Architecture: RISC-V 64-bit with 32 general-purpose registers" << std::endl;
+    std::cout << "[RISC-V SpillDetector] Instruction Set: RV64I base with fixed 32-bit instructions" << std::endl;
+    std::cout << "[RISC-V SpillDetector] Memory Model: Load-store architecture with simple addressing" << std::endl;
+    std::cout << "[RISC-V SpillDetector] Detection thresholds optimized for RISC-V register usage patterns" << std::endl;
 }
 
 SpillDetector::~SpillDetector()
 {
-    // Silent cleanup - no console output
-    // Only log file remains active
+    // Print final statistics when detector is destroyed  
+    printSpillReport();
+    
+    // Clean shutdown
+    std::cout << "[RISC-V Spill Detector] Detection complete - statistics logged" << std::endl;
 }
 
 void
 SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size)
 {
     total_stores++;
+    
+    // RISC-V-specific instruction validation
+    // RISC-V store instructions: SB, SH, SW, SD (8, 16, 32, 64-bit)
+    bool valid_riscv_store = false;
+    std::string store_type = "UNKNOWN";
+    
+    switch(size) {
+        case 1: store_type = "SB (Store Byte)"; valid_riscv_store = true; break;
+        case 2: store_type = "SH (Store Halfword)"; valid_riscv_store = true; break;
+        case 4: store_type = "SW (Store Word)"; valid_riscv_store = true; break;
+        case 8: store_type = "SD (Store Doubleword)"; valid_riscv_store = true; break;
+        default: 
+            std::cout << "[RISC-V SpillDetector] WARNING: Invalid RISC-V store size: " << size 
+                      << " bytes at PC=0x" << std::hex << pc << std::dec << std::endl;
+    }
+    
+    if (valid_riscv_store && (total_stores % 1000 == 0)) {
+        std::cout << "[RISC-V SpillDetector] Store #" << total_stores 
+                  << " - Type: " << store_type 
+                  << " | Address: 0x" << std::hex << address 
+                  << " | PC: 0x" << pc << std::dec << std::endl;
+    }
     
     // Create store info and add to our C++ map
     // This is the core map functionality requested by the user
@@ -194,8 +211,6 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
     if (store_map.size() > MAX_STORE_ENTRIES) {
         cleanupOldStores(tick);
     }
-    
-    // Silent operation - no console output
 }
 
 void
@@ -212,14 +227,20 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
         
         // Check if this looks like a register spill
         if (isLikelySpill(store_info, pc, tick)) {
-            // 🎯 SPILL DETECTED!! Store followed by load to same address
+            // 🎯 RISC-V SPILL DETECTED!! Store followed by load to same address
             total_spills_detected++;
             
             SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
                            store_info.instruction_count, total_instructions);
             detected_spills.push_back(spill);
             
-            // Silent spill detection - no console output
+            // RISC-V-specific spill logging
+            std::cout << "[RISC-V SpillDetector] SPILL #" << total_spills_detected 
+                      << " | Size: " << size << " bytes"
+                      << " | Address: 0x" << std::hex << address 
+                      << " | Store PC: 0x" << store_info.pc 
+                      << " | Load PC: 0x" << pc << std::dec
+                      << " | Ticks: " << (tick - store_info.tick) << std::endl;
             
             // Log to file for detailed analysis
             writeSpillToLog(spill);
@@ -229,7 +250,6 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
             store_map.erase(store_it);
         }
     }
-    
 }
 
 void
@@ -260,8 +280,62 @@ SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick loa
         return false;
     }
     
-    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
-    return true;
+    // Multi-factor loop vs spill detection algorithm
+    // Same sophisticated detection logic as X86
+    
+    // Factor 1: PC distance analysis for RISC-V (fixed 4-byte instructions)
+    // RISC-V loops typically have very tight instruction distances (4-8 bytes)
+    Addr pc_distance = (load_pc > store_info.pc) ? 
+                       (load_pc - store_info.pc) : 
+                       (store_info.pc - load_pc);
+    bool likely_loop_pc = (pc_distance <= 8); // RISC-V loop threshold (2 instructions)
+    
+    // Factor 2: Timing consistency - loops have very consistent timing
+    // Check if this store-load pair has been seen with similar timing before
+    std::string pc_pair = std::to_string(store_info.pc) + "->" + std::to_string(load_pc);
+    auto timing_it = pc_timing_patterns.find(pc_pair);
+    bool likely_loop_timing = false;
+    
+    if (timing_it != pc_timing_patterns.end()) {
+        // Calculate coefficient of variation for timing
+        double avg_time = timing_it->second.total_time / timing_it->second.count;
+        double variance = (timing_it->second.sum_squares / timing_it->second.count) - (avg_time * avg_time);
+        double cv = (avg_time > 0) ? (sqrt(variance) / avg_time) : 0.0;
+        
+        // Loops have very consistent timing (CV < 5%)
+        likely_loop_timing = (cv < 0.05 && timing_it->second.count > 10);
+    }
+    
+    // Update timing statistics
+    if (timing_it == pc_timing_patterns.end()) {
+        pc_timing_patterns[pc_pair] = {time_diff, time_diff * time_diff, 1};
+    } else {
+        timing_it->second.total_time += time_diff;
+        timing_it->second.sum_squares += (time_diff * time_diff);
+        timing_it->second.count++;
+    }
+    
+    // Factor 3: Repetition count - loops execute hundreds/thousands of times
+    auto rep_it = pc_repetition_count.find(pc_pair);
+    bool likely_loop_repetition = false;
+    
+    if (rep_it == pc_repetition_count.end()) {
+        pc_repetition_count[pc_pair] = 1;
+    } else {
+        rep_it->second++;
+        likely_loop_repetition = (rep_it->second > 500); // High repetition = likely loop
+    }
+    
+    // Factor 4: Frequency analysis - loops execute very frequently
+    // Spills are typically less frequent than loop counters
+    bool likely_loop_frequency = (time_diff < 500); // Very frequent = likely loop
+    
+    // Final decision: If multiple factors indicate loop behavior, it's not a spill
+    bool likely_loop = (likely_loop_pc && likely_loop_timing) || 
+                       (likely_loop_pc && likely_loop_repetition) ||
+                       (likely_loop_timing && likely_loop_frequency);
+    
+    return !likely_loop; // If it's likely a loop, it's NOT a spill
 }
 
 void
@@ -283,9 +357,16 @@ SpillDetector::writeLogHeader()
     // Write header to log file (create new file, overwrite if exists)
     std::ofstream log_file("m5out/spill_stats.txt", std::ios::trunc);
     if (log_file.is_open()) {
-        log_file << "# C++ Register Spill Detection Log\n";
-        log_file << "# Generated by gem5 SpillDetector\n";
-        log_file << "# =================================\n";
+        log_file << "# RISC-V Register Spill Detection Log\n";
+        log_file << "# Generated by gem5 RISC-V SpillDetector\n";
+        log_file << "# ====================================\n";
+        log_file << "#\n";
+        log_file << "# Architecture: RISC-V 64-bit (RV64I)\n";
+        log_file << "# Register Set: 32 general-purpose registers (x0-x31)\n";
+        log_file << "# Instruction Set: Fixed 32-bit instructions\n";
+        log_file << "# Memory Model: Load-store architecture\n";
+        log_file << "# Load Instructions: LB, LH, LW, LD, LBU, LHU, LWU\n";
+        log_file << "# Store Instructions: SB, SH, SW, SD\n";
         log_file << "#\n";
         log_file << "# Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count\n";
         log_file << "#\n";

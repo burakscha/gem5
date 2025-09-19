@@ -2,53 +2,21 @@
  * Copyright (c) 2025 Register Spilling Research
  * All rights reserved.
  *
- * Register Spill Detection System for gem5
+ * X86 Register Spill Detection System for gem5
  * 
  * This implements real-time instruction-level analysis to detect register
  * spills by tracking store-load patterns to the same memory addresses.
  * 
- * DEVELOPMENT PROCESS SUMMARY:
+ * X86 SPECIFIC IMPLEMENTATION:
  * ============================
- * 1. Initial Implementation: Simple spill detection with basic cout output
- *    - Command: Basic spill detection using std::unordered_map for O(1) lookup
- *    - Purpose: Replace complex file-based analysis with simple console output
- * 
- * 2. Discovery Phase: Empty spill log issue identification
- *    - Issue: spill_stats.txt was empty, indicating detection criteria too restrictive
- *    - Command: ./build/X86/gem5.opt configs/deprecated/example/se.py -c tests/test-progs/hello/bin/x86/linux/hello --cpu-type=TimingSimpleCPU
- *    - Analysis: Detection window of 50K ticks was insufficient for real programs
- * 
- * 3. Parameter Optimization: Increased detection sensitivity
- *    - Updated MAX_SPILL_WINDOW from 100,000 to 10,000,000 ticks
- *    - Updated time_diff threshold from 50,000 to 10,000,000 ticks
- *    - Result: Successfully detected 348+ spills in hello world program
- * 
- * 4. Build Process: Compilation and testing
- *    - Command: scons build/X86/gem5.opt -j8
- *    - Integration: SpillDetector integrated into TimingSimpleCPU lifecycle
- *    - Validation: Confirmed spill detection works during simulation
- * 
- * 5. Advanced Reporting: Detailed statistical analysis implementation
- *    - Added comprehensive printSpillReport() method with formatted output
- *    - Metrics: Execution statistics, performance impact, hotspot analysis
- *    - Report frequency: Every 5000 instructions during simulation
- *    - Output format: Console-based detailed breakdown with percentages
- * 
- * 6. File Output: CSV logging system
- *    - Created spill_stats.txt with detailed spill data
- *    - Format: CSV-style with headers and field descriptions
-*    - Location: m5out/spill_stats.txt (automatically generated)
- * 
- * CURRENT FUNCTIONALITY:
- * - Real-time spill detection during simulation
- * - Detailed console reports every 5000 instructions
- * - CSV log file generation in m5out directory
- * - Performance metrics and hotspot analysis
- * - Integration with gem5 CPU simulation lifecycle
+ * - Optimized for X86-64 architecture (16 general-purpose registers)
+ * - Ultra-basic detection mode with minimal filtering
+ * - Silent operation with file-only logging
+ * - Enhanced header documentation for spill analysis
  */
 
-#ifndef __CPU_SIMPLE_SPILL_DETECTOR_HH__
-#define __CPU_SIMPLE_SPILL_DETECTOR_HH__
+#ifndef __CPU_SIMPLE_X86_SPILL_DETECTOR_HH__
+#define __CPU_SIMPLE_X86_SPILL_DETECTOR_HH__
 
 #include <unordered_map>
 #include <vector>
@@ -61,13 +29,13 @@ namespace gem5
 {
 
 /**
- * Register Spill Detection System
+ * X86 Register Spill Detection System
  * 
- * This class implements the exact approach requested by the user:
+ * This class implements ultra-basic spill detection:
  * - Uses C++ std::unordered_map to track store operations
  * - Monitors each instruction's memory accesses in real-time
  * - Detects when a load operation accesses the same address as a recent store
- * - Counts such patterns as potential register spills
+ * - Counts such patterns as potential register spills (minimal filtering)
  */
 class SpillDetector
 {
@@ -89,8 +57,7 @@ class SpillDetector
               size(data_size), instruction_count(inst_count) {}
     };
     
-    // Structure to store information about a detected spill, AKA Spill Object
-    // In the paper it is called "Spill Store" as cited below: 
+    // Structure to store information about a detected spill
     struct SpillEvent {
         Addr store_pc;         // PC of the store instruction
         Addr load_pc;          // PC of the load instruction  
@@ -110,7 +77,7 @@ class SpillDetector
 
   private:
     // Map to track store operations: address -> StoreInfo
-    // This is the core C++ map structure requested by the user
+    // This is the core C++ map structure for ultra-basic spill detection
     std::unordered_map<Addr, StoreInfo> store_map;
     
     // Vector to store all detected spill events
@@ -123,17 +90,15 @@ class SpillDetector
     uint64_t total_spills_detected;
     mutable uint64_t total_spills_logged;    // Counter for spills actually written to log file
     
-    // Configuration parameters - more realistic spill detection thresholds
-    static const Tick MIN_SPILL_WINDOW = 10000;     // Min ticks between store-load for spill (10K cycles minimum)
-    static const Tick MAX_SPILL_WINDOW = 100000;    // Max ticks between store-load for spill (100K cycles maximum)
-    static const unsigned MAX_STORE_ENTRIES = 10000; // Max stored addresses to track
+    // Configuration parameters - ultra-basic mode with minimal constraints
+    static const Tick MAX_SPILL_WINDOW = 10000000;    // Large window for maximum detection
+    static const unsigned MAX_STORE_ENTRIES = 10000;  // Max stored addresses to track
     
     // Helper methods
     void cleanupOldStores(Tick current_tick);
     bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
-  void writeAdvancedStatistics() const;
 
   public:
     SpillDetector();
@@ -157,6 +122,11 @@ class SpillDetector
     void onInstructionExecute(Addr pc, Tick tick);
     
     /**
+     * Print spill report (silent operation - no console output)
+     */
+    void printSpillReport() const;
+    
+    /**
      * Get current spill statistics
      */
     uint64_t getTotalSpills() const { return total_spills_detected; }
@@ -172,4 +142,4 @@ class SpillDetector
 
 } // namespace gem5
 
-#endif // __CPU_SIMPLE_SPILL_DETECTOR_HH__
+#endif // __CPU_SIMPLE_X86_SPILL_DETECTOR_HH__
