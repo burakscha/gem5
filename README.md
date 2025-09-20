@@ -40,48 +40,7 @@ docker image prune
 ```
 
 > Note: If you use the first command above to start your container, it will be automatically removed when you exit (because of the `--rm` flag).
-# Docker x86 Konteyner Kullanımı
 
-## Konteyner Açma
-Bir x86 Ubuntu konteyneri başlatmak için:
-```sh
-docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
-```
-
-## Konteyneri Kapatma
-Konteyner terminalinde:
-```sh
-exit
-# veya
-Ctrl + D
-```
-
-## Çalışan Konteynerleri Listeleme
-```sh
-docker ps
-```
-
-## Tüm Konteynerleri Listeleme (Çalışan/Duran)
-```sh
-docker ps -a
-```
-
-## Arka Plandaki Konteyneri Durdurma
-```sh
-docker stop <container_id>
-```
-
-## Kullanılmayan Konteynerleri Silme
-```sh
-docker rm <container_id>
-```
-
-## Kullanılmayan İmajları Silme
-```sh
-docker image prune
-```
-
-> Not: Yukarıdaki ilk komutla başlatılan konteyner, `exit` ile otomatik silinir (`--rm` parametresi sayesinde).
 # The gem5 Simulator
 This is the repository for the gem5 simulator. It contains the full source code
 for the simulator and all tests and regressions.
@@ -180,3 +139,107 @@ or start discussions. To join the mailing list please visit
 We hope you enjoy using gem5. When appropriate we advise sharing your
 contributions to the project. <https://www.gem5.org/contributing> can help you
 get started. Additional information can be found in the CONTRIBUTING.md file.
+
+
+# Simulating x86 Binaries on ARM Macs Using Docker
+
+To automate the process of building and simulating x86 binaries (such as matrix_spill.c) on an ARM-based Mac, follow these steps:
+
+## Step-by-Step Bash Workflow
+
+1. Save the following script as `run_x86_docker.sh` in your project root directory.
+2. Make it executable:
+	```sh
+	chmod +x run_x86_docker.sh
+	```
+3. Run the script:
+	```sh
+	./run_x86_docker.sh
+	```
+
+### Script Content
+```sh
+#!/bin/bash
+docker run --rm -it --platform linux/amd64 \
+  -v "$(pwd)":/workspace -w /workspace ubuntu:24.04 bash -c "\
+	 apt-get update && \
+	 apt-get install -y build-essential gcc-multilib file python3 python3-pip scons m4 zlib1g-dev libprotobuf-dev protobuf-compiler libgoogle-perftools-dev libboost-all-dev pkg-config && \
+	 scons build/X86/gem5.opt -j\$(nproc)
+	 bash\
+"
+```
+
+This script will:
+- Start an x86 Ubuntu container
+- Install all required dependencies
+- Build gem5 and your x86 binary
+- Run the simulation
+- Drop you into a bash shell for further inspection (so you can check stats.txt, spill_stats.txt, etc.)
+
+You can modify the script for other C files or simulation options as needed.
+
+## Updated Build Command
+
+```bash
+build/X86/gem5.opt configs/deprecated/example/se.py \
+  --cpu-type=TimingSimpleCPU \
+  --caches \
+  -c <path_to_your_x86_binary>
+```
+
+## Example Build Command
+The updated build command for running the `hello_folks_x86` program is as follows:
+
+```bash
+build/X86/gem5.opt configs/deprecated/example/se.py \
+  --cpu-type=TimingSimpleCPU \
+  --caches \
+  -c fair_comparison/hello_build/hello_folks_x86
+```
+
+Make sure to use this command to ensure proper simulation with the spill detector enabled.
+
+## Step-by-Step Guide to Run an x86 Simulation on Docker
+
+### 1. Open Docker
+Start an x86 Ubuntu container for building or running x86 binaries:
+```bash
+docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+```
+
+### 2. Install Dependencies
+Inside the container, install the required dependencies:
+```bash
+apt-get update && \
+apt-get install -y build-essential gcc-multilib file python3 python3-pip scons m4 zlib1g-dev libprotobuf-dev protobuf-compiler libgoogle-perftools-dev libboost-all-dev pkg-config
+```
+
+### 3. Build gem5
+Build the gem5 simulator for the x86 architecture:
+```bash
+scons build/X86/gem5.opt -j$(nproc)
+```
+
+### 4. Create the Binary File
+Compile the C file to create the binary for simulation:
+```bash
+gcc -o fair_comparison/x86_build/matrix_spill_x86 fair_comparison/x86_build/matrix_spill.c
+```
+
+### 5. Run the Simulation
+Run the gem5 simulation with the compiled binary:
+```bash
+build/X86/gem5.opt configs/deprecated/example/se.py \
+  --cpu-type=TimingSimpleCPU \
+  --caches \
+  -c fair_comparison/x86_build/matrix_spill_x86
+```
+
+### 6. Check the Output Files
+After the simulation completes, check the output files:
+```bash
+ls -la m5out/spill_stats.txt
+cat m5out/spill_stats.txt | head -20
+```
+
+This step-by-step guide ensures that you can successfully run an x86 simulation on Docker.
