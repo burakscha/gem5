@@ -223,7 +223,12 @@ scons build/X86/gem5.opt -j$(nproc)
 ### 4. Create the Binary File
 Compile the C file to create the binary for simulation:
 ```bash
-gcc -o fair_comparison/x86_build/matrix_spill_x86 fair_comparison/x86_build/matrix_spill.c
+gcc -o <binary file> <.c file> 
+```
+
+For example:
+```bash
+gcc -o fair_comparison/hello_folks_x86 fair_comparison/hello_folks.c
 ```
 
 ### 5. Run the Simulation

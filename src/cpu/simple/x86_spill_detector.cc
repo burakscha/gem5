@@ -54,67 +54,14 @@
  *
  * 9. Verify spill detection output (x86 fair-comparison layout):
  *    $ ls -la fair_comparison/x86_build/m5out/
- *    $ head -20 fair_comparison/x86_build/m5out/spill_stats.txt
- *    $ grep "^SPILL" fair_comparison/x86_build/m5out/spill_stats.txt | wc -l
- *    # Confirm 501 spill events were logged to spill_stats.txt
+ *    $ head -20 fair_comparison/x86_build/m5out/x86_spill_stats.txt
+ *    $ grep "^SPILL" fair_comparison/x86_build/m5out/x86_spill_stats.txt | wc -l
  * 
  * 9. Verify spill detection output:
  *    $ ls -la m5out/
- *    $ head -20 m5out/spill_stats.txt
- *    $ grep "^SPILL" m5out/spill_stats.txt | wc -l
- *    # Confirm 501 spill events were logged to spill_stats.txt
+ *    $ head -20 m5out/x86_spill_stats.txt
+ *    $ grep "^SPILL" m5out/x86_spill_stats.txt | wc -l
  * 
- * 10. Create comprehensive analysis dashboard:
- *     $ vim spill_web_dashboard.py
- *     # Develop Python dashboard with pandas/matplotlib for spill analysis
- *     # Generate visual charts and detailed statistical reports
- * 
- * 11. Set up Python virtual environment and dependencies:
- *     $ source .venv/bin/activate
- *     $ pip install pandas matplotlib plotly
- *     # Use gem5's existing virtual environment for dashboard execution
- * 
- * 12. Execute comprehensive spill analysis:
- *     $ .venv/bin/python3 spill_web_dashboard.py
- *     # Generate overview_dashboard.png, spill_analysis_dashboard.png
- *     # Create detailed_report.txt and metrics_summary.csv
- *     # Results: 24.72% spill rate on memory operations, 8.79% on instructions
- * 
- * 13. Create comprehensive documentation:
- *     $ vim REGISTER_SPILL_README.md
- *     # Document complete system architecture, algorithms, and usage
- *     # Include technical details and performance analysis
- * 
- * 14. Commit changes to version control:
- *     $ git add .
- *     $ git commit -m "Implement comprehensive register spill detection system"
- *     $ git push origin DEV
- *     # Save all implementation to DEV branch with complete workflow
- * 
- * =====================================
- * FINAL EXECUTION RESULTS (ACHIEVED):
- * =====================================
- * ✅ Total Spills Detected: 501
- * ✅ Total Instructions: 5,701  
- * ✅ Total Memory Operations: 2,027
- * ✅ Spill Rate (Memory): 24.72%
- * ✅ Spill Rate (Instructions): 8.79%
- * ✅ Performance Impact: CPI = 11.025
- * ✅ Dashboard Files Generated: 4 analysis files
- * ✅ Documentation: Complete technical README
- * 
- * CURRENT WORKFLOW FOR SIMULATION:
- *   Store/Load ratio: 0.738
- *   Average spill latency: 4,500,000 ticks
- *   Non-spill memory operations: 891 (86.157%)
- * 
- * 🔥 HOTSPOT ANALYSIS (Top 5):
- *   PC 0x409d12: 15 spill events
- *   PC 0x409d1a: 13 spill events
- *   [etc...]
- * 
- * 💾 MEMORY REGIONS:
- *   Unique spill memory addresses: 66
  * ============================================================
  * 
  */
@@ -177,13 +124,13 @@ SpillDetector::~SpillDetector()
 }
 
 void
-SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size)
+SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
     total_stores++;
     
     // Create store info and add to our C++ map
     // This is the core map functionality requested by the user
-    StoreInfo store_info(address, pc, tick, size, total_instructions);
+    StoreInfo store_info(address, pc, tick, size, total_instructions, current_rsp);
     store_map[address] = store_info;
     
     // Clean up old entries to prevent memory bloat
@@ -195,8 +142,10 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
 }
 
 void
-SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size)
+SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
+    const double SPILL_SCORE_THRESHOLD = 3.0; // Threshold for confirming a spill
+    double spill_score = 0.0; // Calculate for potential spill score
     total_loads++;
     
     // Check if we have a recent store to this address
@@ -205,25 +154,28 @@ SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size
 
     if (store_it != store_map.end()) {  // ✅ FOUND!
         const StoreInfo& store_info = store_it->second;
-        
-        // Check if this looks like a register spill
-        if (isLikelySpill(store_info, pc, tick)) {
-            // 🎯 SPILL DETECTED!! Store followed by load to same address
-            total_spills_detected++;
-            
-            SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
-                           store_info.instruction_count, total_instructions);
-            detected_spills.push_back(spill);
-            
-            // Silent spill detection - no console output
-            
-            // Log to file for detailed analysis
-            writeSpillToLog(spill);
-            
-            // Remove the store entry since we've matched it
-            // (Prevents double-counting same spill pattern)
-            store_map.erase(store_it);
-        }
+
+            spill_score = calculateSpillScore(store_info, pc, tick, current_rsp);
+
+            if (spill_score >= SPILL_SCORE_THRESHOLD) {
+                // 🎯 SPILL DETECTED!! Store followed by load to same address
+                total_spills_detected++;
+
+                SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
+                            store_info.instruction_count, total_instructions, spill_score);
+                
+                
+                detected_spills.push_back(spill);
+                
+                
+                // Log to file for detailed analysis
+                writeSpillToLog(spill);
+                
+                // Remove the store entry since we've matched it
+                // (Prevents double-counting same spill pattern)
+                store_map.erase(store_it);
+
+            }
     }
     
 }
@@ -241,30 +193,73 @@ SpillDetector::onInstructionExecute(Addr pc, Tick tick)
 * Store ve load aynı instruction (aynı PC) tarafından mı yapıldı? Eğer öyleyse bu bir spill değildir.
 * Zaman aralığı sıfır veya negatifse, ya da çok büyükse spill değildir.
 */
-bool
-SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick)
+double
+SpillDetector::calculateSpillScore(const StoreInfo& store_info, Addr load_pc, Tick load_tick, Addr current_rsp)
 {
-    Tick time_diff = load_tick - store_info.tick;
+    // Configuration Parameters
+    const Tick TIME_WINDOW_MAX = 20000; // Maximum time window to consider for spill detection
+    const uint64_t STACK_PROXIMITY_BYTES = 1024; // Proximity to stack pointer (RSP) to consider
+    double spill_score = 0.0; // Calculate for potential spill score
+    Tick time_diff = load_tick - store_info.tick; // Time difference between store and load
+    uint64_t inst_diff = total_instructions - store_info.instruction_count; // Instruction difference between store and load
+
     
     // Basic sanity check: Load must come after store
-    if (time_diff <= 0) { // ❌ Load store'dan önce gelmiş || LOAD -❌-> STORE
-        return false;
-    }
-    
     // Different instructions check: If store and load are the same instruction, it's not a spill
-    if (store_info.pc == load_pc) {
-        return false;
+    if (time_diff <= 0 || store_info.pc == load_pc) { // ❌ Load store'dan önce gelmiş || LOAD -❌-> STORE
+        return 0.0;
     }
-    
-    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
-    return true;
+
+    if (inst_diff <= 0) {
+        return 0.0; // Geçersiz durum, puanı 0
+    }
+
+
+    /*
+    * Calculate spill score based on multiple heuristics:
+    * A. Time Proximity: Closer in time = higher score
+    * B. Dynamic Stack Check: Address near current RSP = higher score
+    * C. Data Size: 8-byte stores (x86-64) = higher score
+    * D. Instruction Distance: Very close store/load = lower score (less likely spill
+    */
+
+    // (Kural A: Zaman Yakınlığı) A. Time Proximity
+    // Ne kadar yakınsa o kadar yüksek puan. How close in time = higher score
+    if (time_diff < 500) spill_score += 1.5;
+    else if (time_diff < 5000) spill_score += 1.0;
+    else if (time_diff < TIME_WINDOW_MAX) spill_score += 0.5;
+    else return 0.0; // Timeout
+
+    // (Kural B: Dinamik Stack Kontrolü) B. Dynamic Stack Check
+    // Adres, anlık stack pointer'ına (RSP) ne kadar yakın?
+    if (store_info.rsp_at_store != 0 && 
+        store_info.address >= store_info.rsp_at_store - STACK_PROXIMITY_BYTES && 
+        store_info.address < store_info.rsp_at_store) {
+        spill_score += 2.0;
+    }
+
+    // (Kural C: Veri Boyutu) C. Data Size
+    // In a 64-bit architecture, an 8-byte store is a strong signal.
+    if (store_info.size == 8) {
+        spill_score += 1.0;
+    }
+
+    // (Kural D: Komut Mesafesi) D. Instruction Distance
+    // Çok yakın store/load çiftleri genelde spill değildir. | Very close store/load pairs are often not spills.
+    if (inst_diff < 5) {
+        spill_score -= 1.0; // Penalty
+    } else {
+        spill_score += 0.5;
+    }
+
+    return spill_score;    
 }
+
 
 void
 SpillDetector::cleanupOldStores(Tick current_tick)
 {
-    auto it = store_map.begin();
-    while (it != store_map.end()) {
+    for (auto it = store_map.begin(); it != store_map.end(); ) {
         if (current_tick - it->second.tick > MAX_SPILL_WINDOW) {
             it = store_map.erase(it);
         } else {
@@ -277,13 +272,13 @@ void
 SpillDetector::writeLogHeader()
 {
     // Write header to log file (create new file, overwrite if exists)
-    std::ofstream log_file("m5out/spill_stats.txt", std::ios::trunc);
+    std::ofstream log_file("m5out/x86_spill_stats.txt", std::ios::trunc);
     if (log_file.is_open()) {
         log_file << "# C++ Register Spill Detection Log\n";
         log_file << "# Generated by gem5 SpillDetector\n";
         log_file << "# =================================\n";
         log_file << "#\n";
-        log_file << "# Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count\n";
+        log_file << "# Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count,spill_score\n";
         log_file << "#\n";
         log_file << "# Field Descriptions:\n";
         log_file << "#   store_pc        : Program Counter (hexadecimal) of the store instruction that spilled data to memory\n";
@@ -294,6 +289,7 @@ SpillDetector::writeLogHeader()
         log_file << "#   tick_diff       : Time difference (decimal) between store and load operations\n";
         log_file << "#   store_inst_count: Global instruction counter when store occurred\n";
         log_file << "#   load_inst_count : Global instruction counter when load occurred\n";
+        log_file << "#   spill_score    : Calculated spill confidence score (higher is more likely)\n";
         log_file << "#\n";
         log_file << "# Each line represents one detected register spill event\n";
         log_file << "# =================================\n";
@@ -306,7 +302,7 @@ void
 SpillDetector::writeSpillToLog(const SpillEvent& spill)
 {
     // Append to detailed log file
-    static std::ofstream log_file("m5out/spill_stats.txt", std::ios::app);
+    static std::ofstream log_file("m5out/x86_spill_stats.txt", std::ios::app);
     if (log_file.is_open()) {
         log_file << "SPILL," 
                  << std::hex << spill.store_pc << ","
@@ -316,8 +312,10 @@ SpillDetector::writeSpillToLog(const SpillEvent& spill)
                  << spill.load_tick << ","
                  << spill.tick_diff << ","
                  << spill.store_inst_count << ","
-                 << spill.load_inst_count << std::endl;
-        
+                 << spill.load_inst_count << ","
+                 << std::fixed << std::setprecision(2) << spill.spill_score
+                 << std::endl;
+
         total_spills_logged++; // Increment counter when actually written to log
     }
 }
@@ -326,7 +324,7 @@ void
 SpillDetector::printSpillReport() const
 {
     // Silent operation - no console output
-    // All spill detection results are logged to m5out/spill_stats.txt
+    // All spill detection results are logged to m5out/x86_spill_stats.txt
     // This method remains for compatibility but produces no output
 }
 

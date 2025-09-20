@@ -44,7 +44,8 @@
 #include "arch/generic/mmu.hh"
 #include "cpu/simple/base.hh"
 #include "cpu/simple/exec_context.hh"
-#include "cpu/simple/spill_detector.hh"
+#include "cpu/simple/x86_spill_detector.hh"
+#include "arch/x86/regs/int.hh"
 #include "cpu/translation.hh"
 #include "params/BaseTimingSimpleCPU.hh"
 
@@ -336,7 +337,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     EventFunctionWrapper fetchEvent;
 
     // Register Spill Detector - C++ map-based approach
-    SpillDetector spillDetector;
+  SpillDetector spillDetector; // Now using x86_spill_detector.hh version
 
     struct IprEvent : Event
     {
