@@ -54,67 +54,14 @@
  *
  * 9. Verify spill detection output (x86 fair-comparison layout):
  *    $ ls -la fair_comparison/x86_build/m5out/
- *    $ head -20 fair_comparison/x86_build/m5out/spill_stats.txt
- *    $ grep "^SPILL" fair_comparison/x86_build/m5out/spill_stats.txt | wc -l
- *    # Confirm 501 spill events were logged to spill_stats.txt
+ *    $ head -20 fair_comparison/x86_build/m5out/x86_spill_stats.txt
+ *    $ grep "^SPILL" fair_comparison/x86_build/m5out/x86_spill_stats.txt | wc -l
  * 
  * 9. Verify spill detection output:
  *    $ ls -la m5out/
- *    $ head -20 m5out/spill_stats.txt
- *    $ grep "^SPILL" m5out/spill_stats.txt | wc -l
- *    # Confirm 501 spill events were logged to spill_stats.txt
+ *    $ head -20 m5out/x86_spill_stats.txt
+ *    $ grep "^SPILL" m5out/x86_spill_stats.txt | wc -l
  * 
- * 10. Create comprehensive analysis dashboard:
- *     $ vim spill_web_dashboard.py
- *     # Develop Python dashboard with pandas/matplotlib for spill analysis
- *     # Generate visual charts and detailed statistical reports
- * 
- * 11. Set up Python virtual environment and dependencies:
- *     $ source .venv/bin/activate
- *     $ pip install pandas matplotlib plotly
- *     # Use gem5's existing virtual environment for dashboard execution
- * 
- * 12. Execute comprehensive spill analysis:
- *     $ .venv/bin/python3 spill_web_dashboard.py
- *     # Generate overview_dashboard.png, spill_analysis_dashboard.png
- *     # Create detailed_report.txt and metrics_summary.csv
- *     # Results: 24.72% spill rate on memory operations, 8.79% on instructions
- * 
- * 13. Create comprehensive documentation:
- *     $ vim REGISTER_SPILL_README.md
- *     # Document complete system architecture, algorithms, and usage
- *     # Include technical details and performance analysis
- * 
- * 14. Commit changes to version control:
- *     $ git add .
- *     $ git commit -m "Implement comprehensive register spill detection system"
- *     $ git push origin DEV
- *     # Save all implementation to DEV branch with complete workflow
- * 
- * =====================================
- * FINAL EXECUTION RESULTS (ACHIEVED):
- * =====================================
- * ✅ Total Spills Detected: 501
- * ✅ Total Instructions: 5,701  
- * ✅ Total Memory Operations: 2,027
- * ✅ Spill Rate (Memory): 24.72%
- * ✅ Spill Rate (Instructions): 8.79%
- * ✅ Performance Impact: CPI = 11.025
- * ✅ Dashboard Files Generated: 4 analysis files
- * ✅ Documentation: Complete technical README
- * 
- * CURRENT WORKFLOW FOR SIMULATION:
- *   Store/Load ratio: 0.738
- *   Average spill latency: 4,500,000 ticks
- *   Non-spill memory operations: 891 (86.157%)
- * 
- * 🔥 HOTSPOT ANALYSIS (Top 5):
- *   PC 0x409d12: 15 spill events
- *   PC 0x409d1a: 13 spill events
- *   [etc...]
- * 
- * 💾 MEMORY REGIONS:
- *   Unique spill memory addresses: 66
  * ============================================================
  * 
  */
@@ -158,7 +105,8 @@ namespace gem5
 {
 
 SpillDetector::SpillDetector()
-    : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0), total_spills_logged(0)
+    : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0), total_spills_logged(0),
+      static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_load_count(0)
 {
     // Reserve space for performance
     store_map.reserve(1000);
@@ -177,13 +125,14 @@ SpillDetector::~SpillDetector()
 }
 
 void
-SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size)
+SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
     total_stores++;
+    dynamic_store_count++;
     
     // Create store info and add to our C++ map
     // This is the core map functionality requested by the user
-    StoreInfo store_info(address, pc, tick, size, total_instructions);
+    StoreInfo store_info(address, pc, tick, size, total_instructions, current_rsp);
     store_map[address] = store_info;
     
     // Clean up old entries to prevent memory bloat
@@ -195,37 +144,29 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
 }
 
 void
-SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size)
+SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
     total_loads++;
+    dynamic_load_count++;
+    
+    // Clean up old stores first
+    cleanupOldStores(tick);
     
     // Check if we have a recent store to this address
-    // This is where we use the C++ map to detect spill patterns
-    auto store_it = store_map.find(address); // 🔍 SEARCHING: Does store contained by this address?
-
-    if (store_it != store_map.end()) {  // ✅ FOUND!
+    auto store_it = store_map.find(address);
+    if (store_it != store_map.end()) {
         const StoreInfo& store_info = store_it->second;
         
-        // Check if this looks like a register spill
-        if (isLikelySpill(store_info, pc, tick)) {
-            // 🎯 SPILL DETECTED!! Store followed by load to same address
+        // Real spill detection using isLikelySpill method
+        if (isLikelySpill(store_info, pc, address, tick)) {
             total_spills_detected++;
-            
             SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
-                           store_info.instruction_count, total_instructions);
+                             store_info.instruction_count, total_instructions);
             detected_spills.push_back(spill);
-            
-            // Silent spill detection - no console output
-            
-            // Log to file for detailed analysis
             writeSpillToLog(spill);
-            
-            // Remove the store entry since we've matched it
-            // (Prevents double-counting same spill pattern)
-            store_map.erase(store_it);
         }
+        store_map.erase(store_it);
     }
-    
 }
 
 void
@@ -235,36 +176,25 @@ SpillDetector::onInstructionExecute(Addr pc, Tick tick)
     // No progress reporting - clean execution until final report
 }
 
-
-/*
-* Store ve load işlemleri arasında geçen zaman (tick farkı) makul bir aralıkta mı? (Çok kısa veya çok uzun olmamalı.)
-* Store ve load aynı instruction (aynı PC) tarafından mı yapıldı? Eğer öyleyse bu bir spill değildir.
-* Zaman aralığı sıfır veya negatifse, ya da çok büyükse spill değildir.
-*/
 bool
-SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick)
+SpillDetector::isLikelySpill(const StoreInfo& store_info, Addr load_pc, Addr address, Tick load_tick)
 {
-    Tick time_diff = load_tick - store_info.tick;
+    // Simple spill detection: if store is followed by load to same address, it's a spill
+    // No complex rules - just basic store-load pattern detection
     
-    // Basic sanity check: Load must come after store
-    if (time_diff <= 0) { // ❌ Load store'dan önce gelmiş || LOAD -❌-> STORE
-        return false;
+    // 1. Check if store happened before load (time order)
+    if (load_tick <= store_info.tick) {
+        return false;  // Load happened before store, not a spill
     }
     
-    // Different instructions check: If store and load are the same instruction, it's not a spill
-    if (store_info.pc == load_pc) {
-        return false;
-    }
-    
-    // That's it! Simple and effective spill detection after İsmail Hocam's feedback
     return true;
 }
+
 
 void
 SpillDetector::cleanupOldStores(Tick current_tick)
 {
-    auto it = store_map.begin();
-    while (it != store_map.end()) {
+    for (auto it = store_map.begin(); it != store_map.end(); ) {
         if (current_tick - it->second.tick > MAX_SPILL_WINDOW) {
             it = store_map.erase(it);
         } else {
@@ -277,7 +207,7 @@ void
 SpillDetector::writeLogHeader()
 {
     // Write header to log file (create new file, overwrite if exists)
-    std::ofstream log_file("m5out/spill_stats.txt", std::ios::trunc);
+    std::ofstream log_file("m5out/x86_spill_stats.txt", std::ios::trunc);
     if (log_file.is_open()) {
         log_file << "# C++ Register Spill Detection Log\n";
         log_file << "# Generated by gem5 SpillDetector\n";
@@ -300,13 +230,47 @@ SpillDetector::writeLogHeader()
         log_file << "\n";
         log_file.close();
     }
+    
+    // Write count statistics file
+    writeCountStats();
+}
+
+void
+SpillDetector::writeCountStats()
+{
+    std::ofstream count_file("m5out/count_stats.txt", std::ios::trunc);
+    if (count_file.is_open()) {
+        count_file << "# Register Spill Analysis Statistics\n";
+        count_file << "# Generated by gem5 SpillDetector\n";
+        count_file << "# =================================\n";
+        count_file << "#\n";
+        count_file << "# Static Analysis (Instruction Counts):\n";
+        count_file << "static_store_count," << static_store_count << "\n";
+        count_file << "static_load_count," << static_load_count << "\n";
+        count_file << "#\n";
+        count_file << "# Dynamic Analysis (Runtime Counts):\n";
+        count_file << "dynamic_store_count," << dynamic_store_count << "\n";
+        count_file << "dynamic_load_count," << dynamic_load_count << "\n";
+        count_file << "#\n";
+        count_file << "# Overall Statistics:\n";
+        count_file << "total_instructions," << total_instructions << "\n";
+        count_file << "total_stores," << total_stores << "\n";
+        count_file << "total_loads," << total_loads << "\n";
+        count_file << "total_spills_detected," << total_spills_detected << "\n";
+        count_file << "total_spills_logged," << total_spills_logged << "\n";
+        count_file << "#\n";
+        count_file << "# Analysis:\n";
+        count_file << "spill_ratio," << (total_loads > 0 ? (double)total_spills_detected / total_loads : 0.0) << "\n";
+        count_file << "store_load_ratio," << (total_loads > 0 ? (double)total_stores / total_loads : 0.0) << "\n";
+        count_file.close();
+    }
 }
 
 void
 SpillDetector::writeSpillToLog(const SpillEvent& spill)
 {
     // Append to detailed log file
-    static std::ofstream log_file("m5out/spill_stats.txt", std::ios::app);
+    static std::ofstream log_file("m5out/x86_spill_stats.txt", std::ios::app);
     if (log_file.is_open()) {
         log_file << "SPILL," 
                  << std::hex << spill.store_pc << ","
@@ -316,8 +280,9 @@ SpillDetector::writeSpillToLog(const SpillEvent& spill)
                  << spill.load_tick << ","
                  << spill.tick_diff << ","
                  << spill.store_inst_count << ","
-                 << spill.load_inst_count << std::endl;
-        
+                 << spill.load_inst_count
+                 << std::endl;
+
         total_spills_logged++; // Increment counter when actually written to log
     }
 }
@@ -326,7 +291,7 @@ void
 SpillDetector::printSpillReport() const
 {
     // Silent operation - no console output
-    // All spill detection results are logged to m5out/spill_stats.txt
+    // All spill detection results are logged to m5out/x86_spill_stats.txt
     // This method remains for compatibility but produces no output
 }
 

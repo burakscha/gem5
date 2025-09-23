@@ -47,14 +47,15 @@ class SpillDetector
         Tick tick;             // Simulation tick when store occurred
         unsigned size;         // Size of data stored (in bytes)
         uint64_t instruction_count; // Global instruction counter
+        Addr rsp_at_store;     // Stack pointer (RSP) at time of store (X86-specific)
         
         // Default constructor for std::unordered_map
-        StoreInfo() : address(0), pc(0), tick(0), size(0), instruction_count(0) {}
+        StoreInfo() : address(0), pc(0), tick(0), size(0), instruction_count(0), rsp_at_store(0) {}
         
         StoreInfo(Addr addr, Addr program_counter, Tick simulation_tick, 
-                  unsigned data_size, uint64_t inst_count)
+                  unsigned data_size, uint64_t inst_count, Addr current_rsp)
             : address(addr), pc(program_counter), tick(simulation_tick), 
-              size(data_size), instruction_count(inst_count) {}
+              size(data_size), instruction_count(inst_count), rsp_at_store(current_rsp) {}
     };
     
     // Structure to store information about a detected spill
@@ -67,6 +68,7 @@ class SpillDetector
         Tick tick_diff;        // Time difference between store and load
         uint64_t store_inst_count; // Instruction count when store occurred
         uint64_t load_inst_count;  // Instruction count when load occurred
+
         
         SpillEvent(Addr s_pc, Addr l_pc, Addr addr, Tick s_tick, Tick l_tick,
                    uint64_t s_inst, uint64_t l_inst)
@@ -90,15 +92,23 @@ class SpillDetector
     uint64_t total_spills_detected;
     mutable uint64_t total_spills_logged;    // Counter for spills actually written to log file
     
+    // Static analysis counters
+    uint64_t static_store_count;
+    uint64_t static_load_count;
+    
+    // Dynamic analysis counters
+    uint64_t dynamic_store_count;
+    uint64_t dynamic_load_count;
+    
     // Configuration parameters - ultra-basic mode with minimal constraints
     static const Tick MAX_SPILL_WINDOW = 10000000;    // Large window for maximum detection
     static const unsigned MAX_STORE_ENTRIES = 10000;  // Max stored addresses to track
     
     // Helper methods
     void cleanupOldStores(Tick current_tick);
-    bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Tick load_tick);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
+    void writeCountStats();
 
   public:
     SpillDetector();
@@ -108,18 +118,23 @@ class SpillDetector
      * Called when a store instruction executes
      * This is where we populate our C++ map with store information
      */
-    void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size);
+    void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp);
     
     /**
      * Called when a load instruction executes  
      * This is where we check the map for matching stores and detect spills
      */
-    void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size);
-    
+    void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp);
+
     /**
      * Called for every instruction to update instruction counter
      */
     void onInstructionExecute(Addr pc, Tick tick);
+    
+    /**
+     * Determine if a store-load pair is likely a register spill
+     */
+    bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Addr address, Tick load_tick);
     
     /**
      * Print spill report (silent operation - no console output)

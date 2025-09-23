@@ -55,7 +55,7 @@
 #include "arch/generic/decoder.hh"
 #include "base/compiler.hh"
 #include "cpu/exetrace.hh"
-#include "cpu/simple/spill_detector.hh"
+#include "cpu/simple/x86_spill_detector.hh"
 #include "debug/Config.hh"
 #include "debug/Drain.hh"
 #include "debug/ExecFaulting.hh"
@@ -68,6 +68,7 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
+#include "arch/x86/regs/int.hh"
 
 namespace gem5
 {
@@ -477,7 +478,9 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this load instruction
-    spillDetector.onLoadInstruction(addr, pc, curTick(), size);
+    Addr current_rsp = thread->getReg(X86ISA::int_reg::Rsp); // Get RSP for x86
+    spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_rsp); // 5 arguments for x86
+
 
     RequestPtr req = std::make_shared<Request>(
         addr, size, flags, dataRequestorId(), pc, thread->contextId());
@@ -562,7 +565,8 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this store instruction
-    spillDetector.onStoreInstruction(addr, pc, curTick(), size);
+    Addr current_rsp = thread->getReg(X86ISA::int_reg::Rsp); // Get RSP for x86
+    spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_rsp); // 5 arguments for x86
 
     RequestPtr req = std::make_shared<Request>(
         addr, size, flags, dataRequestorId(), pc, thread->contextId());
