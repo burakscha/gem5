@@ -92,6 +92,14 @@ class SpillDetector
     uint64_t total_spills_detected;
     mutable uint64_t total_spills_logged;    // Counter for spills actually written to log file
     
+    // Static analysis counters
+    uint64_t static_store_count;
+    uint64_t static_load_count;
+    
+    // Dynamic analysis counters
+    uint64_t dynamic_store_count;
+    uint64_t dynamic_load_count;
+    
     // Configuration parameters - ultra-basic mode with minimal constraints
     static const Tick MAX_SPILL_WINDOW = 10000000;    // Large window for maximum detection
     static const unsigned MAX_STORE_ENTRIES = 10000;  // Max stored addresses to track
@@ -100,6 +108,7 @@ class SpillDetector
     void cleanupOldStores(Tick current_tick);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
+    void writeCountStats();
 
   public:
     SpillDetector();
@@ -121,6 +130,11 @@ class SpillDetector
      * Called for every instruction to update instruction counter
      */
     void onInstructionExecute(Addr pc, Tick tick);
+    
+    /**
+     * Determine if a store-load pair is likely a register spill
+     */
+    bool isLikelySpill(const StoreInfo& store_info, Addr load_pc, Addr address, Tick load_tick);
     
     /**
      * Print spill report (silent operation - no console output)
