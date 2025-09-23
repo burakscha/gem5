@@ -68,14 +68,13 @@ class SpillDetector
         Tick tick_diff;        // Time difference between store and load
         uint64_t store_inst_count; // Instruction count when store occurred
         uint64_t load_inst_count;  // Instruction count when load occurred
-        double spill_score; // Spill detection score (higher is more likely)
 
         
         SpillEvent(Addr s_pc, Addr l_pc, Addr addr, Tick s_tick, Tick l_tick,
-                   uint64_t s_inst, uint64_t l_inst, double score)
+                   uint64_t s_inst, uint64_t l_inst)
             : store_pc(s_pc), load_pc(l_pc), address(addr), 
               store_tick(s_tick), load_tick(l_tick), tick_diff(l_tick - s_tick),
-              store_inst_count(s_inst), load_inst_count(l_inst), spill_score(score) {}
+              store_inst_count(s_inst), load_inst_count(l_inst) {}
     };
 
   private:
@@ -99,7 +98,6 @@ class SpillDetector
     
     // Helper methods
     void cleanupOldStores(Tick current_tick);
-    double calculateSpillScore(const StoreInfo& store_info, Addr load_pc, Tick load_tick, Addr current_rsp);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
 
