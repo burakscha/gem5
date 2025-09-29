@@ -108,7 +108,6 @@ class SpillDetector
     void cleanupOldStores(Tick current_tick);
     void writeSpillToLog(const SpillEvent& spill);
     void writeLogHeader();
-    void writeCountStats();
 
   public:
     SpillDetector();
