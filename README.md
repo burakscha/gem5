@@ -398,7 +398,9 @@ head -50 m5out/stats.txt
 
 The simulation should produce:
 - **Console output**: "hello f0lks!"
-- **Spill statistics**: `m5out/x86_spill_stats.txt` (CSV format with ~9,500+ spill events)
+- **Spill statistics**: `m5out/x86_spill_stats.txt` (CSV format)
+  - **With ROI markers**: ~164 spill events (only analyzing printf region)
+  - **Without ROI markers**: ~9,500+ spill events (entire program including startup/cleanup)
 - **gem5 statistics**: `m5out/stats.txt` (general simulation statistics including instruction counts, cycles, etc.)
 - **Configuration**: `m5out/config.ini` and `m5out/config.json` (simulation configuration details)
 
@@ -421,20 +423,30 @@ Where:
 - `store_inst_count`: Total instructions executed at store time
 - `load_inst_count`: Total instructions executed at load time
 
-### ROI Markers Explained
+### ROI (Region of Interest) Markers Explained
 
 The `m5_work_begin()` and `m5_work_end()` functions define a **Region of Interest** for spill detection:
 
 ```c
-m5_work_begin(0, 0);  // Start monitoring
+m5_work_begin(0, 0);  // Start spill detection
 // Your code here
-m5_work_end(0, 0);    // Stop monitoring
+m5_work_end(0, 0);    // Stop spill detection
 ```
 
-This allows you to focus spill analysis on specific code sections, which is especially useful for:
+**How ROI Works:**
+- Spill detector only tracks memory operations between `m5_work_begin` and `m5_work_end`
+- Code outside the ROI (startup, cleanup, library initialization) is ignored
+- This dramatically reduces noise in spill detection results
+
+**Impact on Results:**
+- **Without ROI**: Entire program analyzed → 9,527 spills detected (includes startup, libc init, etc.)
+- **With ROI**: Only `printf` analyzed → 164 spills detected (98.3% reduction)
+
+**Use Cases:**
 - Benchmarking specific functions
 - Identifying hotspots in large applications
 - Comparing different algorithm implementations
+- Isolating application code from library/system code
 
 ### Troubleshooting
 
