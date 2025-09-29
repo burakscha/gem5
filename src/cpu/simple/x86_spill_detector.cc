@@ -106,7 +106,7 @@ namespace gem5
 
 SpillDetector::SpillDetector()
     : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0), total_spills_logged(0),
-      static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_load_count(0)
+static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_load_count(0), roi_active(false)
 {
     // Reserve space for performance
     store_map.reserve(1000);
@@ -116,6 +116,7 @@ SpillDetector::SpillDetector()
     writeLogHeader();
     
     // Silent initialization - no console output
+    // ROI starts as inactive, will be activated by m5_work_begin
 }
 
 SpillDetector::~SpillDetector()
@@ -127,6 +128,11 @@ SpillDetector::~SpillDetector()
 void
 SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
+    // Only track stores inside ROI
+    if (!roi_active) {
+        return;
+    }
+    
     total_stores++;
     dynamic_store_count++;
     
@@ -146,6 +152,11 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
 void
 SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_rsp)
 {
+    // Only track loads inside ROI
+    if (!roi_active) {
+        return;
+    }
+    
     total_loads++;
     dynamic_load_count++;
     
@@ -259,6 +270,32 @@ SpillDetector::printSpillReport() const
     // Silent operation - no console output
     // All spill detection results are logged to m5out/x86_spill_stats.txt
     // This method remains for compatibility but produces no output
+}
+
+void
+SpillDetector::beginROI()
+{
+    // Called when m5_work_begin is executed
+    roi_active = true;
+    
+    // Optionally reset counters and clear maps to start fresh
+    // (commented out to preserve stats from before ROI)
+    // store_map.clear();
+    // detected_spills.clear();
+    // total_instructions = 0;
+    // total_stores = 0;
+    // total_loads = 0;
+    // total_spills_detected = 0;
+}
+
+void
+SpillDetector::endROI()
+{
+    // Called when m5_work_end is executed
+    roi_active = false;
+    
+    // Clear the store map since we're done with ROI
+    store_map.clear();
 }
 
 void

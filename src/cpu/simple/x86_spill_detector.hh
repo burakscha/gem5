@@ -100,6 +100,9 @@ class SpillDetector
     uint64_t dynamic_store_count;
     uint64_t dynamic_load_count;
     
+    // ROI (Region of Interest) tracking
+    bool roi_active;  // True when inside ROI (between m5_work_begin and m5_work_end)
+    
     // Configuration parameters - ultra-basic mode with minimal constraints
     static const Tick MAX_SPILL_WINDOW = 10000000;    // Large window for maximum detection
     static const unsigned MAX_STORE_ENTRIES = 10000;  // Max stored addresses to track
@@ -147,6 +150,13 @@ class SpillDetector
     uint64_t getTotalInstructions() const { return total_instructions; }
     uint64_t getTotalStores() const { return total_stores; }
     uint64_t getTotalLoads() const { return total_loads; }
+    
+    /**
+     * ROI (Region of Interest) control
+     * Called by m5ops when ROI markers are hit
+     */
+    void beginROI();  // Called on m5_work_begin
+    void endROI();    // Called on m5_work_end
     
     /**
      * Reset all counters and clear maps

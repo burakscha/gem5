@@ -55,6 +55,8 @@
 #include "base/output.hh"
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
+#include "cpu/simple/timing.hh"
+#include "cpu/simple/x86_spill_detector.hh"
 #include "debug/Loader.hh"
 #include "debug/Quiesce.hh"
 #include "debug/WorkItems.hh"
@@ -509,6 +511,13 @@ workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
             threadid);
     tc->getCpuPtr()->workItemBegin();
     sys->workItemBegin(threadid, workid);
+    
+    // REGISTER SPILL DETECTION: Activate ROI tracking
+    auto *timing_cpu = dynamic_cast<gem5::TimingSimpleCPU*>(tc->getCpuPtr());
+    if (timing_cpu) {
+        timing_cpu->getSpillDetector().beginROI();
+        DPRINTF(PseudoInst, "Spill detector ROI activated\n");
+    }
 
     //
     // If specified, determine if this is the specific work item the user
@@ -571,6 +580,13 @@ workend(ThreadContext *tc, uint64_t workid, uint64_t threadid)
     DPRINTF(WorkItems, "Work End workid: %d, threadid %d\n", workid, threadid);
     tc->getCpuPtr()->workItemEnd();
     sys->workItemEnd(threadid, workid);
+    
+    // REGISTER SPILL DETECTION: Deactivate ROI tracking
+    auto *timing_cpu = dynamic_cast<gem5::TimingSimpleCPU*>(tc->getCpuPtr());
+    if (timing_cpu) {
+        timing_cpu->getSpillDetector().endROI();
+        DPRINTF(PseudoInst, "Spill detector ROI deactivated\n");
+    }
 
     //
     // If specified, determine if this is the specific work item the user
