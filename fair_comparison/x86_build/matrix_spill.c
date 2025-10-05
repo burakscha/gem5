@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
+#include <gem5/m5ops.h>
 
 // Intentionally large N to exercise registers but keep runtime reasonable
 #ifndef N
@@ -29,6 +30,9 @@ int main(int argc, char **argv)
         C[i] = 0.0;
     }
 
+    // ROI START: Matrix multiplication region
+    m5_work_begin(0, 0);
+    
     // Multiply: C = A * B
     // Use loop order and manual inner unrolling with multiple accumulators
     for (int i = 0; i < n; ++i) {
@@ -51,6 +55,9 @@ int main(int argc, char **argv)
             }
         }
     }
+    
+    m5_work_end(0, 0);
+    // ROI END: Matrix multiplication region
 
     // Compute checksum so compiler cannot remove computations
     double checksum = 0.0;

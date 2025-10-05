@@ -1,45 +1,311 @@
-# Using Docker x86 Containers for Cross-Platform Builds
+# Cross-Platform Development: Apple Silicon (M3) + gem5 X86 Simulation
 
-## Starting a Container
-To start an x86 Ubuntu container for building or running x86 binaries:
-```sh
-docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+## 📖 **Quick Summary**
+
+This repository implements **register spill detection** in the gem5 simulator, optimized for development on **Apple Silicon (M3) Macs**. The workflow uses Docker for cross-compilation and native macOS for simulation execution.
+
+**Key Points:**
+- ✅ **Compile test programs**: In Docker (x86-64 Linux environment)
+- ✅ **Run gem5 simulations**: On Mac M3 (via Rosetta 2 translation)
+- ✅ **Analyze results**: Python dashboards and statistics on Mac
+- ✅ **Why**: Ensures binary compatibility while maintaining fast iteration cycles
+
+---
+
+## 🎯 **Development Approach & Architecture Logic**
+
+This repository demonstrates a **cross-platform development workflow** for gem5 simulation on Apple Silicon (M3) Macs. The approach separates binary compilation and simulation execution across different environments to achieve optimal compatibility and performance.
+
+### 📊 **Architecture Overview**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  DOCKER CONTAINER (x86-64 Linux Environment)                    │
+│  Purpose: Cross-compile test programs                           │
+│  ┌───────────────────────────────────────────────────┐         │
+│  │  Input:  test.c (C source code)                   │         │
+│  │  Tool:   x86_64-elf-gcc / x86_64-linux-musl-gcc   │         │
+│  │  Output: test_program (ELF 64-bit x86-64 binary)  │         │
+│  └───────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+                            ↓ (binary artifact)
+┌─────────────────────────────────────────────────────────────────┐
+│  MACOS (Apple Silicon M chipset - ARM64 Architecture)                  │
+│  Purpose: Run gem5 simulations                                  │
+│  ┌───────────────────────────────────────────────────┐         │
+│  │  gem5.opt (x86-64 ELF binary)                     │         │
+│  │       ↓ (via Rosetta 2 translation)               │         │
+│  │  Simulates x86-64 test_program instructions       │         │
+│  │       ↓                                            │         │
+│  │  Generates: stats.txt, spill_stats.txt, etc.      │         │
+│  └───────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Stopping the Container
-Inside the container terminal, type:
+### 🔧 **Why This Approach?**
+
+| Challenge | Solution | Rationale |
+|-----------|----------|-----------|
+| **Binary Format Mismatch** | Apple M chipset produces ARM64 macOS binaries, but gem5 X86 needs x86-64 Linux ELF binaries | Use Docker with `--platform linux/amd64` for cross-compilation |
+| **gem5 Execution** | gem5.opt is an x86-64 binary, but M chipset is ARM64 | macOS Rosetta 2 automatically translates x86-64 → ARM64 |
+| **Performance** | Running everything in Docker (emulation) is slow | Compile in Docker, simulate on native Mac (Rosetta 2 is faster than full emulation) |
+| **Reproducibility** | Different developers have different host systems | Docker ensures consistent compilation environment |
+
+### ⚡ **Key Insights**
+
+1. **gem5 is a simulator, not an executor**: gem5 doesn't execute binaries natively—it simulates them instruction-by-instruction. The host architecture (ARM64 vs x86-64) doesn't affect simulation accuracy.
+
+2. **Rosetta 2 Translation**: macOS automatically translates x86-64 gem5 binary to ARM64 at runtime. This introduces minimal overhead for simulation workloads.
+
+3. **Separation of Concerns**: 
+   - **Docker**: Handles cross-compilation (one-time per test program)
+   - **Mac**: Handles simulation execution (iterative testing and analysis)
+
+4. **Scientific Validity**: The simulated architecture (x86-64) is determined by the gem5 build (`build/X86/gem5.opt`) and test binary format, NOT by the host machine architecture.
+
+---
+
+## 🚀 **Quick Start Guide**
+
+### **Step 1: Compile Test Programs in Docker**
+
+Start an x86-64 Linux container:
 ```sh
+docker run --rm -it --platform linux/amd64 \
+  -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+```
+
+Inside Docker, install build tools and compile:
+```sh
+# Install dependencies
+apt-get update && apt-get install -y build-essential gcc-multilib
+
+# Compile your test program
+gcc -static -o test_program test.c
+
+# Verify binary format
+file test_program
+# Expected: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux)
+
+# Exit Docker
 exit
-# or
-Ctrl + D
 ```
 
-## Listing Running Containers
+### **Step 2: Run gem5 Simulation on Mac**
+
+Back in your Mac terminal:
 ```sh
+# Run simulation with compiled binary
+./build/X86/gem5.opt configs/example/se.py -c test_program
+
+# Output will be in m5out/ directory
+ls m5out/
+# stats.txt, config.ini, spill_stats.txt (if using register spill detection)
+```
+
+---
+
+## 🐳 **Docker Container Management**
+
+### Starting a Container
+```sh
+docker run --rm -it --platform linux/amd64 \
+  -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+```
+
+### Stopping the Container
+```sh
+exit  # or Ctrl + D
+```
+
+### Managing Containers
+```sh
+# List running containers
 docker ps
-```
 
-## Listing All Containers (Running and Stopped)
-```sh
+# List all containers (including stopped)
 docker ps -a
-```
 
-## Stopping a Background Container
-```sh
+# Stop a running container
 docker stop <container_id>
-```
 
-## Removing Unused Containers
-```sh
+# Remove a container
 docker rm <container_id>
-```
 
-## Removing Unused Images
-```sh
+# Clean up unused images
 docker image prune
 ```
 
-> Note: If you use the first command above to start your container, it will be automatically removed when you exit (because of the `--rm` flag).
+> **Note**: Using the `--rm` flag automatically removes the container when you exit.
+
+---
+
+## 🔨 **Automated Build Script**
+
+For convenience, use the provided `run_x86_docker.sh` script that automates the Docker workflow:
+
+```sh
+./run_x86_docker.sh
+```
+
+This script will:
+1. Start an x86-64 Ubuntu 24.04 container
+2. Install all gem5 build dependencies
+3. Build gem5 X86 (if not already built)
+4. Drop you into an interactive shell for compiling test programs
+
+### Example Workflow with Automated Script
+```sh
+# Start Docker environment
+./run_x86_docker.sh
+
+# Inside Docker container, compile your programs
+gcc -static -o matrix_test fair_comparison/x86_build/matrix_spill.c
+
+# Exit Docker
+exit
+
+# Run simulation on Mac
+./build/X86/gem5.opt --outdir=m5out_matrix \
+  configs/example/se.py -c matrix_test --cpu-type=TimingSimpleCPU
+```
+
+---
+
+## 📋 **Development Workflow Summary**
+
+| Task | Environment | Command Example |
+|------|-------------|-----------------|
+| **Compile test programs** | 🐳 Docker (x86-64) | `gcc -static -o test test.c` |
+| **Build gem5** | 🐳 Docker or 💻 Mac | `scons build/X86/gem5.opt -j8` |
+| **Run simulations** | 💻 Mac (via Rosetta 2) | `./build/X86/gem5.opt configs/...` |
+| **Analyze results** | 💻 Mac | `python3 spill_web_dashboard.py` |
+
+### Performance Considerations
+- **Building in Docker**: Slower due to emulation, but ensures reproducibility
+- **Building on Mac**: Faster (Rosetta 2 is efficient), but less reproducible
+- **Simulating on Mac**: Recommended - faster iterative testing
+- **Simulating in Docker**: Slower, but useful for exact reproducibility
+
+---
+
+## 🔍 **Technical Details**
+
+### Binary Format Requirements
+
+**Test Programs for gem5 X86 Simulation:**
+```sh
+# Correct format (created in Docker)
+file test_program
+# Output: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked
+
+# Incorrect format (native Mac compilation)
+file test_program_mac
+# Output: Mach-O 64-bit executable arm64
+# ❌ This will NOT work with gem5 X86!
+```
+
+### gem5 Binary Architecture
+```sh
+# Check gem5 binary format
+file build/X86/gem5.opt
+# Output: ELF 64-bit LSB pie executable, x86-64, version 1 (GNU/Linux), 
+#         dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2
+
+# This x86-64 binary runs on M chipset Mac via Rosetta 2
+```
+
+### Cross-Compilation Toolchains
+
+Available in Docker container:
+- **gcc**: Standard GNU compiler for x86-64 Linux
+- **gcc-multilib**: Supports 32-bit and 64-bit compilation
+- **x86_64-elf-gcc**: Bare-metal x86-64 compiler (for minimal binaries)
+- **x86_64-linux-musl-gcc**: Statically linked Linux binaries (can be installed)
+
+### Why Static Linking?
+```sh
+# Static linking embeds all libraries in the binary
+gcc -static -o test test.c
+
+# This is required because:
+# 1. gem5 SE mode has limited syscall support
+# 2. No dynamic linker available in simulated environment
+# 3. Ensures all dependencies are self-contained
+```
+
+---
+
+## 🐛 **Troubleshooting**
+
+### Problem: "Exec format error" or "cannot execute binary file"
+**Cause**: Binary compiled on Mac (ARM64) instead of in Docker (x86-64)
+
+**Solution**: Always compile test programs inside Docker container
+```sh
+# Wrong ❌
+gcc -o test test.c  # On Mac - creates ARM64 binary
+
+# Correct ✅
+docker run --rm -it --platform linux/amd64 \
+  -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+gcc -static -o test test.c  # Inside Docker - creates x86-64 binary
+```
+
+### Problem: "gem5.opt: command not found"
+**Cause**: gem5 not built yet
+
+**Solution**: Build gem5 first
+```sh
+# In Docker or on Mac
+scons build/X86/gem5.opt -j$(sysctl -n hw.ncpu)
+```
+
+### Problem: Docker container is slow
+**Cause**: Full x86-64 emulation on ARM64 architecture
+
+**Solutions**:
+1. **Build gem5 once in Docker**, then copy to Mac
+2. **Compile test programs in Docker** (necessary)
+3. **Run simulations on Mac** (faster with Rosetta 2)
+
+### Problem: "Fatal: Cannot find test binary"
+**Cause**: Wrong path or binary not accessible from gem5
+
+**Solution**: Use absolute paths or ensure binary is in workspace
+```sh
+# Relative path (from gem5 root)
+./build/X86/gem5.opt configs/example/se.py -c ./fair_comparison/x86_build/test
+
+# Absolute path
+./build/X86/gem5.opt configs/example/se.py -c /workspace/test
+```
+
+### Problem: Simulation runs but no spill detection
+**Cause**: Using AtomicSimpleCPU instead of TimingSimpleCPU
+
+**Solution**: Specify CPU type
+```sh
+./build/X86/gem5.opt configs/example/se.py \
+  -c test_program --cpu-type=TimingSimpleCPU
+```
+
+---
+
+## 📚 **Additional Resources**
+
+### Project-Specific Documentation
+- **[REGISTER_SPILL_README.md](REGISTER_SPILL_README.md)** - Register spill detection system
+- **[SETUP_SUMMARY.md](SETUP_SUMMARY.md)** - Initial setup and configuration guide
+- **[fair_comparison/README.md](fair_comparison/README.md)** - Architecture comparison tests
+
+### gem5 Official Documentation
+- **Main Website**: <http://www.gem5.org>
+- **Documentation**: <http://www.gem5.org/documentation>
+- **Learning gem5**: <http://www.gem5.org/documentation/learning_gem5/introduction>
+- **Building gem5**: <http://www.gem5.org/documentation/general_docs/building>
+
+---
 
 # The gem5 Simulator
 This is the repository for the gem5 simulator. It contains the full source code
