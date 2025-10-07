@@ -1,201 +1,377 @@
-# Fair Architecture-Specific Register Spill Comparison
+# Build Benchmarks - Spill Detection
 
-## 🎯 **Project Overview**
-Architecture-specific matrix spill tests for comparing register spilling behavior between X86 and RISC-V architectures in gem5 simulator. This project provides dedicated test programs and build systems for each architecture to enable fair performance comparison.
+This directory contains tools and guides for building and testing gem5's register spill detection system.
 
-## 🏗️ **Architecture-Aware Spill Detection System**
+## Quick Start
 
-### 📁 **System Components**
-- **X86 Spill Detector**: `src/cpu/simple/x86_spill_detector.cc` (16 GPRs, CISC-aware)
-- **RISC-V Spill Detector**: `src/cpu/simple/riscv_spill_detector.cc` (32 GPRs, RISC-aware)
-- **Fallback Detector**: `src/cpu/simple/spill_detector.cc` (Other architectures)
-- **Build System Integration**: Automatic architecture detection in gem5
-
-## 🧪 **Matrix Test Framework**
-
-### 📋 **Test Program Characteristics**
-- **Matrix Size**: 64x64 matrices (A, B, C)
-- **Computation**: Complex matrix multiplication with register pressure
-- **Register Stress**: Multiple volatile temporary variables
-- **Optimization**: `-O1` to maintain spilling while allowing basic optimization
-- **Architecture-Specific**: Separate programs tuned for each architecture
-
-### 🔬 **Register Pressure Generation**
-```c
-// Complex computation pattern
-volatile int temp1 = a * b;
-volatile int temp2 = a + b;
-volatile int temp3 = a - b;
-volatile int temp4 = temp2 * temp3;
-sum += temp1 ^ temp4;
-```
-
-## 📁 **File Structure**
-
-```
-fair_comparison_test/
-├── README.md                           # This comprehensive guide
-├── BINARY_STATUS.md                    # Binary compilation status
-├── x86_build/
-│   ├── x86_matrix_spill_test.c        # X86-specific matrix test
-│   ├── x86_matrix_simple.py           # X86 gem5 configuration
-│   ├── x86_matrix_minimal             # Compiled X86 binary (ELF)
-│   └── Makefile                       # X86 build system
-├── riscv_build/
-│   ├── riscv_matrix_spill_test.c      # RISC-V-specific matrix test
-│   ├── riscv_matrix_simple.py         # RISC-V gem5 configuration
-│   ├── riscv_matrix_minimal           # Compiled RISC-V binary (ELF)
-│   └── Makefile                       # RISC-V build system
-```
-
-## 🛠️ **Build System**
-
-### **Prerequisites**
-- `x86_64-elf-gcc` for X86 cross-compilation
-- `riscv64-elf-gcc` for RISC-V cross-compilation
-- gem5 simulator with X86 and RISC-V support
-
-### **Building Binaries**
+### 1. Start Docker Environment
 ```bash
-# X86 build
-cd x86_build/
-make clean && make
-
-# RISC-V build  
-cd riscv_build/
-make clean && make
+cd /path/to/gem5
+docker run -it --rm -v $(pwd):/gem5 gem5-dev:amd64
+cd /gem5
 ```
 
-### **Manual Compilation**
+### 2. Automated Build & Test
 ```bash
-# X86 minimal static binary
-x86_64-elf-gcc -O1 -static -nostdlib -nostartfiles -e main \
-  x86_matrix_spill_test.c -o x86_matrix_minimal
-
-# RISC-V minimal static binary
-riscv64-elf-gcc -O1 -static -nostdlib -nostartfiles -e main \
-  riscv_matrix_spill_test.c -o riscv_matrix_minimal
+# Run complete automated workflow
+./build_benchmarks/build_and_test_spill_detection.sh
 ```
 
-## 🚀 **Running Tests**
-
-### **X86 Simulation**
+### 3. Analyze Results
 ```bash
-# From gem5 root directory
-./build/X86/gem5.opt --outdir=m5out_x86_minimal \
-  fair_comparison_test/x86_build/x86_matrix_simple.py
+# Analyze spill detection results
+./build_benchmarks/analyze_spill_results.sh
 ```
 
-### **RISC-V Simulation**
+## Files
+
+- **`SPILL_DETECTION_BUILD_GUIDE.md`** - Complete step-by-step guide
+- **`build_and_test_spill_detection.sh`** - Automated build and test script
+- **`analyze_spill_results.sh`** - Results analysis script
+- **`hello_build/`** - Simple test programs
+
+## Manual Testing
+
+### Basic Test
 ```bash
-# Build RISC-V gem5 (if needed)
-scons build/RISCV/gem5.opt -j$(sysctl -n hw.ncpu)
-
-# Run test
-./build/RISCV/gem5.opt --outdir=m5out_riscv_minimal \
-  fair_comparison_test/riscv_build/riscv_matrix_simple.py
+./build/X86/gem5.opt configs/deprecated/example/se.py \
+    --cpu-type=TimingSimpleCPU \
+    --caches \
+    --cmd=build_benchmarks/hello_build/hello_folks_x86
 ```
 
-## 📊 **Current Status**
-
-### ✅ **Completed Features**
-1. **Architecture-Specific Tests** → Separate matrix programs for X86 and RISC-V
-2. **Cross-Compilation Setup** → Working x86_64-elf-gcc and riscv64-elf-gcc toolchains
-3. **Minimal Binary Generation** → Static ELF binaries (1872 bytes X86, 2328 bytes RISC-V)
-4. **gem5 Configuration** → AtomicSimpleCPU configs for both architectures
-5. **Build Automation** → Makefile-based build system with Docker support
-6. **Repository Cleanup** → Removed common directory and duplicate files
-
-### 🔄 **Testing Progress**
-- **X86 Binary**: ✅ Compiled and tested
-- **RISC-V Binary**: ✅ Compiled (testing pending)
-- **Spill Detection**: ✅ X86 detector initialized successfully
-- **Matrix Computation**: ✅ Executes correctly in simulation
-- **Exit Handling**: ⚠️ Program crashes on exit (expected behavior)
-
-## 🔬 **Spill Detection Output**
-
-### **Expected X86 Output**
-```
-[X86 Spill Detector] Initialized for CISC architecture with 16 GPRs
-[X86 Spill Detector] Complex addressing mode support enabled
-Beginning X86 Matrix Spill Test!
-Using X86 matrix test
-[X86 SpillDetector] SPILL #1 | Size: 8 bytes | Address: 0x... | Store PC: 0x... | Load PC: 0x... | Ticks: ...
+### Check Results
+```bash
+ls -la m5out/
+cat m5out/x86_spill_stats.txt
 ```
 
-### **Expected RISC-V Output**
-```
-[RISC-V Spill Detector] Initialized for RISC architecture with 32 GPRs
-[RISC-V Spill Detector] Simple load/store architecture
-Beginning RISC-V Matrix Spill Test!
-[RISC-V SpillDetector] SPILL #1 | Size: 8 bytes | Address: 0x... | Store PC: 0x... | Load PC: 0x... | Ticks: ...
-```
+## Expected Results
 
-## 📊 **Architecture Comparison**
+- **Build Time**: 15-30 minutes
+- **Test Time**: 1-2 minutes  
+- **Spills Detected**: 80+ for hello program
+- **Output File**: `m5out/x86_spill_stats.txt`
 
-| Feature | X86 | RISC-V |
-|---------|-----|--------|
-| **Registers** | 16 GPRs | 32 GPRs |
-| **Architecture** | CISC | RISC |
-| **Addressing** | Complex | Simple Load/Store |
-| **Binary Size** | 1872 bytes | 2328 bytes |
-| **Expected Spills** | Higher (fewer registers) | Lower (more registers) |
+## Troubleshooting
 
-## 🔧 **Technical Implementation**
+1. **Build fails**: Check Docker environment and dependencies
+2. **No spills detected**: Verify ROI markers in test program
+3. **Simulation crashes**: Check memory configuration
 
-### **Compilation Flags**
-- `-O1`: Moderate optimization to maintain register pressure
-- `-static`: Static linking for standalone execution
-- `-nostdlib -nostartfiles`: Minimal runtime for gem5 SE mode
-- `-e main`: Set main as entry point
-
-### **Known Issues & Solutions**
-1. **Exit Crash**: Programs crash on exit due to missing exit syscall - this is expected behavior
-2. **Memory Model**: Uses gem5's syscall emulation (SE) mode
-3. **CPU Model**: AtomicSimpleCPU used for compatibility (TimingSimpleCPU planned)
-
-## 🎯 **Next Steps**
-
-### **Immediate Tasks**
-- [ ] Complete RISC-V simulation testing
-- [ ] Compare spill counts between architectures
-- [ ] Generate performance analysis report
-- [ ] Add proper exit mechanism for cleaner termination
-
-### **Future Improvements**
-- [ ] TimingSimpleCPU support for detailed timing
-- [ ] Automated comparison scripts
-- [ ] Performance metrics dashboard
-- [ ] Memory hierarchy impact analysis
-
-## 🏆 **Professional Implementation Highlights**
-
-This implementation follows **modern gem5 development practices**:
-
-1. **Architecture-Specific Design**: Separate optimized code paths for each ISA
-2. **Clean Build System**: Makefile-based with Docker support and cross-compilation
-3. **Minimal Dependencies**: Static binaries with no external library requirements
-4. **Comprehensive Testing**: Real spill detection with measurable results
-5. **Professional Documentation**: Complete setup and troubleshooting guide
+For detailed troubleshooting, see `SPILL_DETECTION_BUILD_GUIDE.md`.
 
 ---
 
-**Last Updated**: December 2024  
-**Status**: ✅ Working - X86 testing complete, RISC-V testing ready  
-**Architecture**: Professional cross-compilation setup with gem5 integration
-- ✅ **No conditional compilation** in source files
-- ✅ **SCons-based automatic selection** of spill detectors
-- ✅ **Clean separation** of architecture-specific logic
-- ✅ **Professional gem5 integration** using standard environment flags
-- Spill rate analysis
-- Architecture-specific patterns
-- Performance impact assessment
+# Register Spill Detection: Complete Build & Test Guide
 
-## Scientific Controls
-1. **Single Source Code**: Same C file for both architectures
-2. **Identical Flags**: Same compilation options
-3. **Same gem5 Config**: Identical simulation parameters
-4. **Controlled Variables**: Only ISA differences matter
+This guide provides step-by-step instructions for building gem5 from scratch and testing the register spill detection system.
 
-This ensures any differences in spill behavior are due to architectural characteristics, not implementation variations.
+## Prerequisites
+
+- Docker installed and running
+- Linux x86_64 environment (via Docker for Apple Silicon Macs)
+- At least 8GB free disk space for build
+- At least 8GB RAM for compilation
+
+## Overview
+
+The register spill detection system consists of:
+- **X86 Spill Detector**: Architecture-specific implementation for x86
+- **TimingSimpleCPU Integration**: CPU model with spill tracking
+- **ROI Support**: Region of Interest tracking with m5 pseudo instructions
+- **Statistics Output**: Detailed spill event logging
+
+## Step 1: Environment Setup
+
+### 1.1 Start Docker Container
+```bash
+cd /path/to/gem5/repository
+docker run -it --rm -v $(pwd):/gem5 gem5-dev:amd64
+```
+
+### 1.2 Navigate to gem5 Directory
+```bash
+cd /gem5
+```
+
+### 1.3 Verify Source Files
+```bash
+# Check spill detector files exist
+ls -la src/cpu/simple/x86_spill_detector.*
+ls -la src/cpu/simple/timing.hh
+ls -la src/sim/pseudo_inst.cc
+```
+
+Expected output:
+```
+-rw-r--r-- 1 root root 11554 Oct  7 22:35 src/cpu/simple/x86_spill_detector.cc
+-rw-r--r-- 1 root root  6129 Oct  7 22:35 src/cpu/simple/x86_spill_detector.hh
+-rw-r--r-- 1 root root 13847 Oct  7 22:35 src/cpu/simple/timing.hh
+-rw-r--r-- 1 root root 17234 Oct  7 22:35 src/sim/pseudo_inst.cc
+```
+
+## Step 2: Clean Previous Build
+
+### 2.1 Remove Previous Build Artifacts
+```bash
+# Remove X86 build directory
+rm -rf build/X86/
+
+# Clear previous simulation outputs
+rm -rf m5out/*
+
+# Verify clean state
+echo "Build directory cleaned: $([ ! -d build/X86 ] && echo 'SUCCESS' || echo 'FAILED')"
+echo "Output directory cleaned: $([ -z "$(ls -A m5out 2>/dev/null)" ] && echo 'SUCCESS' || echo 'FAILED')"
+```
+
+## Step 3: Build gem5 with Spill Detection
+
+### 3.1 Start Build Process
+```bash
+# Build X86 gem5.opt with maximum parallelism
+echo "Starting build at: $(date)"
+scons build/X86/gem5.opt -j$(nproc)
+echo "Build completed at: $(date)"
+```
+
+### 3.2 Verify Build Success
+```bash
+# Check if binary was created
+if [ -f build/X86/gem5.opt ]; then
+    echo "✅ Build SUCCESS"
+    ls -lh build/X86/gem5.opt
+    echo "Binary size: $(du -h build/X86/gem5.opt | cut -f1)"
+else
+    echo "❌ Build FAILED"
+    exit 1
+fi
+```
+
+Expected output:
+```
+✅ Build SUCCESS
+-rwxr-xr-x 1 root root 834M Oct  8 10:30 build/X86/gem5.opt
+Binary size: 834M
+```
+
+## Step 4: Prepare Test Programs
+
+### 4.1 Basic Hello World Test
+```bash
+cd build_benchmarks/hello_build/
+
+# Verify hello program source
+cat hello_folks.c
+```
+
+### 4.2 Compile Test Program (if needed)
+```bash
+# Compile hello program with m5 support
+gcc -static -I/gem5/include -o hello_folks_x86 hello_folks.c -lm5
+
+# Verify compilation
+if [ -f hello_folks_x86 ]; then
+    echo "✅ Test program compiled successfully"
+    ls -la hello_folks_x86
+else
+    echo "❌ Test program compilation failed"
+fi
+```
+
+### 4.3 Return to gem5 Root
+```bash
+cd /gem5
+```
+
+## Step 5: Run Spill Detection Test
+
+### 5.1 Execute Simulation
+```bash
+echo "🚀 Starting spill detection simulation..."
+echo "Simulation started at: $(date)"
+
+./build/X86/gem5.opt configs/deprecated/example/se.py \
+    --cpu-type=TimingSimpleCPU \
+    --caches \
+    --cmd=build_benchmarks/hello_build/hello_folks_x86
+
+echo "Simulation completed at: $(date)"
+```
+
+### 5.2 Verify Simulation Success
+```bash
+# Check if simulation produced output
+if [ $? -eq 0 ]; then
+    echo "✅ Simulation completed successfully"
+else
+    echo "❌ Simulation failed"
+    exit 1
+fi
+```
+
+## Step 6: Analyze Results
+
+### 6.1 Check Output Files
+```bash
+echo "📁 Generated output files:"
+ls -la m5out/
+echo ""
+```
+
+### 6.2 Spill Detection Analysis
+```bash
+echo "🔍 SPILL DETECTION ANALYSIS"
+echo "================================"
+
+# Check if spill stats file exists
+if [ -f m5out/x86_spill_stats.txt ]; then
+    echo "✅ Spill stats file generated"
+    
+    # Count total spills
+    TOTAL_SPILLS=$(grep "^SPILL" m5out/x86_spill_stats.txt | wc -l)
+    echo "📊 Total spills detected: $TOTAL_SPILLS"
+    
+    if [ $TOTAL_SPILLS -gt 0 ]; then
+        echo "✅ Spill detection is working correctly"
+        
+        # Detailed statistics
+        echo ""
+        echo "📈 DETAILED STATISTICS:"
+        echo "------------------------"
+        echo "Unique store PCs: $(grep "^SPILL" m5out/x86_spill_stats.txt | cut -d',' -f2 | sort -u | wc -l)"
+        echo "Unique load PCs: $(grep "^SPILL" m5out/x86_spill_stats.txt | cut -d',' -f3 | sort -u | wc -l)"
+        echo "Unique memory addresses: $(grep "^SPILL" m5out/x86_spill_stats.txt | cut -d',' -f4 | sort -u | wc -l)"
+        
+        # Show first few spills
+        echo ""
+        echo "🎯 FIRST 5 DETECTED SPILLS:"
+        echo "----------------------------"
+        echo "Format: SPILL,store_pc,load_pc,memory_address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count"
+        grep "^SPILL" m5out/x86_spill_stats.txt | head -5
+        
+    else
+        echo "⚠️  No spills detected - check if ROI is properly activated"
+    fi
+else
+    echo "❌ Spill stats file not generated"
+    echo "Check if spill detection is properly integrated"
+fi
+```
+
+### 6.3 General Simulation Statistics
+```bash
+echo ""
+echo "📊 GENERAL SIMULATION STATISTICS:"
+echo "==================================="
+if [ -f m5out/stats.txt ]; then
+    echo "Instructions simulated: $(grep 'simInsts' m5out/stats.txt | awk '{print $2}')"
+    echo "Operations simulated: $(grep 'simOps' m5out/stats.txt | awk '{print $2}')"
+    echo "Simulation ticks: $(grep 'simTicks' m5out/stats.txt | awk '{print $2}')"
+else
+    echo "❌ General stats file not found"
+fi
+```
+
+## Step 7: Advanced Testing
+
+### 7.1 Test with Different Programs
+```bash
+# Test with gem5's hello program
+echo "🧪 Testing with gem5's built-in hello program..."
+./build/X86/gem5.opt configs/deprecated/example/se.py \
+    --cpu-type=TimingSimpleCPU \
+    --caches \
+    --cmd=tests/test-progs/hello/bin/x86/linux/hello
+
+# Compare results
+echo "Spills with built-in hello: $(grep "^SPILL" m5out/x86_spill_stats.txt | wc -l)"
+```
+
+### 7.2 Test with Matrix Program (if available)
+```bash
+if [ -f build_benchmarks/x86_build/matrix_spill ]; then
+    echo "🧮 Testing with matrix multiplication program..."
+    ./build/X86/gem5.opt configs/deprecated/example/se.py \
+        --cpu-type=TimingSimpleCPU \
+        --caches \
+        --cmd=build_benchmarks/x86_build/matrix_spill
+    
+    echo "Spills with matrix program: $(grep "^SPILL" m5out/x86_spill_stats.txt | wc -l)"
+fi
+```
+
+## Step 8: Debug Mode (Optional)
+
+### 8.1 Build Debug Version
+```bash
+echo "🐛 Building debug version for detailed analysis..."
+scons build/X86/gem5.debug -j$(nproc)
+```
+
+### 8.2 Run with Debug Flags
+```bash
+echo "🔍 Running debug simulation..."
+./build/X86/gem5.debug \
+    --debug-flags=SpillDetector \
+    configs/deprecated/example/se.py \
+    --cpu-type=TimingSimpleCPU \
+    --caches \
+    --cmd=build_benchmarks/hello_build/hello_folks_x86
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+1. **Build Fails with Missing Dependencies**
+   ```bash
+   # Update package lists and install missing packages
+   apt-get update
+   apt-get install -y build-essential python3-dev
+   ```
+
+2. **Spill Stats File Not Generated**
+   - Check if ROI markers (m5_work_begin/end) are in your test program
+   - Verify TimingSimpleCPU is being used
+   - Check if x86_spill_detector.cc is properly compiled
+
+3. **No Spills Detected**
+   - Use more complex programs that cause register pressure
+   - Check if the program actually executes code within ROI
+   - Verify spill detection logic in isLikelySpill() method
+
+4. **Simulation Crashes**
+   - Check memory configuration in se.py
+   - Verify test program is properly compiled and statically linked
+   - Use debug build for more detailed error messages
+
+## File Locations
+
+- **Spill Detector Source**: `src/cpu/simple/x86_spill_detector.{cc,hh}`
+- **CPU Integration**: `src/cpu/simple/timing.{cc,hh}`
+- **Pseudo Instructions**: `src/sim/pseudo_inst.cc`
+- **Build Configuration**: `src/cpu/simple/SConscript`
+- **Test Programs**: `build_benchmarks/hello_build/`
+- **Results**: `m5out/x86_spill_stats.txt`
+
+## Expected Timeline
+
+- **Clean + Build**: 15-30 minutes (depending on CPU cores)
+- **Simple Test**: 1-2 minutes
+- **Analysis**: 1-2 minutes
+- **Total**: ~20-35 minutes for complete workflow
+
+## Success Criteria
+
+✅ **Build Success**: `build/X86/gem5.opt` binary created (~800MB)  
+✅ **Simulation Success**: Program executes and prints output  
+✅ **Spill Detection**: `x86_spill_stats.txt` contains detected spills  
+✅ **Statistics**: Reasonable number of spills for test program complexity  
+
+---
+
+**Last Updated**: October 8, 2025  
+**Tested Environment**: Docker container with gem5-dev:amd64  
+**gem5 Version**: 25.0.0.0
