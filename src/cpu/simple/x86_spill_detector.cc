@@ -48,14 +48,14 @@
  * 8. Run simulation with register spill detection (x86 example):
  *    # Run the hello workload and generate m5out in the repository root
  *    $ ./build/X86/gem5.opt configs/deprecated/example/se.py --cpu-type=TimingSimpleCPU --caches --cmd=tests/test-progs/hello/bin/x86/linux/hello
- *    # After the run completes, create the fair comparison folder and move outputs
- *    $ mkdir -p fair_comparison/x86_build/m5out
- *    $ mv m5out/* fair_comparison/x86_build/m5out/
+ *    # After the run completes, create the benchmarks folder and move outputs
+ *    $ mkdir -p benchmarks/builds/x86_build/m5out
+ *    $ mv m5out/* benchmarks/builds/x86_build/m5out/
  *
- * 9. Verify spill detection output (x86 fair-comparison layout):
- *    $ ls -la fair_comparison/x86_build/m5out/
- *    $ head -20 fair_comparison/x86_build/m5out/x86_spill_stats.txt
- *    $ grep "^SPILL" fair_comparison/x86_build/m5out/x86_spill_stats.txt | wc -l
+ * 9. Verify spill detection output (x86 benchmarks layout):
+ *    $ ls -la benchmarks/builds/x86_build/m5out/
+ *    $ head -20 benchmarks/builds/x86_build/m5out/x86_spill_stats.txt
+ *    $ grep "^SPILL" benchmarks/builds/x86_build/m5out/x86_spill_stats.txt | wc -l
  * 
  * 9. Verify spill detection output:
  *    $ ls -la m5out/

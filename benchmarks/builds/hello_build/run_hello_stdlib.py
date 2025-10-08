@@ -21,7 +21,7 @@ board = SimpleBoard(
 )
 
 # 3) SE workload olarak kendi x86 ikilini ver
-workload = CustomResource("build_benchmarks/hello_build/hello_folks_x86")
+workload = CustomResource("benchmarks/builds/hello_build/hello_folks_x86")
 board.set_se_binary_workload(workload)
 
 # 4) Çalıştır

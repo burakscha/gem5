@@ -43,7 +43,7 @@ log_error() {
 # Configuration
 BUILD_JOBS=${BUILD_JOBS:-$(nproc)}
 BUILD_TYPE=${BUILD_TYPE:-"opt"}  # opt or debug
-TEST_PROGRAM=${TEST_PROGRAM:-"build_benchmarks/hello_build/hello_folks_x86"}
+TEST_PROGRAM=${TEST_PROGRAM:-"benchmarks/builds/hello_build/hello_folks_x86"}
 
 # =============================================================================
 # STEP 1: ENVIRONMENT VERIFICATION
@@ -119,7 +119,7 @@ if [ ! -f "$TEST_PROGRAM" ]; then
     log_warning "Test program not found: $TEST_PROGRAM"
     log_info "Attempting to compile hello program..."
     
-    cd build_benchmarks/hello_build/
+    cd benchmarks/builds/hello_build/
     if gcc -static -I/gem5/include -o hello_folks_x86 hello_folks.c -lm5 2>/dev/null; then
         log_success "Test program compiled successfully"
     else

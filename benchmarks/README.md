@@ -94,7 +94,7 @@ Binary size: 834M
 
 ### 4.1 Basic Hello World Test
 ```bash
-cd build_benchmarks/hello_build/
+cd benchmarks/builds/hello_build/
 
 # Verify hello program source
 cat hello_folks.c
@@ -129,7 +129,7 @@ echo "Simulation started at: $(date)"
 ./build/X86/gem5.opt configs/deprecated/example/se.py \
     --cpu-type=TimingSimpleCPU \
     --caches \
-    --cmd=build_benchmarks/hello_build/hello_folks_x86
+    --cmd=benchmarks/builds/hello_build/hello_folks_x86
 
 echo "Simulation completed at: $(date)"
 ```
@@ -225,12 +225,12 @@ echo "Spills with built-in hello: $(grep "^SPILL" m5out/x86_spill_stats.txt | wc
 
 ### 7.2 Test with Matrix Program (if available)
 ```bash
-if [ -f build_benchmarks/x86_build/matrix_spill ]; then
+if [ -f benchmarks/builds/x86_build/matrix_spill ]; then
     echo "🧮 Testing with matrix multiplication program..."
     ./build/X86/gem5.opt configs/deprecated/example/se.py \
         --cpu-type=TimingSimpleCPU \
         --caches \
-        --cmd=build_benchmarks/x86_build/matrix_spill
+        --cmd=benchmarks/builds/x86_build/matrix_spill
     
     echo "Spills with matrix program: $(grep "^SPILL" m5out/x86_spill_stats.txt | wc -l)"
 fi
@@ -252,7 +252,7 @@ echo "🔍 Running debug simulation..."
     configs/deprecated/example/se.py \
     --cpu-type=TimingSimpleCPU \
     --caches \
-    --cmd=build_benchmarks/hello_build/hello_folks_x86
+    --cmd=benchmarks/builds/hello_build/hello_folks_x86
 ```
 
 ## Troubleshooting
@@ -287,7 +287,7 @@ echo "🔍 Running debug simulation..."
 - **CPU Integration**: `src/cpu/simple/timing.{cc,hh}`
 - **Pseudo Instructions**: `src/sim/pseudo_inst.cc`
 - **Build Configuration**: `src/cpu/simple/SConscript`
-- **Test Programs**: `build_benchmarks/hello_build/`
+- **Test Programs**: `benchmarks/builds/hello_build/`
 - **Results**: `m5out/x86_spill_stats.txt`
 
 ## Expected Timeline

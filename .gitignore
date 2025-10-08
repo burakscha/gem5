@@ -41,5 +41,5 @@ typings
 *_linux
 m5out_*/
 *.tmp
-fair_comparison/hello_build/hello_folks_x86
-fair_comparison/hello_build/hello_folks
+benchmarks/builds/hello_build/hello_folks_x86
+benchmarks/builds/hello_build/hello_folks
