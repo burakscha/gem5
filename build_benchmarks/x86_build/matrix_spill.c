@@ -22,6 +22,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "Allocation failed\n");
         return 1;
     }
+    
+    // ROI START: Matrix multiplication region
+    m5_work_begin(0, 0);
 
     // Initialize matrices with pseudo-random but deterministic values
     for (int i = 0; i < n * n; ++i) {
@@ -30,8 +33,6 @@ int main(int argc, char **argv)
         C[i] = 0.0;
     }
 
-    // ROI START: Matrix multiplication region
-    m5_work_begin(0, 0);
     
     // Multiply: C = A * B
     // Use loop order and manual inner unrolling with multiple accumulators

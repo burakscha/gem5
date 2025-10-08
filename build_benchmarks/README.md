@@ -21,8 +21,7 @@ The register spill detection system consists of:
 
 ### 1.1 Start Docker Container
 ```bash
-cd /path/to/gem5/repository
-docker run -it --rm -v $(pwd):/gem5 gem5-dev:amd64
+docker run -it --rm -v $(pwd):/gem5 -w /gem5 gem5-dev:amd64
 ```
 
 ### 1.2 Navigate to gem5 Directory
