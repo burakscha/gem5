@@ -1,12 +1,11 @@
-# Cross-Platform Development: Apple Silicon (M3) + gem5 X86 Simulation
-
+# gem5 Register Spill Detection on Apple Silicon 
 ## 📖 **Quick Summary**
 
 This repository implements **register spill detection** in the gem5 simulator, optimized for development on **Apple Silicon (M3) Macs**. The workflow uses Docker for cross-compilation and native macOS for simulation execution.
 
 **Key Points:**
 - ✅ **Compile test programs**: In Docker (x86-64 Linux environment)
-- ✅ **Run gem5 simulations**: On Mac M3 (via Rosetta 2 translation)
+- ✅ **Run gem5 simulations**: On Mac M (via Rosetta 2 translation)
 - ✅ **Analyze results**: Python dashboards and statistics on Mac
 - ✅ **Why**: Ensures binary compatibility while maintaining fast iteration cycles
 
