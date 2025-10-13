@@ -44,3 +44,4 @@ m5out_*/
 benchmarks/builds/hello_build/hello_folks_x86
 benchmarks/builds/hello_build/hello_folks
 benchmarks/builds/hello_build/verify/*.x86
+benchmarks/builds/hello_build/verify/*_x86
