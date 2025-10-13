@@ -335,7 +335,10 @@ class TimingSimpleCPU : public BaseSimpleCPU
   public:
     // Accessor for spill detector (needed by pseudo_inst.cc for ROI control)
     SpillDetector& getSpillDetector() { return spillDetector; }
-    
+
+    // Override base class virtual method
+    SpillDetector* getSpillDetectorPtr() override { return &spillDetector; }
+
   private:
 
     EventFunctionWrapper fetchEvent;

@@ -199,6 +199,12 @@ class BaseSimpleCPU : public BaseCPU
      */
     virtual Fault initiateMemMgmtCmd(Request::Flags flags) = 0;
 
+    /**
+     * Virtual method for accessing spill detector in derived classes.
+     * Returns nullptr by default; TimingSimpleCPU overrides this.
+     */
+    virtual class SpillDetector* getSpillDetectorPtr() { return nullptr; }
+
 };
 
 } // namespace gem5
