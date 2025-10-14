@@ -54,6 +54,9 @@
 #include "base/debug.hh"
 #include "base/output.hh"
 #include "cpu/base.hh"
+#include "cpu/simple/base.hh"
+#include "cpu/simple/timing.hh"
+#include "cpu/simple/x86_spill_detector.hh"
 #include "cpu/thread_context.hh"
 #include "debug/Loader.hh"
 #include "debug/Quiesce.hh"
@@ -510,6 +513,27 @@ workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
     tc->getCpuPtr()->workItemBegin();
     sys->workItemBegin(threadid, workid);
 
+    // REGISTER SPILL DETECTION: Activate ROI tracking
+    // Use BaseSimpleCPU instead of TimingSimpleCPU to support
+    // ISA-specific CPUs like X86TimingSimpleCPU
+    warn("workbegin: Attempting to cast CPU to BaseSimpleCPU...\n");
+    auto *simple_cpu =
+        dynamic_cast<gem5::BaseSimpleCPU*>(tc->getCpuPtr());
+    if (simple_cpu) {
+        warn("workbegin: Cast successful! "
+             "Getting spill detector pointer...\n");
+        auto *spill_detector = simple_cpu->getSpillDetectorPtr();
+        if (spill_detector) {
+            warn("workbegin: Spill detector found! Activating ROI...\n");
+            spill_detector->beginROI();
+            DPRINTF(PseudoInst, "Spill detector ROI activated\n");
+        } else {
+            warn("workbegin: Spill detector pointer is NULL\n");
+        }
+    } else {
+        warn("workbegin: Cast to BaseSimpleCPU FAILED\n");
+    }
+
     //
     // If specified, determine if this is the specific work item the user
     // identified
@@ -571,6 +595,19 @@ workend(ThreadContext *tc, uint64_t workid, uint64_t threadid)
     DPRINTF(WorkItems, "Work End workid: %d, threadid %d\n", workid, threadid);
     tc->getCpuPtr()->workItemEnd();
     sys->workItemEnd(threadid, workid);
+
+    // REGISTER SPILL DETECTION: Deactivate ROI tracking
+    // Use BaseSimpleCPU instead of TimingSimpleCPU to support
+    // ISA-specific CPUs like X86TimingSimpleCPU
+    auto *simple_cpu =
+        dynamic_cast<gem5::BaseSimpleCPU*>(tc->getCpuPtr());
+    if (simple_cpu) {
+        auto *spill_detector = simple_cpu->getSpillDetectorPtr();
+        if (spill_detector) {
+            spill_detector->endROI();
+            DPRINTF(PseudoInst, "Spill detector ROI deactivated\n");
+        }
+    }
 
     //
     // If specified, determine if this is the specific work item the user

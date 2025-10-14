@@ -9,6 +9,7 @@ cscope.out
 .*.swp
 .*.swo
 m5out
+results5out
 /src/doxygen/html
 /docs/_build
 /ext/dramsim2/DRAMSim2
@@ -40,3 +41,7 @@ typings
 *_linux
 m5out_*/
 *.tmp
+benchmarks/builds/hello_build/hello_folks_x86
+benchmarks/builds/hello_build/hello_folks
+benchmarks/builds/test/verify/x86/*_x86
+benchmarks/builds/test/verify/riscv/*_riscv

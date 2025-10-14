@@ -71,7 +71,9 @@
         "variant": "cpp",
         "vector": "cpp",
         "algorithm": "cpp",
-        "cstddef": "cpp"
+        "cstddef": "cpp",
+        "stdio.h": "c",
+        "m5ops.h": "c"
     },
-    "cmake.sourceDirectory": "/Users/catnys/Documents/Academia/register_spilling/gem5/ext/dramsys"
+    "cmake.sourceDirectory": "/Users/catnys/Documents/github/gem5/ext/pybind11/tests/test_cmake_build"
 }
