@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
 Run pure assembly spill test
+
+Usage:
+build/X86/gem5.opt benchmarks/builds/test/verify/run_spill_test.py
 """
 
 import m5
 from m5.objects import *
 
 # Binary path
-binary = "benchmarks/builds/hello_build/verify/pure_asm_spill_x86"
+binary = "benchmarks/builds/test/verify/pure_asm_spill_x86"
 
 print(f"Running pure assembly spill test: {binary}")
 
