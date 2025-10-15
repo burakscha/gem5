@@ -27,6 +27,29 @@ SPILL_FILE_NAME = "riscv_spill_stats.txt"  # Spill detection output file ! eithe
 CONFIG_FILE_NAME = "config.json"  # Simulation configuration file
 OUTPUT_FILE_NAME = "analysis_report.txt"  # Analysis report output file
 
+# Automatically detect ISA from config.json if available
+def detect_isa_from_config(config_file):
+    if not os.path.exists(config_file):
+        return "UNKNOWN"
+
+    try:
+        with open(config_file) as f:
+            config = json.load(f)
+        if "system" in config and "workload" in config["system"]:
+            wtype = config["system"]["workload"].get("type", "").upper()
+            if "X86" in wtype:
+                return "X86"
+            elif "RISCV" in wtype:
+                return "RISCV"
+            elif "ARM" in wtype:
+                return "ARM"
+            elif "SPARC" in wtype:
+                return "SPARC"
+            elif "MIPS" in wtype:
+                return "MIPS"
+    except Exception as e:
+        print(f"⚠️ ISA detection error: {e}")
+    return "UNKNOWN"
 
 def parse_stats_txt(stats_file):
     """
@@ -611,7 +634,20 @@ def main():
 
     # File paths - use static file names
     stats_file = os.path.join(m5out_dir, STATS_FILE_NAME)
-    spill_file = os.path.join(m5out_dir, SPILL_FILE_NAME)
+    config_file = os.path.join(m5out_dir, CONFIG_FILE_NAME)
+    isa = detect_isa_from_config(config_file)
+    print(f"🧩 Detected ISA from config.json: {isa}")
+
+    if isa == "RISCV":
+        spill_file_name = "riscv_spill_stats.txt"
+    elif isa == "X86":
+        spill_file_name = "x86_spill_stats.txt"
+    elif isa == "ARM":
+        spill_file_name = "arm_spill_stats.txt"
+    else:
+        spill_file_name = SPILL_FILE_NAME  # fallback
+
+    spill_file = os.path.join(m5out_dir, spill_file_name)
     config_file = os.path.join(m5out_dir, CONFIG_FILE_NAME)
     output_file = os.path.join(m5out_dir, OUTPUT_FILE_NAME)
 
