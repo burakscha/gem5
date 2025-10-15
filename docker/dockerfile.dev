@@ -1,0 +1,23 @@
+# ---------------------------------------------------------
+# Universal gem5 build environment for x86, ARM, RISC-V
+# ---------------------------------------------------------
+FROM ubuntu:22.04
+
+# Avoid timezone prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update and install essential build tools
+RUN apt-get update && apt-get install -y \
+    build-essential scons python3 python3-pip git wget vim nano \
+    gcc g++ \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    gcc-arm-linux-gnueabi g++-arm-linux-gnueabi \
+    gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
+    qemu-user qemu-user-static \
+    binutils-riscv64-linux-gnu \
+    libprotobuf-dev protobuf-compiler libgoogle-perftools-dev \
+    libpng-dev libcapstone-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Optional: install gem5 dependencies
+WORKDIR /workspace

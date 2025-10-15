@@ -19,11 +19,11 @@ from collections import defaultdict
 # =============================================================================
 # M5OUT directory - Simulation output directory to be analyzed
 # Change this parameter to analyze different simulations
-M5OUT_DIRECTORY = "results5out/m5out_verify_x86/"
+M5OUT_DIRECTORY = "m5out"  # Default m5out directory
 
 # File names - gem5 standard output files (do not modify)
 STATS_FILE_NAME = "stats.txt"  # gem5 general statistics file
-SPILL_FILE_NAME = "x86_spill_stats.txt"  # Spill detection output file
+SPILL_FILE_NAME = "riscv_spill_stats.txt"  # Spill detection output file ! either x86 or riscv
 CONFIG_FILE_NAME = "config.json"  # Simulation configuration file
 OUTPUT_FILE_NAME = "analysis_report.txt"  # Analysis report output file
 

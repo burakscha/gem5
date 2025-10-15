@@ -44,7 +44,7 @@
  * Timing CPU implementation
  *
  * Notes for myself:
- * 
+ *
  * This is the main C++ file for the TimingSimpleCPU model in gem5.
  * It runs the actual CPU simulation, executing instructions from my test program.
  * It calls the spill detector code whenever a store or load happens.
@@ -55,7 +55,6 @@
 #include "arch/generic/decoder.hh"
 #include "base/compiler.hh"
 #include "cpu/exetrace.hh"
-#include "cpu/simple/x86_spill_detector.hh"
 #include "debug/Config.hh"
 #include "debug/Drain.hh"
 #include "debug/ExecFaulting.hh"
@@ -68,7 +67,14 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
+
+#if THE_ISA == X86_ISA
 #include "arch/x86/regs/int.hh"
+
+#elif THE_ISA == RISCV_ISA
+#include "arch/riscv/regs/int.hh"
+
+#endif
 
 namespace gem5
 {
@@ -478,8 +484,14 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this load instruction
-    Addr current_rsp = thread->getReg(X86ISA::int_reg::Rsp); // Get RSP for x86
-    spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_rsp); // 5 arguments for x86
+    // Get architecture-specific stack pointer
+    Addr current_sp = 0;
+#if THE_ISA == X86_ISA
+    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
+#elif THE_ISA == RISCV_ISA
+    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
+#endif
+    spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp);
 
 
     RequestPtr req = std::make_shared<Request>(
@@ -565,8 +577,14 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this store instruction
-    Addr current_rsp = thread->getReg(X86ISA::int_reg::Rsp); // Get RSP for x86
-    spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_rsp); // 5 arguments for x86
+    // Get architecture-specific stack pointer
+    Addr current_sp = 0;
+#if THE_ISA == X86_ISA
+    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
+#elif THE_ISA == RISCV_ISA
+    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
+#endif
+    spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_sp);
 
     RequestPtr req = std::make_shared<Request>(
         addr, size, flags, dataRequestorId(), pc, thread->contextId());
@@ -826,7 +844,7 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
         SimpleThread* thread = t_info.thread;
         const Addr pc = thread->pcState().instAddr();
         spillDetector.onInstructionExecute(pc, curTick());
-        
+
         advancePC(fault);
     }
 
