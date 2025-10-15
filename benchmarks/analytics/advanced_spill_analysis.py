@@ -27,6 +27,7 @@ SPILL_FILE_NAME = "riscv_spill_stats.txt"  # Spill detection output file ! eithe
 CONFIG_FILE_NAME = "config.json"  # Simulation configuration file
 OUTPUT_FILE_NAME = "analysis_report.txt"  # Analysis report output file
 
+
 # Automatically detect ISA from config.json if available
 def detect_isa_from_config(config_file):
     if not os.path.exists(config_file):
@@ -50,6 +51,7 @@ def detect_isa_from_config(config_file):
     except Exception as e:
         print(f"⚠️ ISA detection error: {e}")
     return "UNKNOWN"
+
 
 def parse_stats_txt(stats_file):
     """
