@@ -3,7 +3,6 @@
 Run pure assembly spill test for X86 or RISC-V.
 
 Usage examples:
-    build/X86/gem5.opt  benchmarks/builds/test/verify/run_spill_test.py
     build/RISCV/gem5.opt benchmarks/builds/test/verify/run_spill_test.py
 """
 
@@ -26,8 +25,7 @@ print(f"🧩 Detected ISA: {isa}")
 # ============================================================
 if isa == "RISCV":
     binary = "benchmarks/builds/test/verify/riscv/pure_asm_spill.elf"
-else:
-    binary = "benchmarks/builds/test/verify/pure_asm_spill_x86"
+
 
 print(f"Running pure assembly spill test: {binary}")
 
@@ -49,12 +47,6 @@ system.membus = SystemXBar()
 system.cpu.icache_port = system.membus.cpu_side_ports
 system.cpu.dcache_port = system.membus.cpu_side_ports
 
-# ---------------- Interrupts ----------------
-if isa == "X86":
-    system.cpu.createInterruptController()
-    system.cpu.interrupts[0].pio = system.membus.mem_side_ports
-    system.cpu.interrupts[0].int_requestor = system.membus.cpu_side_ports
-    system.cpu.interrupts[0].int_responder = system.membus.mem_side_ports
 
 # ---------------- Memory controller ----------------
 system.mem_ctrl = MemCtrl()

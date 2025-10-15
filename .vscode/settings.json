@@ -73,7 +73,8 @@
         "algorithm": "cpp",
         "cstddef": "cpp",
         "stdio.h": "c",
-        "m5ops.h": "c"
+        "m5ops.h": "c",
+        "stdint.h": "c"
     },
     "cmake.sourceDirectory": "/Users/catnys/Documents/github/gem5/ext/pybind11/tests/test_cmake_build"
 }
