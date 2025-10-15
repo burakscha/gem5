@@ -56,7 +56,14 @@
 #include "cpu/base.hh"
 #include "cpu/simple/base.hh"
 #include "cpu/simple/timing.hh"
+
+#if THE_ISA == X86_ISA
 #include "cpu/simple/x86_spill_detector.hh"
+
+#elif THE_ISA == RISCV_ISA
+#include "cpu/simple/riscv_spill_detector.hh"
+
+#endif
 #include "cpu/thread_context.hh"
 #include "debug/Loader.hh"
 #include "debug/Quiesce.hh"

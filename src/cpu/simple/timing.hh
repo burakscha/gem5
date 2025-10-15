@@ -44,8 +44,14 @@
 #include "arch/generic/mmu.hh"
 #include "cpu/simple/base.hh"
 #include "cpu/simple/exec_context.hh"
+
+#if THE_ISA == X86_ISA
 #include "cpu/simple/x86_spill_detector.hh"
-#include "arch/x86/regs/int.hh"
+
+#elif THE_ISA == RISCV_ISA
+#include "cpu/simple/riscv_spill_detector.hh"
+
+#endif
 #include "cpu/translation.hh"
 #include "params/BaseTimingSimpleCPU.hh"
 
@@ -343,8 +349,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
     EventFunctionWrapper fetchEvent;
 
-    // Register Spill Detector - C++ map-based approach
-  SpillDetector spillDetector; // Now using x86_spill_detector.hh version
+    // Register Spill Detector - architecture-specific implementation
+    SpillDetector spillDetector;
 
     struct IprEvent : Event
     {

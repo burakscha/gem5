@@ -1,263 +1,208 @@
-# gem5 Register Spill Detection on Apple Silicon 
+# gem5 Spill Test — Dev Environment Setup
 
-## 📖 Quick Summary
+This guide explains how to prepare a clean development environment on macOS (Apple Silicon) to work with **gem5** and RISC-V/x86/ARM binaries.  
+The goal here is to:
 
-This repository implements **register spill detection** in the gem5 simulator, optimized for development on **Apple Silico## Example Build Command
-The updated build command for running the `hello_folks_x86` program is as follows:
-
-```bash
-build/X86/gem5.opt configs/deprecated/example/se.py \
-  --cpu-type=TimingSimpleCPU \
-  --caches \
-  -c benchmarks/builds/hello_build/hello_folks_x86
-```
-
-**Key Points:**
-- ✅ Compile test programs in Docker (x86-64 Linux environment)
-- ✅ Run gem5 simulations on macOS (via Rosetta 2)
-- ✅ Analyze results with Python dashboards
-- ✅ Ensures binary compatibility with fast iteration cycles
-
-**Architecture:** Docker (compile) → macOS (simulate) → Analysis
+- Create and activate a local Python virtualenv (`.venv`)  
+- Build a reusable Docker image (amd64)  
+- Run a container with your repo mounted at `/workspace`  
+- Prepare the environment before running any gem5 or compiler steps  
 
 ---
 
-## � Docker Setup - Current Workflow
+## 🧩 0) Prerequisites
 
-### Starting Docker Container
-```sh
-docker run --rm -it --platform linux/amd64 \
-  -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
+- macOS with Docker Desktop installed  
+- Python 3.10+ available on host (for virtualenv)  
+- A terminal (zsh or bash)
+
+---
+
+## 🐍 1) Clone and Set Up Python Virtual Environment
+
+```bash
+# Clone your repo
+git clone <YOUR_REPO_URL> gem5
+cd gem5
+
+# Create and activate a Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# (Optional) Install requirements
+# pip install -r requirements.txt
 ```
 
-### Inside Docker: Install Dependencies
-```sh
-apt-get update && apt-get install -y \
-  build-essential gcc-multilib file python3 python3-pip scons \
-  m4 zlib1g-dev libprotobuf-dev protobuf-compiler \
-  libgoogle-perftools-dev libboost-all-dev pkg-config
+> 💡 Each time you open a new terminal, re-activate it with:
+> ```bash
+> source .venv/bin/activate
+> ```
+
+---
+
+## 🐳 2) Create Dockerfile for Universal gem5 Toolchain
+
+Create a file at `docker/dockerfile.dev` with this content:
+
+```Dockerfile
+# ---------------------------------------------------------
+# Universal gem5 build environment for x86, ARM, RISC-V
+# ---------------------------------------------------------
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y     build-essential scons python3 python3-pip git wget vim nano     gcc g++     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu     gcc-arm-linux-gnueabi g++-arm-linux-gnueabi     gcc-riscv64-linux-gnu g++-riscv64-linux-gnu     qemu-user qemu-user-static     binutils-riscv64-linux-gnu     libprotobuf-dev protobuf-compiler libgoogle-perftools-dev     libpng-dev libcapstone-dev     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
 ```
 
-### Build gem5 (Inside Docker)
-```sh
-scons build/X86/gem5.opt -j$(nproc)
+This installs **cross-compilers** for RISC-V, ARM (both 32-bit and 64-bit), and all necessary dependencies for gem5 builds.
+
+---
+
+## 🏗️ 3) Build the Docker Image (amd64)
+
+Run the following from the **repo root** (where the `docker/` folder lives):
+
+```bash
+docker buildx build --platform linux/amd64   -t gem5-universal:latest   -f docker/dockerfile.dev .
 ```
 
-### Build m5 Library (Inside Docker)
-```sh
-cd util/m5
-scons build/x86/out/libm5.a -j$(nproc)
-cd ../..
+> You only need to build this once.  
+> Rebuild if you modify the Dockerfile.
+
+---
+
+## 🚀 4) Run the Container and Mount Your Workspace
+
+Start the container and mount your current repo at `/workspace`:
+
+```bash
+docker run --rm -it   --platform linux/amd64   -v "$(pwd)":/workspace   gem5-universal:latest bash
 ```
 
-### Compile Test Program (Inside Docker)
-```sh
-gcc -static -I include -L util/m5/build/x86/out \
-  -o benchmarks/builds/hello_build/hello_folks_x86 \
-  benchmarks/builds/hello_build/hello_folks.c -lm5
+You’ll now be inside the container, working at `/workspace` which is your **host repo**.  
+All file changes inside the container will appear on your Mac.
+
+---
+
+## 🔍 5) Quick Checks Inside the Container
+
+```bash
+# Check where you are
+pwd
+ls -la
+
+# Confirm cross-compilers exist
+riscv64-linux-gnu-gcc --version
+aarch64-linux-gnu-gcc --version
+x86_64-linux-gnu-gcc --version || echo "(x86 cross compiler may not be installed; that's okay)"
 ```
 
-### Exit Docker
-```sh
-exit
+If `file` is missing:
+```bash
+apt-get update && apt-get install -y file
 ```
 
 ---
 
-## 🚀 Running Simulations (On macOS)
+## 📦 6) What You Have Now
 
-### Basic Simulation
-```sh
-./build/X86/gem5.opt configs/example/se.py \
-  --cpu-type=TimingSimpleCPU \
-  --caches \
-  -c benchmarks/builds/hello_build/hello_folks_x86
+✅ A reproducible **Docker image** with compilers  
+✅ A **mounted workspace** under `/workspace`  
+✅ A **local Python venv** on host for analysis tools  
+
+> You’re ready to build and run your gem5 workloads.
+
+---
+
+## 🧱 7) (Optional) Build a RISC-V ELF from Assembly
+
+Inside the Docker container:
+
+```bash
+# Compile gem5 m5ops for RISC-V (only if your code calls m5_work_* ops)
+riscv64-linux-gnu-gcc -c   -I/workspace/include   /workspace/util/m5/src/abi/riscv/m5op.S   -o m5op.o
+
+# Assemble your pure assembly test
+riscv64-linux-gnu-gcc -nostartfiles -static   -I/workspace/include   /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.S m5op.o   -o /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.elf
 ```
 
-### View Results
-```sh
-# Check spill statistics
-cat m5out/x86_spill_stats.txt
+> 💡 If your `.S` file doesn’t call `m5_work_begin` / `m5_work_end`,  
+> you can skip linking `m5op.o`.
 
-# Check general stats
-cat m5out/stats.txt
+---
+
+## 🧩 8) (Optional) Build gem5 for RISC-V
+
+Still inside the container:
+
+```bash
+cd /workspace/gem5
+scons build/RISCV/gem5.opt -j$(nproc)
+```
+
+Run your custom test:
+
+```bash
+/workspace/gem5/build/RISCV/gem5.opt   /workspace/benchmarks/builds/test/verify/riscv/run_riscv_spill_test.py
 ```
 
 ---
 
-## � Project Structure
+## 📊 9) Analyze Results (Host-side)
 
+Back on macOS (outside Docker):
+
+```bash
+source .venv/bin/activate
+python3 benchmarks/analytics/advanced_spill_analysis.py m5out
 ```
-gem5/
-├── benchmarks/               # Test programs and analysis
-│   ├── builds/              # Compiled binaries
-│   │   ├── hello_build/     # Simple test program
-│   │   ├── x86_build/       # X86 binaries
-│   │   └── riscv_build/     # RISC-V binaries
-│   └── analytics/           # Analysis scripts and results
-├── build/X86/               # gem5 X86 build
-│   └── gem5.opt            # gem5 simulator binary
-├── m5out/                   # Simulation output
-│   ├── stats.txt           # General statistics
-│   └── x86_spill_stats.txt # Spill detection results
-└── util/m5/                 # m5 utility library
 
+The analyzer automatically detects your ISA from `config.json` and loads the corresponding spill stats file (e.g. `riscv_spill_stats.txt` or `x86_spill_stats.txt`).
+
+Report output:
+```
+m5out/analysis_report.txt
 ```
 
 ---
 
-## 📚 Documentation
+## 🧠 10) Common Issues
 
-- **[REGISTER_SPILL_README.md](REGISTER_SPILL_README.md)** - Register spill detection details
-- **[benchmarks/README.md](benchmarks/README.md)** - Benchmark programs and usage
-- **[DOCKER_REQUIREMENTS.md](DOCKER_REQUIREMENTS.md)** - Docker setup requirements
-- **Official gem5**: <http://www.gem5.org/documentation>
+| Issue | Cause / Fix |
+|-------|--------------|
+| `m5ops.h` not found | Add `-I/workspace/include` include path |
+| “Unknown operating system” | Normal for SE mode |
+| “Interrupt controller missing” | For RISC-V SE, ensure `system.cpu.createInterruptController()` is called |
+| “File not found on host” | Ensure you started Docker with `-v "$(pwd)":/workspace` |
+| “stats.txt empty” | The simulation didn’t reach m5_work_end or terminate cleanly |
 
 ---
 
-# The gem5 Simulator
-
-This is the repository for the gem5 simulator. It contains the full source code
-for the simulator and all tests and regressions.
-
-The gem5 simulator is a modular platform for computer-system architecture
-research, encompassing system-level architecture as well as processor
-microarchitecture.
-
-**Main Website**: <http://www.gem5.org>
-**Documentation**: <http://www.gem5.org/documentation>
-**Getting Started**: <http://www.gem5.org/documentation/learning_gem5/introduction>
-
-## Building gem5
-
-To build gem5, you will need: g++ or clang, Python, SCons, zlib, m4, and protobuf.
-See <http://www.gem5.org/documentation/general_docs/building> for details.
-
-```sh
-scons build/X86/gem5.opt -j$(nproc)
-```
-
-## Testing Status
-
-[![Daily Tests](https://github.com/gem5/gem5/actions/workflows/daily-tests.yaml/badge.svg?branch=develop)](https://github.com/gem5/gem5/actions/workflows/daily-tests.yaml)
-[![Weekly Tests](https://github.com/gem5/gem5/actions/workflows/weekly-tests.yaml/badge.svg?branch=develop)](https://github.com/gem5/gem5/actions/workflows/weekly-tests.yaml)
-
-## Getting Help
-
-- **GitHub Discussions**: <https://github.com/orgs/gem5/discussions>
-- **GitHub Issues**: <https://github.com/gem5/gem5/issues>
-- **Slack**: <https://www.gem5.org/join-slack>
-- **Mailing Lists**: <https://www.gem5.org/mailing_lists>
-
-## Contributing
-
-See <https://www.gem5.org/contributing> and [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-
-# Simulating x86 Binaries on ARM Macs Using Docker
-
-To automate the process of building and simulating x86 binaries (such as matrix_spill.c) on an ARM-based Mac, follow these steps:
-
-## Step-by-Step Bash Workflow
-
-1. Save the following script as `run_x86_docker.sh` in your project root directory.
-2. Make it executable:
-	```sh
-	chmod +x run_x86_docker.sh
-	```
-3. Run the script:
-	```sh
-	./run_x86_docker.sh
-	```
-
-### Script Content
-```sh
-#!/bin/bash
-docker run --rm -it --platform linux/amd64 \
-  -v "$(pwd)":/workspace -w /workspace ubuntu:24.04 bash -c "\
-	 apt-get update && \
-	 apt-get install -y build-essential gcc-multilib file python3 python3-pip scons m4 zlib1g-dev libprotobuf-dev protobuf-compiler libgoogle-perftools-dev libboost-all-dev pkg-config && \
-	 scons build/X86/gem5.opt -j\$(nproc)
-	 bash\
-"
-```
-
-This script will:
-- Start an x86 Ubuntu container
-- Install all required dependencies
-- Build gem5 and your x86 binary
-- Run the simulation
-- Drop you into a bash shell for further inspection (so you can check stats.txt, spill_stats.txt, etc.)
-
-You can modify the script for other C files or simulation options as needed.
-
-## Updated Build Command
+## ⚡ 11) Quick One-Liners
 
 ```bash
-build/X86/gem5.opt configs/deprecated/example/se.py \
-  --cpu-type=TimingSimpleCPU \
-  --caches \
-  -c <path_to_your_x86_binary>
+# Activate host venv
+source .venv/bin/activate
+
+# Build Docker image
+docker buildx build --platform linux/amd64 -t gem5-universal:latest -f docker/dockerfile.dev .
+
+# Run container
+docker run --rm -it --platform linux/amd64 -v "$(pwd)":/workspace gem5-universal:latest bash
 ```
 
-## Example Build Command
-The updated build command for running the `hello_folks_x86` program is as follows:
+---
 
-```bash
-build/X86/gem5.opt configs/deprecated/example/se.py \
-  --cpu-type=TimingSimpleCPU \
-  --caches \
-  -c benchmarks/builds/hello_build/hello_folks_x86
-```
+## 🧭 Summary
 
-Make sure to use this command to ensure proper simulation with the spill detector enabled.
+You can now:
+1. Activate your virtualenv (`.venv`)  
+2. Launch Docker (`gem5-universal:latest`)  
+3. Work seamlessly inside `/workspace`  
+4. Build gem5 or assemble binaries  
+5. Run simulations and analyze spill stats automatically  
 
-## Step-by-Step Guide to Run an x86 Simulation on Docker
-
-### 1. Open Docker
-Start an x86 Ubuntu container for building or running x86 binaries:
-```bash
-docker run --rm -it --platform linux/amd64 -v $(pwd):/workspace -w /workspace ubuntu:24.04 bash
-```
-
-### 2. Install Dependencies
-Inside the container, install the required dependencies:
-```bash
-apt-get update && \
-apt-get install -y build-essential gcc-multilib file python3 python3-pip scons m4 zlib1g-dev libprotobuf-dev protobuf-compiler libgoogle-perftools-dev libboost-all-dev pkg-config
-```
-
-### 3. Build gem5
-Build the gem5 simulator for the x86 architecture:
-```bash
-scons build/X86/gem5.opt -j$(nproc)
-```
-
-### 4. Create the Binary File
-Compile the C file to create the binary for simulation:
-```bash
-gcc -o <binary file> <.c file> 
-```
-
-For example:
-```bash
-gcc -o benchmarks/builds/hello_build/hello_folks_x86 benchmarks/builds/hello_build/hello_folks.c
-```
-
-### 5. Run the Simulation
-Run the gem5 simulation with the compiled binary:
-```bash
-build/X86/gem5.opt configs/deprecated/example/se.py \
-  --cpu-type=TimingSimpleCPU \
-  --caches \
-  -c benchmarks/builds/x86_build/matrix_spill_x86
-```
-
-### 6. Check the Output Files
-After the simulation completes, check the output files:
-```bash
-ls -la m5out/spill_stats.txt
-cat m5out/spill_stats.txt | head -20
-```
-
-This step-by-step guide ensures that you can successfully run an x86 simulation on Docker.
+That’s your **clean, reproducible base environment** for gem5 development 🎯
