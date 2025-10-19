@@ -47,7 +47,6 @@
 
 #include "cpu/simple/spill_detector.hh"
 
-#endif
 #include "cpu/translation.hh"
 #include "params/BaseTimingSimpleCPU.hh"
 

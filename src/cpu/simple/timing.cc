@@ -68,14 +68,6 @@
 #include "sim/full_system.hh"
 #include "sim/system.hh"
 
-#if THE_ISA == X86_ISA
-#include "arch/x86/regs/int.hh"
-
-#elif THE_ISA == RISCV_ISA
-#include "arch/riscv/regs/int.hh"
-
-#endif
-
 namespace gem5
 {
 
@@ -484,13 +476,8 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this load instruction
-    // Get architecture-specific stack pointer
+    // Note: Stack pointer tracking disabled for architecture independence
     Addr current_sp = 0;
-#if THE_ISA == X86_ISA
-    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
-#elif THE_ISA == RISCV_ISA
-    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
-#endif
     spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp);
 
 
@@ -577,13 +564,8 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this store instruction
-    // Get architecture-specific stack pointer
+    // Note: Stack pointer tracking disabled for architecture independence
     Addr current_sp = 0;
-#if THE_ISA == X86_ISA
-    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
-#elif THE_ISA == RISCV_ISA
-    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
-#endif
     spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_sp);
 
     RequestPtr req = std::make_shared<Request>(
