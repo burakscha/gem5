@@ -45,11 +45,7 @@
 #include "cpu/simple/base.hh"
 #include "cpu/simple/exec_context.hh"
 
-#if THE_ISA == X86_ISA
-#include "cpu/simple/x86_spill_detector.hh"
-
-#elif THE_ISA == RISCV_ISA
-#include "cpu/simple/riscv_spill_detector.hh"
+#include "cpu/simple/spill_detector.hh"
 
 #endif
 #include "cpu/translation.hh"
