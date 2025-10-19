@@ -67,9 +67,52 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
+#include "cpu/reg_class.hh"
+
+// Architecture-specific register headers
+// gem5 compiles this file separately for each ISA (X86, RISCV, ARM, etc.)
+#if defined(TARGET_ISA_x86)
+    #include "arch/x86/regs/int.hh"
+    using namespace X86ISA;
+    #define ARCH_STACK_PTR_REG int_reg::Rsp
+#elif defined(TARGET_ISA_riscv)
+    #include "arch/riscv/regs/int.hh"
+    using namespace RiscvISA;
+    #define ARCH_STACK_PTR_REG StackPointerReg
+#elif defined(TARGET_ISA_arm)
+    #include "arch/arm/regs/int.hh"
+    using namespace ArmISA;
+    #define ARCH_STACK_PTR_REG StackPointerReg
+#elif defined(TARGET_ISA_sparc)
+    #include "arch/sparc/regs/int.hh"
+    using namespace SparcISA;
+    #define ARCH_STACK_PTR_REG StackPointerReg
+#elif defined(TARGET_ISA_power)
+    #include "arch/power/regs/int.hh"
+    using namespace PowerISA;
+    #define ARCH_STACK_PTR_REG StackPointerReg
+#else
+    // Fallback for other architectures - stack pointer tracking will be disabled
+    #define ARCH_STACK_PTR_REG RegId()
+    #warning "Stack pointer register not defined for this architecture"
+#endif
 
 namespace gem5
 {
+
+// Helper function to get stack pointer in an architecture-aware way
+// This is compiled separately for each ISA build
+static inline Addr
+getStackPointer(SimpleThread *thread)
+{
+    auto tc = thread->getTC();
+    if (tc) {
+        // Get stack pointer using architecture-specific register ID
+        // ARCH_STACK_PTR_REG is a RegId object that identifies the SP register
+        return tc->getReg(ARCH_STACK_PTR_REG);
+    }
+    return 0;
+}
 
 void
 TimingSimpleCPU::init()
@@ -476,8 +519,8 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this load instruction
-    // Note: Stack pointer tracking disabled for architecture independence
-    Addr current_sp = 0;
+    // Get architecture-specific stack pointer for spill analysis
+    Addr current_sp = getStackPointer(thread);
     spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp);
 
 
@@ -564,8 +607,8 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this store instruction
-    // Note: Stack pointer tracking disabled for architecture independence
-    Addr current_sp = 0;
+    // Get architecture-specific stack pointer for spill analysis
+    Addr current_sp = getStackPointer(thread);
     spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_sp);
 
     RequestPtr req = std::make_shared<Request>(
