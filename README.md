@@ -140,7 +140,11 @@ Still inside the container:
 
 ```bash
 cd /workspace/gem5
-scons build/RISCV/gem5.opt -j$(nproc)
+scons build/RISCV/gem5.opt -j12
+
+# (Optional) Also build for x86
+
+scons build/X86/gem5.opt -j12
 ```
 
 Run your custom test:
