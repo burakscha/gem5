@@ -1,0 +1,152 @@
+
+riscv_spill_test.elf:     file format elf64-littleriscv
+
+
+Disassembly of section .text:
+
+000000000001010c <main>:
+   1010c:	fc810113          	addi	sp,sp,-56
+   10110:	4501                	li	a0,0
+   10112:	4581                	li	a1,0
+   10114:	09a000ef          	jal	101ae <m5_reset_stats>
+   10118:	4501                	li	a0,0
+   1011a:	4581                	li	a1,0
+   1011c:	0ce000ef          	jal	101ea <m5_work_begin>
+   10120:	4285                	li	t0,1
+   10122:	e016                	sd	t0,0(sp)
+   10124:	6302                	ld	t1,0(sp)
+   10126:	4289                	li	t0,2
+   10128:	e416                	sd	t0,8(sp)
+   1012a:	6322                	ld	t1,8(sp)
+   1012c:	428d                	li	t0,3
+   1012e:	e816                	sd	t0,16(sp)
+   10130:	6342                	ld	t1,16(sp)
+   10132:	4291                	li	t0,4
+   10134:	ec16                	sd	t0,24(sp)
+   10136:	6362                	ld	t1,24(sp)
+   10138:	4295                	li	t0,5
+   1013a:	f016                	sd	t0,32(sp)
+   1013c:	7302                	ld	t1,32(sp)
+   1013e:	4299                	li	t0,6
+   10140:	f416                	sd	t0,40(sp)
+   10142:	7322                	ld	t1,40(sp)
+   10144:	f816                	sd	t0,48(sp)
+   10146:	7342                	ld	t1,48(sp)
+   10148:	4501                	li	a0,0
+   1014a:	4581                	li	a1,0
+   1014c:	0a4000ef          	jal	101f0 <m5_work_end>
+   10150:	4501                	li	a0,0
+   10152:	4581                	li	a1,0
+   10154:	060000ef          	jal	101b4 <m5_dump_stats>
+   10158:	03810113          	addi	sp,sp,56
+   1015c:	05d00893          	li	a7,93
+   10160:	4501                	li	a0,0
+   10162:	00000073          	ecall
+
+0000000000010166 <m5_arm>:
+   10166:	0000007b          	.word	0x0000007b
+   1016a:	8082                	ret
+
+000000000001016c <m5_quiesce>:
+   1016c:	0200007b          	.word	0x0200007b
+   10170:	8082                	ret
+
+0000000000010172 <m5_quiesce_ns>:
+   10172:	0400007b          	.word	0x0400007b
+   10176:	8082                	ret
+
+0000000000010178 <m5_quiesce_cycle>:
+   10178:	0600007b          	.word	0x0600007b
+   1017c:	8082                	ret
+
+000000000001017e <m5_quiesce_time>:
+   1017e:	0800007b          	.word	0x0800007b
+   10182:	8082                	ret
+
+0000000000010184 <m5_rpns>:
+   10184:	0e00007b          	.word	0x0e00007b
+   10188:	8082                	ret
+
+000000000001018a <m5_wake_cpu>:
+   1018a:	1200007b          	.word	0x1200007b
+   1018e:	8082                	ret
+
+0000000000010190 <m5_exit>:
+   10190:	4200007b          	.word	0x4200007b
+   10194:	8082                	ret
+
+0000000000010196 <m5_fail>:
+   10196:	4400007b          	.word	0x4400007b
+   1019a:	8082                	ret
+
+000000000001019c <m5_sum>:
+   1019c:	4600007b          	.word	0x4600007b
+   101a0:	8082                	ret
+
+00000000000101a2 <m5_init_param>:
+   101a2:	6000007b          	.word	0x6000007b
+   101a6:	8082                	ret
+
+00000000000101a8 <m5_load_symbol>:
+   101a8:	6200007b          	.word	0x6200007b
+   101ac:	8082                	ret
+
+00000000000101ae <m5_reset_stats>:
+   101ae:	8000007b          	.word	0x8000007b
+   101b2:	8082                	ret
+
+00000000000101b4 <m5_dump_stats>:
+   101b4:	8200007b          	.word	0x8200007b
+   101b8:	8082                	ret
+
+00000000000101ba <m5_dump_reset_stats>:
+   101ba:	8400007b          	.word	0x8400007b
+   101be:	8082                	ret
+
+00000000000101c0 <m5_checkpoint>:
+   101c0:	8600007b          	.word	0x8600007b
+   101c4:	8082                	ret
+
+00000000000101c6 <m5_write_file>:
+   101c6:	9e00007b          	.word	0x9e00007b
+   101ca:	8082                	ret
+
+00000000000101cc <m5_read_file>:
+   101cc:	a000007b          	.word	0xa000007b
+   101d0:	8082                	ret
+
+00000000000101d2 <m5_debug_break>:
+   101d2:	a200007b          	.word	0xa200007b
+   101d6:	8082                	ret
+
+00000000000101d8 <m5_switch_cpu>:
+   101d8:	a400007b          	.word	0xa400007b
+   101dc:	8082                	ret
+
+00000000000101de <m5_add_symbol>:
+   101de:	a600007b          	.word	0xa600007b
+   101e2:	8082                	ret
+
+00000000000101e4 <m5_panic>:
+   101e4:	a800007b          	.word	0xa800007b
+   101e8:	8082                	ret
+
+00000000000101ea <m5_work_begin>:
+   101ea:	b400007b          	.word	0xb400007b
+   101ee:	8082                	ret
+
+00000000000101f0 <m5_work_end>:
+   101f0:	b600007b          	.word	0xb600007b
+   101f4:	8082                	ret
+
+00000000000101f6 <m5_dist_toggle_sync>:
+   101f6:	c400007b          	.word	0xc400007b
+   101fa:	8082                	ret
+
+00000000000101fc <m5_workload>:
+   101fc:	e000007b          	.word	0xe000007b
+   10200:	8082                	ret
+
+0000000000010202 <m5_hypercall>:
+   10202:	e200007b          	.word	0xe200007b
+   10206:	8082                	ret

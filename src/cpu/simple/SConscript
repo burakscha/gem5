@@ -26,10 +26,23 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# Define ISA macros as C preprocessor definitions using gem5's ISA infrastructure
+# This allows timing.cc and spill_detector.cc to detect which ISA is being built
+# Reference: src/python/gem5/isas.py for ISA enum definitions
+from gem5.isas import ISA
+
 Import('*')
 
 if not env['CONF']['BUILD_ISA']:
     Return()
+
+for isa in ISA:
+    if isa == ISA.NULL:
+        continue
+    isa_macro = f'USE_{isa.value.upper()}_ISA'
+    if env['CONF'].get(isa_macro, False):
+        env.Append(CPPDEFINES=[isa_macro])
+        break  # Only one ISA per build
 
 SimObject('BaseAtomicSimpleCPU.py', sim_objects=['BaseAtomicSimpleCPU'])
 Source('atomic.cc')
@@ -44,18 +57,11 @@ Source('noncaching.cc')
 SimObject('BaseTimingSimpleCPU.py', sim_objects=['BaseTimingSimpleCPU'])
 Source('timing.cc')
 
-# Architecture-aware spill detector inclusion
-# Gemini's recommended approach: Clean build system selection
-if env['CONF']['USE_X86_ISA']:
-    Source('x86_spill_detector.cc')
-    print("Building with X86 Spill Detector (16 GPRs, CISC)")
-elif env['CONF']['USE_RISCV_ISA']:
-    Source('riscv_spill_detector.cc')
-    print("Building with RISC-V Spill Detector (32 GPRs, RISC)")
-else:
-    # Fallback to general spill detector for other architectures
-    Source('spill_detector.cc')
-    print("Building with General Spill Detector")
+# --- CHANGE BEGINS ---
+# All architectures are being built with a unified spill detector file.
+# (The old if/elif/else block has been removed)
+Source('spill_detector.cc')
+# --- CHANGE END ---
 
 DebugFlag('SimpleCPU')
 DebugFlag('SpillDetector')

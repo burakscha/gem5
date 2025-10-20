@@ -67,17 +67,63 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
+#include "cpu/reg_class.hh"
 
-#if THE_ISA == X86_ISA
-#include "arch/x86/regs/int.hh"
-
-#elif THE_ISA == RISCV_ISA
-#include "arch/riscv/regs/int.hh"
-
+// Architecture-specific register headers
+// gem5 compiles this file separately for each ISA (X86, RISCV, ARM, etc.)
+// Note: gem5 now uses USE_*_ISA macros instead of TARGET_ISA_* (see RELEASE-NOTES.md)
+/*
+* This section includes architecture-specific headers and defines the stack pointer register ID
+* This is compiled separately for each ISA build
+* In SConscript, corresponding USE_*_ISA macros are defined for each ISA build
+* Refer to src/cpu/simple/SConscript for details
+*/
+#if defined(USE_X86_ISA)
+    #include "arch/x86/regs/int.hh"
+    using namespace gem5::X86ISA;
+    #define ARCH_STACK_PTR_REG gem5::X86ISA::int_reg::Rsp
+#elif defined(USE_RISCV_ISA)
+    #include "arch/riscv/regs/int.hh"
+    using namespace gem5::RiscvISA;
+    #define ARCH_STACK_PTR_REG gem5::RiscvISA::StackPointerReg
+#elif defined(USE_ARM_ISA)
+    #include "arch/arm/regs/int.hh"
+    using namespace gem5::ArmISA;
+    #define ARCH_STACK_PTR_REG gem5::ArmISA::StackPointerReg
+#elif defined(USE_SPARC_ISA)
+    #include "arch/sparc/regs/int.hh"
+    using namespace gem5::SparcISA;
+    #define ARCH_STACK_PTR_REG gem5::SparcISA::StackPointerReg
+#elif defined(USE_POWER_ISA)
+    #include "arch/power/regs/int.hh"
+    using namespace gem5::PowerISA;
+    #define ARCH_STACK_PTR_REG gem5::PowerISA::StackPointerReg
+#elif defined(USE_MIPS_ISA)
+    #include "arch/mips/regs/int.hh"
+    using namespace gem5::MipsISA;
+    #define ARCH_STACK_PTR_REG gem5::MipsISA::StackPointerReg
+#else
+    // Fallback for other architectures - stack pointer tracking will be disabled
+    #define ARCH_STACK_PTR_REG RegId()
+    #warning "Stack pointer register not defined for this architecture"
 #endif
 
 namespace gem5
 {
+
+// Helper function to get stack pointer in an architecture-aware way
+// This is compiled separately for each ISA build
+static inline Addr
+getStackPointer(SimpleThread *thread)
+{
+    auto tc = thread->getTC();
+    if (tc) {
+        // Get stack pointer using architecture-specific register ID
+        // ARCH_STACK_PTR_REG is a RegId object that identifies the SP register
+        return tc->getReg(ARCH_STACK_PTR_REG);
+    }
+    return 0;
+}
 
 void
 TimingSimpleCPU::init()
@@ -484,13 +530,8 @@ TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this load instruction
-    // Get architecture-specific stack pointer
-    Addr current_sp = 0;
-#if THE_ISA == X86_ISA
-    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
-#elif THE_ISA == RISCV_ISA
-    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
-#endif
+    // Get architecture-specific stack pointer for spill analysis
+    Addr current_sp = getStackPointer(thread);
     spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp);
 
 
@@ -577,13 +618,8 @@ TimingSimpleCPU::writeMem(uint8_t *data, unsigned size,
         traceData->setMem(addr, size, flags);
 
     // REGISTER SPILL DETECTION: Track this store instruction
-    // Get architecture-specific stack pointer
-    Addr current_sp = 0;
-#if THE_ISA == X86_ISA
-    current_sp = thread->readIntReg(X86ISA::INTREG_RSP);
-#elif THE_ISA == RISCV_ISA
-    current_sp = thread->readIntReg(RiscvISA::int_reg::Sp);
-#endif
+    // Get architecture-specific stack pointer for spill analysis
+    Addr current_sp = getStackPointer(thread);
     spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_sp);
 
     RequestPtr req = std::make_shared<Request>(

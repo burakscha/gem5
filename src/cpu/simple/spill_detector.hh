@@ -1,36 +1,35 @@
 /*
- * Copyright (c) 2025 Register Spilling Research
+ * Copyright (c) 2025 CAST Research
  * All rights reserved.
  *
- * RISC-V Register Spill Detection System for gem5
+ * Generic Register Spill Detection System for gem5
  *
  * This implements real-time instruction-level analysis to detect register
  * spills by tracking store-load patterns to the same memory addresses.
  *
- * RISC-V SPECIFIC IMPLEMENTATION:
- * ================================
- * - Optimized for RISC-V 64-bit architecture (32 general-purpose registers)
+ * GENERIC ISA IMPLEMENTATION:
+ * ============================
+ * - Optimized for multiple architectures (X86, RISC-V, etc.)
  * - Ultra-basic detection mode with minimal filtering
  * - Silent operation with file-only logging
  * - Enhanced header documentation for spill analysis
  */
 
-#ifndef __CPU_SIMPLE_RISCV_SPILL_DETECTOR_HH__
-#define __CPU_SIMPLE_RISCV_SPILL_DETECTOR_HH__
+#ifndef __CPU_SIMPLE_SPILL_DETECTOR_HH__
+#define __CPU_SIMPLE_SPILL_DETECTOR_HH__
 
+#include <unordered_map>
+#include <vector>
 #include <fstream>
 #include <map>
 #include <set>
-#include <unordered_map>
-#include <vector>
-
 #include "base/types.hh"
 
 namespace gem5
 {
 
 /**
- * RISC-V Register Spill Detection System
+ * Generic Register Spill Detection System
  *
  * This class implements ultra-basic spill detection:
  * - Uses C++ std::unordered_map to track store operations
@@ -42,27 +41,30 @@ class SpillDetector
 {
   public:
     // Structure to store information about a store operation
-    struct StoreInfo
-    {
+    struct StoreInfo {
         Addr address;           // Memory address that was stored to
         Addr pc;               // Program counter of store instruction
         Tick tick;             // Simulation tick when store occurred
         unsigned size;         // Size of data stored (in bytes)
         uint64_t instruction_count; // Global instruction counter
-        Addr sp_at_store;      // Stack pointer (SP) at time of store (RISC-V uses sp instead of rsp)
+
+        // Generic stack pointer (replaces X86's rsp_at_store and RISC-V's sp_at_store)
+        Addr stack_ptr_at_store;
 
         // Default constructor for std::unordered_map
-        StoreInfo() : address(0), pc(0), tick(0), size(0), instruction_count(0), sp_at_store(0) {}
+        StoreInfo() : address(0), pc(0), tick(0), size(0),
+                      instruction_count(0), stack_ptr_at_store(0) {}
 
         StoreInfo(Addr addr, Addr program_counter, Tick simulation_tick,
-                  unsigned data_size, uint64_t inst_count, Addr current_sp)
+                  unsigned data_size, uint64_t inst_count, Addr current_stack_ptr)
             : address(addr), pc(program_counter), tick(simulation_tick),
-              size(data_size), instruction_count(inst_count), sp_at_store(current_sp) {}
+              size(data_size), instruction_count(inst_count),
+              stack_ptr_at_store(current_stack_ptr) {}
     };
 
     // Structure to store information about a detected spill
-    struct SpillEvent
-    {
+    // This structure is identical for both X86 and RISC-V
+    struct SpillEvent {
         Addr store_pc;         // PC of the store instruction
         Addr load_pc;          // PC of the load instruction
         Addr address;          // Memory address involved in spill
@@ -103,9 +105,6 @@ class SpillDetector
     uint64_t dynamic_store_count;
     uint64_t dynamic_load_count;
 
-    // ROI (Region of Interest) tracking
-    bool roi_active;  // True when inside ROI (between m5_work_begin and m5_work_end)
-
     // Configuration parameters - ultra-basic mode with minimal constraints
     static const Tick MAX_SPILL_WINDOW = 10000000;    // Large window for maximum detection
     static const unsigned MAX_STORE_ENTRIES = 10000;  // Max stored addresses to track
@@ -122,14 +121,16 @@ class SpillDetector
     /**
      * Called when a store instruction executes
      * This is where we populate our C++ map with store information
+     * Uses a generic 'current_stack_ptr' parameter
      */
-    void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_sp);
+    void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_stack_ptr);
 
     /**
      * Called when a load instruction executes
      * This is where we check the map for matching stores and detect spills
+     * Uses a generic 'current_stack_ptr' parameter
      */
-    void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_sp);
+    void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_stack_ptr);
 
     /**
      * Called for every instruction to update instruction counter
@@ -155,13 +156,6 @@ class SpillDetector
     uint64_t getTotalLoads() const { return total_loads; }
 
     /**
-     * ROI (Region of Interest) control
-     * Called by m5ops when ROI markers are hit
-     */
-    void beginROI();  // Called on m5_work_begin
-    void endROI();    // Called on m5_work_end
-
-    /**
      * Reset all counters and clear maps
      */
     void reset();
@@ -169,4 +163,4 @@ class SpillDetector
 
 } // namespace gem5
 
-#endif // __CPU_SIMPLE_RISCV_SPILL_DETECTOR_HH__
+#endif // __CPU_SIMPLE_SPILL_DETECTOR_HH__

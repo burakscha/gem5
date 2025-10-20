@@ -1,19 +1,19 @@
 # gem5 Spill Test — Dev Environment Setup
 
-This guide explains how to prepare a clean development environment on macOS (Apple Silicon) to work with **gem5** and RISC-V/x86/ARM binaries.  
+This guide explains how to prepare a clean development environment on macOS (Apple Silicon) to work with **gem5** and RISC-V/x86/ARM binaries.
 The goal here is to:
 
-- Create and activate a local Python virtualenv (`.venv`)  
-- Build a reusable Docker image (amd64)  
-- Run a container with your repo mounted at `/workspace`  
-- Prepare the environment before running any gem5 or compiler steps  
+- Create and activate a local Python virtualenv (`.venv`)
+- Build a reusable Docker image (amd64)
+- Run a container with your repo mounted at `/workspace`
+- Prepare the environment before running any gem5 or compiler steps
 
 ---
 
 ## 🧩 0) Prerequisites
 
-- macOS with Docker Desktop installed  
-- Python 3.10+ available on host (for virtualenv)  
+- macOS with Docker Desktop installed
+- Python 3.10+ available on host (for virtualenv)
 - A terminal (zsh or bash)
 
 ---
@@ -69,7 +69,7 @@ Run the following from the **repo root** (where the `docker/` folder lives):
 docker buildx build --platform linux/amd64   -t gem5-universal:latest   -f docker/dockerfile.dev .
 ```
 
-> You only need to build this once.  
+> You only need to build this once.
 > Rebuild if you modify the Dockerfile.
 
 ---
@@ -82,7 +82,7 @@ Start the container and mount your current repo at `/workspace`:
 docker run --rm -it   --platform linux/amd64   -v "$(pwd)":/workspace   gem5-universal:latest bash
 ```
 
-You’ll now be inside the container, working at `/workspace` which is your **host repo**.  
+You’ll now be inside the container, working at `/workspace` which is your **host repo**.
 All file changes inside the container will appear on your Mac.
 
 ---
@@ -109,9 +109,9 @@ apt-get update && apt-get install -y file
 
 ## 📦 6) What You Have Now
 
-✅ A reproducible **Docker image** with compilers  
-✅ A **mounted workspace** under `/workspace`  
-✅ A **local Python venv** on host for analysis tools  
+✅ A reproducible **Docker image** with compilers
+✅ A **mounted workspace** under `/workspace`
+✅ A **local Python venv** on host for analysis tools
 
 > You’re ready to build and run your gem5 workloads.
 
@@ -129,7 +129,7 @@ riscv64-linux-gnu-gcc -c   -I/workspace/include   /workspace/util/m5/src/abi/ris
 riscv64-linux-gnu-gcc -nostartfiles -static   -I/workspace/include   /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.S m5op.o   -o /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.elf
 ```
 
-> 💡 If your `.S` file doesn’t call `m5_work_begin` / `m5_work_end`,  
+> 💡 If your `.S` file doesn’t call `m5_work_begin` / `m5_work_end`,
 > you can skip linking `m5op.o`.
 
 ---
@@ -140,7 +140,11 @@ Still inside the container:
 
 ```bash
 cd /workspace/gem5
-scons build/RISCV/gem5.opt -j$(nproc)
+scons build/RISCV/gem5.opt -j12
+
+# (Optional) Also build for x86
+
+scons build/X86/gem5.opt -j12
 ```
 
 Run your custom test:
@@ -179,9 +183,17 @@ m5out/analysis_report.txt
 | “File not found on host” | Ensure you started Docker with `-v "$(pwd)":/workspace` |
 | “stats.txt empty” | The simulation didn’t reach m5_work_end or terminate cleanly |
 
+## 🚧 11) Why do we need m5op.o?
+
+The reason is so simple, we gotta create the m5op.o file for RISC-V if your assembly or C code uses any of the special gem5 "m5" pseudo-instructions (like m5_work_begin, m5_work_end, m5_exit, etc). These are used for simulation control, region-of-interest marking, or stats dumping inside gem5.
+
+The file m5op.o is the compiled object file from m5op.S, which contains the RISC-V implementations of these pseudo-instructions.
+When you link your test binary (like pure_asm_spill.elf), if your code calls any m5_* function, the linker needs the actual implementation, which is provided by m5op.o.
+If you do not use any m5_* calls in your assembly, you can skip linking m5op.o.
+
 ---
 
-## ⚡ 11) Quick One-Liners
+## ⚡ 12) Quick One-Liners
 
 ```bash
 # Activate host venv
@@ -199,10 +211,10 @@ docker run --rm -it --platform linux/amd64 -v "$(pwd)":/workspace gem5-universal
 ## 🧭 Summary
 
 You can now:
-1. Activate your virtualenv (`.venv`)  
-2. Launch Docker (`gem5-universal:latest`)  
-3. Work seamlessly inside `/workspace`  
-4. Build gem5 or assemble binaries  
-5. Run simulations and analyze spill stats automatically  
+1. Activate your virtualenv (`.venv`)
+2. Launch Docker (`gem5-universal:latest`)
+3. Work seamlessly inside `/workspace`
+4. Build gem5 or assemble binaries
+5. Run simulations and analyze spill stats automatically
 
 That’s your **clean, reproducible base environment** for gem5 development 🎯
