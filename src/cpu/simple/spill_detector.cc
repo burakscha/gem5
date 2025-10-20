@@ -73,20 +73,30 @@
 
 // ========================================================================
 // DEFINE ISA-SPECIFIC LOG FILE NAMES
-// The gem5 build system (SConscript) provides the TARGET_ISA_* macros.
+// The gem5 build system provides USE_*_ISA macros (not TARGET_ISA_* anymore).
+// See RELEASE-NOTES.md for details on this change.
 // ========================================================================
 
-#if defined(TARGET_ISA_X86)
+#if defined(USE_X86_ISA)
     #define SPILL_LOG_FILENAME "m5out/x86_spill_stats.txt"
     #define ISA_NAME_STR "X86"
-#elif defined(TARGET_ISA_RISCV)
+#elif defined(USE_RISCV_ISA)
     #define SPILL_LOG_FILENAME "m5out/riscv_spill_stats.txt"
     #define ISA_NAME_STR "RISC-V"
-#elif defined(TARGET_ISA_ARM)
+#elif defined(USE_ARM_ISA)
     #define SPILL_LOG_FILENAME "m5out/arm_spill_stats.txt"
     #define ISA_NAME_STR "ARM"
+#elif defined(USE_SPARC_ISA)
+    #define SPILL_LOG_FILENAME "m5out/sparc_spill_stats.txt"
+    #define ISA_NAME_STR "SPARC"
+#elif defined(USE_POWER_ISA)
+    #define SPILL_LOG_FILENAME "m5out/power_spill_stats.txt"
+    #define ISA_NAME_STR "POWER"
+#elif defined(USE_MIPS_ISA)
+    #define SPILL_LOG_FILENAME "m5out/mips_spill_stats.txt"
+    #define ISA_NAME_STR "MIPS"
 #else
-    // Diğer tüm mimariler için genel bir varsayılan
+    // Fallback for other architectures
     #define SPILL_LOG_FILENAME "m5out/generic_spill_stats.txt"
     #define ISA_NAME_STR "Generic"
 #endif

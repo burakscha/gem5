@@ -71,26 +71,37 @@
 
 // Architecture-specific register headers
 // gem5 compiles this file separately for each ISA (X86, RISCV, ARM, etc.)
-#if defined(TARGET_ISA_x86)
+// Note: gem5 now uses USE_*_ISA macros instead of TARGET_ISA_* (see RELEASE-NOTES.md)
+/*
+* This section includes architecture-specific headers and defines the stack pointer register ID
+* This is compiled separately for each ISA build
+* In SConscript, corresponding USE_*_ISA macros are defined for each ISA build
+* Refer to src/cpu/simple/SConscript for details
+*/
+#if defined(USE_X86_ISA)
     #include "arch/x86/regs/int.hh"
-    using namespace X86ISA;
-    #define ARCH_STACK_PTR_REG int_reg::Rsp
-#elif defined(TARGET_ISA_riscv)
+    using namespace gem5::X86ISA;
+    #define ARCH_STACK_PTR_REG gem5::X86ISA::int_reg::Rsp
+#elif defined(USE_RISCV_ISA)
     #include "arch/riscv/regs/int.hh"
-    using namespace RiscvISA;
-    #define ARCH_STACK_PTR_REG StackPointerReg
-#elif defined(TARGET_ISA_arm)
+    using namespace gem5::RiscvISA;
+    #define ARCH_STACK_PTR_REG gem5::RiscvISA::StackPointerReg
+#elif defined(USE_ARM_ISA)
     #include "arch/arm/regs/int.hh"
-    using namespace ArmISA;
-    #define ARCH_STACK_PTR_REG StackPointerReg
-#elif defined(TARGET_ISA_sparc)
+    using namespace gem5::ArmISA;
+    #define ARCH_STACK_PTR_REG gem5::ArmISA::StackPointerReg
+#elif defined(USE_SPARC_ISA)
     #include "arch/sparc/regs/int.hh"
-    using namespace SparcISA;
-    #define ARCH_STACK_PTR_REG StackPointerReg
-#elif defined(TARGET_ISA_power)
+    using namespace gem5::SparcISA;
+    #define ARCH_STACK_PTR_REG gem5::SparcISA::StackPointerReg
+#elif defined(USE_POWER_ISA)
     #include "arch/power/regs/int.hh"
-    using namespace PowerISA;
-    #define ARCH_STACK_PTR_REG StackPointerReg
+    using namespace gem5::PowerISA;
+    #define ARCH_STACK_PTR_REG gem5::PowerISA::StackPointerReg
+#elif defined(USE_MIPS_ISA)
+    #include "arch/mips/regs/int.hh"
+    using namespace gem5::MipsISA;
+    #define ARCH_STACK_PTR_REG gem5::MipsISA::StackPointerReg
 #else
     // Fallback for other architectures - stack pointer tracking will be disabled
     #define ARCH_STACK_PTR_REG RegId()
