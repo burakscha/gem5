@@ -183,9 +183,17 @@ m5out/analysis_report.txt
 | “File not found on host” | Ensure you started Docker with `-v "$(pwd)":/workspace` |
 | “stats.txt empty” | The simulation didn’t reach m5_work_end or terminate cleanly |
 
+## 🚧 11) Why do we need m5op.o?
+
+The reason is so simple, we gotta create the m5op.o file for RISC-V if your assembly or C code uses any of the special gem5 "m5" pseudo-instructions (like m5_work_begin, m5_work_end, m5_exit, etc). These are used for simulation control, region-of-interest marking, or stats dumping inside gem5.
+
+The file m5op.o is the compiled object file from m5op.S, which contains the RISC-V implementations of these pseudo-instructions.
+When you link your test binary (like pure_asm_spill.elf), if your code calls any m5_* function, the linker needs the actual implementation, which is provided by m5op.o.
+If you do not use any m5_* calls in your assembly, you can skip linking m5op.o.
+
 ---
 
-## ⚡ 11) Quick One-Liners
+## ⚡ 12) Quick One-Liners
 
 ```bash
 # Activate host venv
