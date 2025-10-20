@@ -108,7 +108,7 @@ namespace gem5
 
 SpillDetector::SpillDetector()
     : total_instructions(0), total_stores(0), total_loads(0), total_spills_detected(0), total_spills_logged(0),
-static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_load_count(0), roi_active(false)
+static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_load_count(0)
 {
     // Performans için yer ayır
     store_map.reserve(1000);
@@ -118,7 +118,6 @@ static_store_count(0), static_load_count(0), dynamic_store_count(0), dynamic_loa
     writeLogHeader();
 
     // Silent initialization - no console output
-    // ROI starts as inactive, will be activated by m5_work_begin
 }
 
 SpillDetector::~SpillDetector()
@@ -129,11 +128,6 @@ SpillDetector::~SpillDetector()
 void
 SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_stack_ptr)
 {
-    // Only track stores within ROI
-    if (!roi_active) {
-        return;
-    }
-
     total_stores++;
     dynamic_store_count++;
 
@@ -151,11 +145,6 @@ SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned siz
 void
 SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size, Addr current_stack_ptr)
 {
-    // Only track loads within ROI
-    if (!roi_active) {
-        return;
-    }
-
     total_loads++;
     dynamic_load_count++;
 
@@ -275,31 +264,6 @@ SpillDetector::printSpillReport() const
     // This function is identical for both architectures
     // Silent operation - no console output
     // All spill detection results are saved to SPILL_LOG_FILENAME
-}
-
-void
-SpillDetector::beginROI()
-{
-    // This function is identical for both architectures
-    // Called when m5_work_begin is executed
-    roi_active = true;
-
-    // Optionally reset counters and clear maps
-    // (Commented out to preserve pre-ROI statistics)
-    // store_map.clear();
-    // detected_spills.clear();
-    // ...
-}
-
-void
-SpillDetector::endROI()
-{
-    // This function is identical for both architectures
-    // Called when m5_work_end is executed
-    roi_active = false;
-
-    // Clear the store map since we're done with the ROI
-    store_map.clear();
 }
 
 void

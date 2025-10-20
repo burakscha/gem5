@@ -1,5 +1,5 @@
 
-benchmarks/builds/test/verify/riscv2/riscv_spill_test.elf:     file format elf64-littleriscv
+riscv_spill_test.elf:     file format elf64-littleriscv
 
 
 Disassembly of section .text:

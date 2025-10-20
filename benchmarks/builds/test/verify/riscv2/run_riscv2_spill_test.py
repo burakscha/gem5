@@ -1,19 +1,36 @@
 # This is a basic gem5 configuration script for running a RISC-V
 # executable in Syscall Emulation (SE) mode.
 """
-# 1. Build m5op.o
+0. Prerequisites:
+- Ensure you have a RISC-V cross-compiler installed (e.g., riscv64-linux-gnu-gcc).
+- Ensure gem5 is built for RISC-V (e.g., build/RISCV/gem5.opt).
+- Place your RISC-V assembly test file (riscv_spill_test.S) in the same directory as this script.
+- Ensure m5op.S is available at /workspace/util/m5/src/abi/riscv/m5op.S or adjust the path accordingly.
+
+1. Activate venv:
+source .venv/bin/activate
+
+2. Docker start:
+./docker/run_docker.sh
+
+# 3. Build m5op.o
+cd benchmarks/builds/test/verify/riscv2/
 riscv64-linux-gnu-gcc -c -I/workspace/include /workspace/util/m5/src/abi/riscv/m5op.S -o m5op.o
 
-# 2. Compile and link ELF
+# 4. Compile and link ELF
 riscv64-linux-gnu-gcc -nostartfiles -static -I/workspace/include riscv_spill_test.S m5op.o -o riscv_spill_test.elf
 
-# 3. Check ELF
+# 5. Check ELF
+cd benchmarks/builds/test/verify/riscv2/
 file riscv_spill_test.elf
 
-# 4. Run gem5 simulation for RISC-V
+# 6 (optional) Run objdump to inspect the binary
+riscv64-unknown-elf-objdump -d riscv_spill_test.elf > my_objdump.txt
+
+# 7. Run gem5 simulation for RISC-V (Go back to gem5 root directory)
 build/RISCV/gem5.opt benchmarks/builds/test/verify/riscv2/run_riscv2_spill_test.py
 
-# 5. Analyze output
+# 8. Analyze output
 python benchmarks/analytics/stat_analyzer.py
 
 """
@@ -27,13 +44,13 @@ system = System()
 # --- 2. Set up the Clock and Memory ---
 # Set the clock frequency for the system.
 system.clk_domain = SrcClockDomain()
-system.clk_domain.clock = '1GHz'
+system.clk_domain.clock = "1GHz"
 system.clk_domain.voltage_domain = VoltageDomain()
 
 # Set up the memory system. We are using 'timing' mode, which is a
 # more detailed and accurate memory simulation than 'atomic'.
-system.mem_mode = 'timing'
-system.mem_ranges = [AddrRange('512MB')]
+system.mem_mode = "timing"
+system.mem_ranges = [AddrRange("512MB")]
 
 # --- 3. Create the CPU ---
 # We will use a simple timing-based CPU model for RISC-V.
@@ -62,7 +79,7 @@ system.cpu.createInterruptController()
 # This defines the program we want to run.
 # The binary needs to be in the same directory as this script,
 # or you must provide a full path.
-binary_name = "benchmarks/builds/test/verify/riscv2/riscv_spill_test.elf" # The name of your compiled binary
+binary_name = "benchmarks/builds/test/verify/riscv2/riscv_spill_test.elf"  # The name of your compiled binary
 
 system.workload = SEWorkload.init_compatible(binary_name)
 
