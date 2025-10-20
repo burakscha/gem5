@@ -326,11 +326,6 @@ def generate_header_and_config_section(stats, m5out_dir, config_info):
     m5out_abs = os.path.abspath(m5out_dir)
 
     # Add analysis command at the top
-    lines.append("# " + "=" * 78)
-    lines.append("# 🔄 Re-run Analysis Command:")
-    # Use sys.argv[0] to get the script name dynamically
-    lines.append(f"#    python3 {sys.argv[0]} {m5out_dir}")
-    lines.append("# " + "=" * 78)
     lines.append("")
 
     lines.append("=" * 80)
@@ -421,7 +416,7 @@ def generate_roi_report_section(data):
     """
     lines = []
     lines.append("=" * 80)
-    lines.append("🚧 ROI-ONLY STATISTICS (Region of Interest)")
+    lines.append("🚧 🚧 🚧 ROI-ONLY STATISTICS (Region of Interest) 🚧 🚧 🚧")
     lines.append("=" * 80)
     lines.append("")
     
@@ -444,11 +439,23 @@ def generate_roi_report_section(data):
         return "\n".join(lines)
     
     # === INSTRUCTION COUNTS ===
-    lines.append("📊 ROI INSTRUCTION COUNTS")
+    lines.append("🧮 INSTRUCTION COUNTS")
     lines.append("-" * 80)
+    lines.append(f"  Total Spills Detected:             {roi_spills:>15,}")
     lines.append(f"  Total ROI Instructions:            {roi_insts:>15,}")
     lines.append(f"  Load Instructions (numLoadInsts):  {roi_loads:>15,}")
     lines.append(f"  Store Instructions (numStoreInsts):{roi_stores:>15,}")
+    lines.append("")
+
+    # Percentage of instructions
+    load_pct = (roi_loads / roi_insts) * 100 if roi_insts else 0
+    store_pct = (roi_stores / roi_insts) * 100 if roi_insts else 0
+    spill_pct = (roi_spills / roi_insts) * 100 if roi_insts else 0
+    
+    lines.append(f"  Loads as % of ROI Instructions:    {load_pct:>15.2f}%")
+    lines.append(f"  Stores as % of ROI Instructions:   {store_pct:>15.2f}%")
+    lines.append(f"  Spills as % of ROI Instructions:   {spill_pct:>15.2f}%")
+
     lines.append("")
     
     # === MEMORY OPERATIONS (from committedInstType) ===
@@ -458,51 +465,6 @@ def generate_roi_report_section(data):
     lines.append(f"  MemWrite (committed):              {roi_mem_writes:>15,}   ({roi_mem_write_pct:>6.2f}%)")
     lines.append("")
     
-    # === SPILL DETECTION STATISTICS ===
-    lines.append("🔍 REGISTER SPILL DETECTION")
-    lines.append("-" * 80)
-    lines.append(f"  Total Spills Detected:             {roi_spills:>15,}")
-    
-    if roi_spills > 0 and spill_stats:
-        lines.append(f"  Unique Store PCs:                  {spill_stats.get('unique_store_pcs', 0):>15,}")
-        lines.append(f"  Unique Load PCs:                   {spill_stats.get('unique_load_pcs', 0):>15,}")
-        lines.append(f"  Unique Memory Addresses:           {spill_stats.get('unique_memory_addresses', 0):>15,}")
-        lines.append("")
-        lines.append(f"  Average Tick Difference:           {spill_stats.get('avg_tick_diff', 0):>15,.2f}")
-        lines.append(f"  Min Tick Difference:               {spill_stats.get('min_tick_diff', 0):>15,}")
-        lines.append(f"  Max Tick Difference:               {spill_stats.get('max_tick_diff', 0):>15,}")
-    elif roi_spills == 0:
-        lines.append("  ✅ No spills detected in ROI")
-    else:
-        lines.append("  ⚠️  Spill file was missing or empty; spill stats unavailable.")
-    lines.append("")
-    
-    # === PERCENTAGES & RATIOS ===
-    lines.append("📈 ROI ANALYSIS RATIOS")
-    lines.append("-" * 80)
-    
-    # Percentage of instructions
-    load_pct = (roi_loads / roi_insts) * 100 if roi_insts else 0
-    store_pct = (roi_stores / roi_insts) * 100 if roi_insts else 0
-    spill_pct = (roi_spills / roi_insts) * 100 if roi_insts else 0
-    
-    lines.append(f"  Loads as % of ROI Instructions:    {load_pct:>15.2f}%")
-    lines.append(f"  Stores as % of ROI Instructions:   {store_pct:>15.2f}%")
-    lines.append(f"  Spills as % of ROI Instructions:   {spill_pct:>15.2f}%")
-    lines.append("")
-    
-    # Spill-to-load/store ratios
-    spill_to_load_str = (
-        f"{(roi_spills / roi_loads) * 100:>15.2f}%" if roi_loads else f"{'N/A':>15}"
-    )
-    lines.append(f"  Spills as % of ROI Loads:          {spill_to_load_str}")
-    
-    spill_to_store_str = (
-        f"{(roi_spills / roi_stores) * 100:>15.2f}%" if roi_stores else f"{'N/A':>15}"
-    )
-    lines.append(f"  Spills as % of ROI Stores:         {spill_to_store_str}")
-    
-    lines.append("")
     
     return "\n".join(lines)
 
