@@ -27,6 +27,11 @@
 
 namespace gem5 {
 
+// Forward declarations (must be inside gem5 namespace)
+class ThreadContext;
+class Process;
+class MemState;
+
 /**
  * Generic Register Spill Detection System
  *
@@ -146,9 +151,10 @@ public:
    * Called when a load instruction executes
    * This is where we check the map for matching stores and detect spills
    * Uses a generic 'current_stack_ptr' parameter
+   * @param tc ThreadContext for stack bounds access (can be nullptr)
    */
   void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
-                         Addr current_stack_ptr);
+                         Addr current_stack_ptr, ThreadContext *tc = nullptr);
 
   /**
    * Called for every instruction to update instruction counter
@@ -157,9 +163,15 @@ public:
 
   /**
    * Determine if a store-load pair is likely a register spill
+   * @param store_info Information about the store operation
+   * @param load_pc PC of the load instruction
+   * @param address Memory address being accessed
+   * @param load_tick Simulation tick when load occurred
+   * @param load_size Size of data being loaded (for size match check)
+   * @param tc ThreadContext for accessing Process memState (stack bounds)
    */
   bool isLikelySpill(const StoreInfo &store_info, Addr load_pc, Addr address,
-                     Tick load_tick);
+                     Tick load_tick, unsigned load_size, ThreadContext *tc);
 
   /**
    * Print spill report (silent operation - no console output)

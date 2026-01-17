@@ -55,9 +55,12 @@
  *
  */
 
-#include "cpu/simple/spill_detector.hh" // Birleştirilmiş başlık dosyası
+#include "cpu/simple/spill_detector.hh"
 #include "base/trace.hh"
+#include "cpu/thread_context.hh"
 #include "debug/SpillDetector.hh"
+#include "sim/mem_state.hh"
+#include "sim/process.hh"
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
@@ -152,7 +155,8 @@ void SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
 }
 
 void SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
-                                      unsigned size, Addr current_stack_ptr) {
+                                      unsigned size, Addr current_stack_ptr,
+                                      ThreadContext *tc) {
   total_loads++;
   dynamic_load_count++;
 
@@ -170,7 +174,7 @@ void SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
     const StoreInfo &store_info = store_it->second;
 
     // isLikelySpill method for actual spill detection
-    if (isLikelySpill(store_info, pc, address, tick)) {
+    if (isLikelySpill(store_info, pc, address, tick, size, tc)) {
       total_spills_detected++;
 
       // ROI-specific spill tracking
@@ -200,16 +204,40 @@ void SpillDetector::onInstructionExecute(Addr pc, Tick tick) {
 }
 
 bool SpillDetector::isLikelySpill(const StoreInfo &store_info, Addr load_pc,
-                                  Addr address, Tick load_tick) {
-  // This function is identical for both architectures
-  // Simple spill detection: If a load follows a store to the same address, it's
-  // a spill
+                                  Addr address, Tick load_tick,
+                                  unsigned load_size, ThreadContext *tc) {
+  // Improved spill detection with Stack Region control
+  // A memory access is likely a spill if:
+  // 1. Temporal order: load happens after store
+  // 2. Stack region: address is within stack bounds
+  // 3. Size match: load and store access same size data
 
-  // 1. Check if the store occurred before the load (temporal order)
+  // 1. TEMPORAL ORDER CHECK
   if (load_tick <= store_info.tick) {
-    return false; // Load happened before store, this is not a spill
+    return false; // Load happened before or at same time as store
   }
 
+  // 2. SIZE MATCH CHECK
+  if (load_size != store_info.size) {
+    return false; // Different access sizes - not a typical spill pattern
+  }
+
+  // 3. STACK REGION CHECK (SE mode only)
+  // Get stack bounds from Process memState
+  if (tc) {
+    Process *process = tc->getProcessPtr();
+    if (process && process->memState) {
+      Addr stackBase = process->memState->getStackBase(); // Upper bound
+      Addr stackMin = process->memState->getStackMin(); // Lower bound (current)
+
+      // Stack grows downward: stackMin <= address < stackBase
+      if (address < stackMin || address >= stackBase) {
+        return false; // Address is outside stack region - not a spill
+      }
+    }
+  }
+
+  // All checks passed - this is likely a register spill
   return true;
 }
 
