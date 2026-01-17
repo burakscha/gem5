@@ -1,39 +1,31 @@
 # This is a basic gem5 configuration script for running a RISC-V
 # executable in Syscall Emulation (SE) mode.
 """
-0. Prerequisites:
-- Ensure you have a RISC-V cross-compiler installed (e.g., riscv64-linux-gnu-gcc).
-- Ensure gem5 is built for RISC-V (e.g., build/RISCV/gem5.opt).
-- Place your RISC-V assembly test file (riscv_spill_test.S) in the same directory as this script.
-- Ensure m5op.S is available at /workspace/util/m5/src/abi/riscv/m5op.S or adjust the path accordingly.
+=== INSTRUCTIONS TO RUN THIS PROJECT ===
 
-1. Activate venv:
-source .venv/bin/activate
+0. Prerequisites (Inside Docker):
+   - You must be in the Docker container at /workspace
+   - gem5 must be built: scons build/RISCV/gem5.opt -j4
 
-2. Docker start:
-./docker/run_docker.sh
+1. Build the Test Binary (Run these once):
+   cd benchmarks/builds/test/verify/riscv2/
+   riscv64-linux-gnu-gcc -c -I/workspace/include /workspace/util/m5/src/abi/riscv/m5op.S -o m5op.o
+   riscv64-linux-gnu-gcc -nostartfiles -static -I/workspace/include riscv_spill_test.S m5op.o -o riscv_spill_test.elf
 
-# 3. Build m5op.o
-cd benchmarks/builds/test/verify/riscv2/
-riscv64-linux-gnu-gcc -c -I/workspace/include /workspace/util/m5/src/abi/riscv/m5op.S -o m5op.o
+2. Run the Simulation:
+   # Go back to the root workspace folder (Important!)
+   cd /workspace
 
-# 4. Compile and link ELF
-riscv64-linux-gnu-gcc -nostartfiles -static -I/workspace/include riscv_spill_test.S m5op.o -o riscv_spill_test.elf
+   # Run gem5 with this script
+   build/RISCV/gem5.opt benchmarks/builds/test/verify/riscv2/run_riscv2_spill_test.py
 
-# 5. Check ELF
-cd benchmarks/builds/test/verify/riscv2/
-file riscv_spill_test.elf
-
-# 6 (optional) Run objdump to inspect the binary
-riscv64-unknown-elf-objdump -d riscv_spill_test.elf > my_objdump.txt
-
-# 7. Run gem5 simulation for RISC-V (Go back to gem5 root directory)
-build/RISCV/gem5.opt benchmarks/builds/test/verify/riscv2/run_riscv2_spill_test.py
-
-# 8. Analyze output
-python benchmarks/analytics/stat_analyzer.py
+3. View Results:
+   # The spill stats will be written to a text file.
+   # You can view this file on your Mac or inside Docker:
+   cat m5out/riscv_spill_stats.txt
 
 """
+
 import m5
 from m5.objects import *
 
@@ -54,6 +46,7 @@ system.mem_ranges = [AddrRange("512MB")]
 
 # --- 3. Create the CPU ---
 # We will use a simple timing-based CPU model for RISC-V.
+# This model allows our C++ SpillDetector to track memory timing.
 system.cpu = RiscvTimingSimpleCPU()
 
 # --- 4. Create the Memory Bus ---
@@ -77,9 +70,8 @@ system.cpu.createInterruptController()
 
 # --- 7. Set up the Workload (Your Executable) ---
 # This defines the program we want to run.
-# The binary needs to be in the same directory as this script,
-# or you must provide a full path.
-binary_name = "benchmarks/builds/test/verify/riscv2/riscv_spill_test.elf"  # The name of your compiled binary
+# The path must be relative to where you run the 'gem5.opt' command (usually /workspace)
+binary_name = "benchmarks/builds/test/verify/riscv2/riscv_spill_test.elf"
 
 system.workload = SEWorkload.init_compatible(binary_name)
 
@@ -98,3 +90,6 @@ print(f"🚀 Starting simulation of '{binary_name}'...")
 exit_event = m5.simulate()
 
 print(f"✅ Exiting @ tick {m5.curTick()} because {exit_event.getCause()}")
+print(
+    f"📊 Results generated! Check 'm5out/riscv_spill_stats.txt' for spill data."
+)

@@ -1,220 +1,282 @@
-# gem5 Spill Test — Dev Environment Setup
+# gem5 Development Environment & RISC-V Simulation Guide
 
-This guide explains how to prepare a clean development environment on macOS (Apple Silicon) to work with **gem5** and RISC-V/x86/ARM binaries.
-The goal here is to:
-
-- Create and activate a local Python virtualenv (`.venv`)
-- Build a reusable Docker image (amd64)
-- Run a container with your repo mounted at `/workspace`
-- Prepare the environment before running any gem5 or compiler steps
+This guide provides step-by-step instructions to set up a development environment for **gem5** on macOS (Apple Silicon) and simulate RISC-V binaries.
 
 ---
 
-## 🧩 0) Prerequisites
+## Table of Contents
 
-- macOS with Docker Desktop installed
-- Python 3.10+ available on host (for virtualenv)
-- A terminal (zsh or bash)
+1. [Prerequisites](#-prerequisites)
+2. [Host Setup (Python Virtual Environment)](#-host-setup-python-virtual-environment)
+3. [Docker Setup](#-docker-setup)
+4. [Building gem5 for RISC-V](#-building-gem5-for-risc-v)
+5. [Compiling Your RISC-V Binary](#-compiling-your-risc-v-binary)
+6. [Running the Simulation](#-running-the-simulation)
+7. [Checking Results](#-checking-results)
+8. [Quick Reference](#-quick-reference)
+9. [Troubleshooting](#-troubleshooting)
 
 ---
 
-## 🐍 1) Clone and Set Up Python Virtual Environment
+## 🧩 Prerequisites
+
+- **macOS** with Docker Desktop installed (Apple Silicon or Intel)
+- **Python 3.10+** on host
+- Terminal (zsh or bash)
+
+---
+
+## 🐍 Host Setup (Python Virtual Environment)
+
+The virtual environment is optional but recommended for analysis scripts.
 
 ```bash
-# Clone your repo
-git clone <YOUR_REPO_URL> gem5
-cd gem5
+# Navigate to your gem5 directory
+cd /path/to/gem5
 
-# Create and activate a Python virtual environment
+# Create virtual environment
 python3 -m venv .venv
+
+# Activate it
 source .venv/bin/activate
 
-# (Optional) Install requirements
+# (Optional) Install dependencies
 # pip install -r requirements.txt
 ```
 
-> 💡 Each time you open a new terminal, re-activate it with:
-> ```bash
-> source .venv/bin/activate
-> ```
+> 💡 **Tip**: Run `source .venv/bin/activate` each time you open a new terminal.
 
 ---
 
-## 🐳 2) Create Dockerfile for Universal gem5 Toolchain
+## 🐳 Docker Setup
 
-Create a file at `docker/dockerfile.dev` with this content:
-
-```Dockerfile
-# ---------------------------------------------------------
-# Universal gem5 build environment for x86, ARM, RISC-V
-# ---------------------------------------------------------
-FROM ubuntu:22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y     build-essential scons python3 python3-pip git wget vim nano     gcc g++     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu     gcc-arm-linux-gnueabi g++-arm-linux-gnueabi     gcc-riscv64-linux-gnu g++-riscv64-linux-gnu     qemu-user qemu-user-static     binutils-riscv64-linux-gnu     libprotobuf-dev protobuf-compiler libgoogle-perftools-dev     libpng-dev libcapstone-dev     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /workspace
-```
-
-This installs **cross-compilers** for RISC-V, ARM (both 32-bit and 64-bit), and all necessary dependencies for gem5 builds.
-
----
-
-## 🏗️ 3) Build the Docker Image (amd64)
-
-Run the following from the **repo root** (where the `docker/` folder lives):
+### Option A: Use the Provided Script (Recommended)
 
 ```bash
-docker buildx build --platform linux/amd64   -t gem5-universal:latest   -f docker/dockerfile.dev .
+cd /path/to/gem5
+./docker/run_docker.sh
 ```
 
-> You only need to build this once.
-> Rebuild if you modify the Dockerfile.
+This script automatically:
+1. Builds the `gem5-universal:latest` Docker image
+2. Starts a container with your repo mounted at `/workspace`
+
+### Option B: Manual Docker Commands
+
+**Step 1: Build the Docker image** (only once)
+
+```bash
+docker buildx build --platform linux/amd64 \
+  -t gem5-universal:latest \
+  -f docker/dockerfile.dev .
+```
+
+**Step 2: Run the container**
+
+```bash
+docker run --rm -it \
+  --platform linux/amd64 \
+  -v "$(pwd)":/workspace \
+  gem5-universal:latest bash
+```
+
+You are now inside the container at `/workspace` (your gem5 repo).
 
 ---
 
-## 🚀 4) Run the Container and Mount Your Workspace
+## 🔨 Building gem5 for RISC-V
 
-Start the container and mount your current repo at `/workspace`:
+**Inside the Docker container:**
 
 ```bash
-docker run --rm -it   --platform linux/amd64   -v "$(pwd)":/workspace   gem5-universal:latest bash
+cd /workspace
+
+# Build gem5 for RISC-V (takes 30-60 minutes on first build)
+scons build/RISCV/gem5.opt -j8
+
+# (Optional) Build for other architectures
+# scons build/X86/gem5.opt -j8
+# scons build/ARM/gem5.opt -j8
 ```
 
-You’ll now be inside the container, working at `/workspace` which is your **host repo**.
-All file changes inside the container will appear on your Mac.
+> ⚠️ **Note**: The first build takes a long time. Subsequent builds are faster.
 
 ---
 
-## 🔍 5) Quick Checks Inside the Container
+## 📦 Compiling Your RISC-V Binary
+
+You can compile **C programs** or **Assembly files** inside the Docker container.
+
+### From C Code
 
 ```bash
-# Check where you are
-pwd
-ls -la
+# Replace <your_file.c> and <output_name> with your actual paths
+riscv64-linux-gnu-gcc -O0 -static <your_file.c> -o <output_name>.riscv
 
-# Confirm cross-compilers exist
-riscv64-linux-gnu-gcc --version
-aarch64-linux-gnu-gcc --version
-x86_64-linux-gnu-gcc --version || echo "(x86 cross compiler may not be installed; that's okay)"
+# Example:
+# riscv64-linux-gnu-gcc -O0 -static tests/spill_test/spill_test.c -o tests/spill_test/spill_test.riscv
 ```
 
-If `file` is missing:
-```bash
-apt-get update && apt-get install -y file
-```
+**Flags explained:**
+- `-O0`: Disable optimizations (useful for testing, shows more spills)
+- `-static`: Static linking (required for SE mode simulation)
 
----
-
-## 📦 6) What You Have Now
-
-✅ A reproducible **Docker image** with compilers
-✅ A **mounted workspace** under `/workspace`
-✅ A **local Python venv** on host for analysis tools
-
-> You’re ready to build and run your gem5 workloads.
-
----
-
-## 🧱 7) (Optional) Build a RISC-V ELF from Assembly
-
-Inside the Docker container:
+### From Assembly (.S file)
 
 ```bash
-# Compile gem5 m5ops for RISC-V (only if your code calls m5_work_* ops)
-riscv64-linux-gnu-gcc -c   -I/workspace/include   /workspace/util/m5/src/abi/riscv/m5op.S   -o m5op.o
+# Assemble
+riscv64-linux-gnu-as -o <output>.o <your_file>.S
 
-# Assemble your pure assembly test
-riscv64-linux-gnu-gcc -nostartfiles -static   -I/workspace/include   /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.S m5op.o   -o /workspace/benchmarks/builds/test/verify/riscv/pure_asm_spill.elf
-```
+# Link
+riscv64-linux-gnu-ld -o <output>.riscv <output>.o
 
-> 💡 If your `.S` file doesn’t call `m5_work_begin` / `m5_work_end`,
-> you can skip linking `m5op.o`.
-
----
-
-## 🧩 8) (Optional) Build gem5 for RISC-V
-
-Still inside the container:
-
-```bash
-cd /workspace/gem5
-scons build/RISCV/gem5.opt -j12
-
-# (Optional) Also build for x86
-
-scons build/X86/gem5.opt -j12
-```
-
-Run your custom test:
-
-```bash
-/workspace/gem5/build/RISCV/gem5.opt   /workspace/benchmarks/builds/test/verify/riscv/run_riscv_spill_test.py
+# Example:
+# riscv64-linux-gnu-as -o test.o my_test.S
+# riscv64-linux-gnu-ld -o test.riscv test.o
 ```
 
 ---
 
-## 📊 9) Analyze Results (Host-side)
+## ▶️ Running the Simulation
 
-Back on macOS (outside Docker):
+**Inside the Docker container:**
 
 ```bash
-source .venv/bin/activate
-python3 benchmarks/analytics/advanced_spill_analysis.py m5out
+./build/RISCV/gem5.opt configs/deprecated/example/se.py \
+  --cmd=<path_to_your_binary>.riscv \
+  --cpu-type=TimingSimpleCPU \
+  --caches
 ```
 
-The analyzer automatically detects your ISA from `config.json` and loads the corresponding spill stats file (e.g. `riscv_spill_stats.txt` or `x86_spill_stats.txt`).
+**Example:**
 
-Report output:
+```bash
+./build/RISCV/gem5.opt configs/deprecated/example/se.py \
+  --cmd=tests/spill_test/spill_test.riscv \
+  --cpu-type=TimingSimpleCPU \
+  --caches
 ```
-m5out/analysis_report.txt
+
+**Options:**
+- `--cpu-type=TimingSimpleCPU`: Required for spill detection
+- `--caches`: Enable cache simulation
+- `--cmd=<binary>`: Path to your RISC-V executable
+
+---
+
+## 📊 Checking Results
+
+After simulation, results are saved in the `m5out/` directory:
+
+| File | Description |
+|------|-------------|
+| `stats.txt` | Detailed simulation statistics |
+| `riscv_spill_stats.txt` | Register spill detection log |
+| `config.json` | Simulation configuration |
+
+**Quick commands:**
+
+```bash
+# View spill log
+cat m5out/riscv_spill_stats.txt
+
+# Count detected spills
+grep "^SPILL" m5out/riscv_spill_stats.txt | wc -l
+
+# View key stats
+grep -E "numLoadInsts|numStoreInsts|simInsts" m5out/stats.txt
+```
+
+**Spill log format:**
+```
+SPILL,store_pc,load_pc,address,store_tick,load_tick,tick_diff,store_inst_count,load_inst_count
 ```
 
 ---
 
-## 🧠 10) Common Issues
+## ⚡ Quick Reference
 
-| Issue | Cause / Fix |
-|-------|--------------|
-| `m5ops.h` not found | Add `-I/workspace/include` include path |
-| “Unknown operating system” | Normal for SE mode |
-| “Interrupt controller missing” | For RISC-V SE, ensure `system.cpu.createInterruptController()` is called |
-| “File not found on host” | Ensure you started Docker with `-v "$(pwd)":/workspace` |
-| “stats.txt empty” | The simulation didn’t reach m5_work_end or terminate cleanly |
-
-## 🚧 11) Why do we need m5op.o?
-
-The reason is so simple, we gotta create the m5op.o file for RISC-V if your assembly or C code uses any of the special gem5 "m5" pseudo-instructions (like m5_work_begin, m5_work_end, m5_exit, etc). These are used for simulation control, region-of-interest marking, or stats dumping inside gem5.
-
-The file m5op.o is the compiled object file from m5op.S, which contains the RISC-V implementations of these pseudo-instructions.
-When you link your test binary (like pure_asm_spill.elf), if your code calls any m5_* function, the linker needs the actual implementation, which is provided by m5op.o.
-If you do not use any m5_* calls in your assembly, you can skip linking m5op.o.
-
----
-
-## ⚡ 12) Quick One-Liners
+### Complete Workflow (Copy-Paste Ready)
 
 ```bash
-# Activate host venv
-source .venv/bin/activate
+# 1. Start Docker container
+./docker/run_docker.sh
 
-# Build Docker image
+# 2. (Inside container) Build gem5 - only needed once
+cd /workspace
+scons build/RISCV/gem5.opt -j8
+
+# 3. Compile your code
+riscv64-linux-gnu-gcc -O0 -static your_code.c -o your_code.riscv
+
+# 4. Run simulation
+./build/RISCV/gem5.opt configs/deprecated/example/se.py \
+  --cmd=your_code.riscv \
+  --cpu-type=TimingSimpleCPU --caches
+
+# 5. Check results
+cat m5out/riscv_spill_stats.txt
+```
+
+### Useful Docker Commands
+
+```bash
+# Build image
 docker buildx build --platform linux/amd64 -t gem5-universal:latest -f docker/dockerfile.dev .
 
 # Run container
 docker run --rm -it --platform linux/amd64 -v "$(pwd)":/workspace gem5-universal:latest bash
+
+# Check available compilers
+riscv64-linux-gnu-gcc --version
+aarch64-linux-gnu-gcc --version
 ```
 
 ---
 
-## 🧭 Summary
+## 🔧 Troubleshooting
 
-You can now:
-1. Activate your virtualenv (`.venv`)
-2. Launch Docker (`gem5-universal:latest`)
-3. Work seamlessly inside `/workspace`
-4. Build gem5 or assemble binaries
-5. Run simulations and analyze spill stats automatically
+| Issue | Solution |
+|-------|----------|
+| `se.py: script has been deprecated` | Use `configs/deprecated/example/se.py` instead of `configs/example/se.py` |
+| Docker image build fails | Ensure Docker Desktop is running and has enough disk space |
+| `command not found: riscv64-linux-gnu-gcc` | You're on the host, not inside Docker. Run `./docker/run_docker.sh` first |
+| Simulation hangs | Add `--caches` flag or check your binary for infinite loops |
+| `m5out/riscv_spill_stats.txt` empty | Ensure you're using `--cpu-type=TimingSimpleCPU` |
+| Protobuf version error on host | Use Docker instead of building gem5 directly on macOS |
 
-That’s your **clean, reproducible base environment** for gem5 development 🎯
+---
+
+## 📁 Project Structure
+
+```
+gem5/
+├── docker/
+│   ├── dockerfile.dev      # Docker build configuration
+│   └── run_docker.sh       # One-click Docker launcher
+├── build/
+│   └── RISCV/gem5.opt      # Compiled gem5 binary
+├── src/cpu/simple/
+│   ├── spill_detector.hh   # Spill detection header
+│   ├── spill_detector.cc   # Spill detection implementation
+│   └── timing.cc           # CPU model with spill hooks
+├── tests/spill_test/       # Example test files
+│   ├── spill_test.c        # C test program
+│   ├── spill_exact.S       # Assembly test (controlled spills)
+│   └── README.md           # Test documentation
+└── m5out/                  # Simulation output directory
+    ├── stats.txt           # Statistics
+    └── riscv_spill_stats.txt  # Spill log
+```
+
+---
+
+## 📚 Additional Resources
+
+- [gem5 Documentation](https://www.gem5.org/documentation/)
+- [RISC-V ISA Manual](https://riscv.org/technical/specifications/)
+- [gem5 Docker Images](https://www.gem5.org/documentation/general_docs/building#docker)
+
+---
+
+**Happy Simulating! 🚀**

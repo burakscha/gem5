@@ -1,0 +1,54 @@
+Phase 1: Environment Setup
+Step 1: Start the Environment You launched the gem5-universal Docker container to get a consistent Linux build environment on your Mac.
+
+Bash
+
+./docker/run_docker.sh
+Step 2: Fix Missing Dependencies The default image was missing a few tools required for building gem5, so you installed them inside the container.
+
+Bash
+
+apt-get update && apt-get install -y m4 python3-dev python3-six
+Phase 2: Modifying the Simulator
+Step 3: Implement Spill Logic You created the spill detection logic and integrated it into the CPU model.
+
+Created spill_detector.hh: Defined the class to track stores and detect spills.
+
+Created spill_detector.cc: Implemented the logic to log a "Spill" if a load accesses the same address as a recent store.
+
+Modified timing.cc: Added hooks (onStoreInstruction, onLoadInstruction) to the TimingSimpleCPU so every memory access is sent to your detector.
+
+Updated SConscript: Told the build system to include spill_detector.cc when compiling gem5.
+
+Step 4: Build gem5 You compiled the simulator. You used -j4 to prevent running out of memory (OOM) on Docker.
+
+Bash
+
+scons build/RISCV/gem5.opt -j4
+Phase 3: Creating the Test Case
+Step 5: Create Assembly Test You wrote a RISC-V assembly file (riscv_spill_test.S) that manually forces register spills by storing values to the stack pointer (sp) and immediately loading them back.
+
+Step 6: Compile the Binary You compiled the assembly into an executable, linking it with m5op.o so you could use special gem5 commands like m5_work_begin.
+
+Bash
+
+cd benchmarks/builds/test/verify/riscv2/
+# Compile helper
+riscv64-linux-gnu-gcc -c -I/workspace/include /workspace/util/m5/src/abi/riscv/m5op.S -o m5op.o
+# Compile test
+riscv64-linux-gnu-gcc -nostartfiles -static -I/workspace/include riscv_spill_test.S m5op.o -o riscv_spill_test.elf
+Phase 4: Running & Verifying
+Step 7: Configure Simulation You updated the Python configuration script (run_riscv2_spill_test.py) to use RiscvTimingSimpleCPU, which is required for your timing-based spill detector to work.
+
+Step 8: Run the Simulation You ran the simulation from the workspace root.
+
+Bash
+
+cd /workspace
+build/RISCV/gem5.opt benchmarks/builds/test/verify/riscv2/run_riscv2_spill_test.py
+Step 9: Verify Results You checked the generated log file and confirmed that your detector successfully caught every spill instruction from your assembly code.
+
+Bash
+
+cat m5out/riscv_spill_stats.txt
+Result: You saw exact matches for your store/load pairs (e.g., SPILL,10122,10124...), proving your tool works!
