@@ -21,7 +21,7 @@ from collections import defaultdict
 # --- Static File Names (do not modify) ---
 STATS_FILE_NAME = "stats.txt"  # gem5 general statistics file
 CONFIG_FILE_NAME = "config.json"  # Simulation configuration file
-OUTPUT_FILE_NAME = "analysis_report.txt"  # Analysis report output file
+OUTPUT_FILE_NAME = "benchmark_analysis.txt"  # Analysis report output file
 
 # --- Default m5out Directory ---
 # This is used if no directory is provided on the command line
@@ -41,15 +41,16 @@ ISA_SPILL_FILES = {
 # DATA PARSING FUNCTIONS
 # =============================================================================
 
+
 def read_data(stats_file, spill_file):
     """
     Central data reading function - extracts all necessary statistics from gem5
     output files.
-    
+
     Args:
         stats_file (str): Full path to stats.txt file
         spill_file (str): Full path to spill_stats.txt file (x86/riscv)
-    
+
     Returns:
         dict: Comprehensive data dictionary with all statistics
     """
@@ -65,7 +66,7 @@ def read_data(stats_file, spill_file):
         "spill_stats": {},
         "general_stats": {},
     }
-    
+
     # Read stats.txt
     # Note: We assume stats_file exists because validate_paths() checked it.
     try:
@@ -74,65 +75,75 @@ def read_data(stats_file, spill_file):
                 line = line.strip()
                 if not line or line.startswith(("-", "#")):
                     continue
-                
+
                 parts = line.split()
                 if len(parts) < 2:
                     continue
-                    
+
                 key = parts[0]
                 value = parts[1]
-                
+
                 try:
                     # ROI Instructions (from simInsts)
                     if key == "simInsts":
                         data["roi_instructions"] = int(value)
-                        data["general_stats"]["total_instructions"] = int(value)
-                    
+                        data["general_stats"]["total_instructions"] = int(
+                            value
+                        )
+
                     # ROI Loads and Stores
                     # NOTE: These keys are hardcoded. If your CPU or stat path
                     # differs (e.g., multi-core), these keys must be updated.
                     elif key == "system.cpu.commitStats0.numLoadInsts":
                         data["roi_loads"] = int(value)
                         data["general_stats"]["total_loads"] = int(value)
-                    
+
                     elif key == "system.cpu.commitStats0.numStoreInsts":
                         data["roi_stores"] = int(value)
                         data["general_stats"]["total_stores"] = int(value)
-                    
+
                     # Memory Read/Write committed instructions
-                    elif key == "system.cpu.commitStats0.committedInstType::MemRead":
+                    elif (
+                        key
+                        == "system.cpu.commitStats0.committedInstType::MemRead"
+                    ):
                         data["roi_mem_reads"] = int(value)
                         if len(parts) >= 3:
-                            pct_str = parts[2].strip('%')
+                            pct_str = parts[2].strip("%")
                             data["roi_mem_read_pct"] = float(pct_str)
-                    
-                    elif key == "system.cpu.commitStats0.committedInstType::MemWrite":
+
+                    elif (
+                        key
+                        == "system.cpu.commitStats0.committedInstType::MemWrite"
+                    ):
                         data["roi_mem_writes"] = int(value)
                         if len(parts) >= 3:
-                            pct_str = parts[2].strip('%')
+                            pct_str = parts[2].strip("%")
                             data["roi_mem_write_pct"] = float(pct_str)
-                    
+
                     # Other general stats
                     elif key == "simOps":
                         data["general_stats"]["total_operations"] = int(value)
                     elif key == "simTicks":
                         data["general_stats"]["simulation_ticks"] = int(value)
                     elif key == "simSeconds":
-                        data["general_stats"]["simulation_seconds"] = float(value)
+                        data["general_stats"]["simulation_seconds"] = float(
+                            value
+                        )
                     elif key == "system.cpu.numCycles":
                         data["general_stats"]["cpu_cycles"] = int(value)
                     elif key == "system.cpu.cpi":
                         data["general_stats"]["cpi"] = float(value)
                     elif key == "system.cpu.ipc":
                         data["general_stats"]["ipc"] = float(value)
-                        
+
                 except (ValueError, IndexError):
                     print(f"⚠️  Skipping malformed line in stats.txt: {line}")
 
-    except IOError as e:
+    except OSError as e:
         print(f"❌ Error reading stats file: {e}")
         # We can continue, data will just be empty
-    
+
     # Read spill file (this file is optional)
     if not os.path.exists(spill_file) or os.path.getsize(spill_file) == 0:
         print(f"ℹ️  Spill file not found or is empty: {spill_file}")
@@ -144,13 +155,13 @@ def read_data(stats_file, spill_file):
         unique_load_pcs = set()
         unique_mem_addrs = set()
         tick_diffs = []
-        
+
         with open(spill_file) as f:
             for line in f:
                 line = line.strip()
                 if not line.startswith("SPILL"):
                     continue
-                
+
                 parts = line.split(",")
                 if len(parts) >= 9:
                     try:
@@ -160,21 +171,25 @@ def read_data(stats_file, spill_file):
                         unique_mem_addrs.add(parts[3])
                         tick_diffs.append(int(parts[6]))
                     except (ValueError, IndexError):
-                        print(f"⚠️  Skipping malformed line in spill file: {line}")
-        
+                        print(
+                            f"⚠️  Skipping malformed line in spill file: {line}"
+                        )
+
         data["roi_spills"] = spill_count
         data["spill_stats"] = {
             "total_spills": spill_count,
             "unique_store_pcs": len(unique_store_pcs),
             "unique_load_pcs": len(unique_load_pcs),
             "unique_memory_addresses": len(unique_mem_addrs),
-            "avg_tick_diff": sum(tick_diffs) / len(tick_diffs) if tick_diffs else 0,
+            "avg_tick_diff": (
+                sum(tick_diffs) / len(tick_diffs) if tick_diffs else 0
+            ),
             "min_tick_diff": min(tick_diffs) if tick_diffs else 0,
             "max_tick_diff": max(tick_diffs) if tick_diffs else 0,
         }
-    except IOError as e:
+    except OSError as e:
         print(f"❌ Error reading spill file: {e}")
-    
+
     return data
 
 
@@ -208,7 +223,9 @@ def parse_config_json(config_file):
         cpu = system.get("cpu", {})
         if isinstance(cpu, list):
             config_info["num_cores"] = len(cpu)
-            config_info["cpu_type"] = cpu[0].get("type", "Unknown") if cpu else "Unknown"
+            config_info["cpu_type"] = (
+                cpu[0].get("type", "Unknown") if cpu else "Unknown"
+            )
         else:
             config_info["num_cores"] = 1
             config_info["cpu_type"] = cpu.get("type", "Unknown")
@@ -216,7 +233,7 @@ def parse_config_json(config_file):
         # Extract ISA (X86, ARM, RISCV, etc.)
         workload = system.get("workload", {})
         workload_type = workload.get("type", "Unknown").upper()
-        
+
         if "X86" in workload_type:
             config_info["isa"] = "X86"
         elif "ARM" in workload_type:
@@ -232,11 +249,12 @@ def parse_config_json(config_file):
         else:
             config_info["isa"] = workload_type if workload_type else "Unknown"
 
-
         # Extract clock frequency (convert ticks to GHz)
         clk_domain = system.get("clk_domain", {})
         if "clock" in clk_domain and clk_domain["clock"]:
-            clock_ticks = clk_domain["clock"][0]  # e.g., "1000" (for 1GHz) or "333" (for 3GHz)
+            clock_ticks = clk_domain["clock"][
+                0
+            ]  # e.g., "1000" (for 1GHz) or "333" (for 3GHz)
             try:
                 # Clock period is in Ticks. 1 Tick = 1ps.
                 # Freq = 1 / Period.
@@ -259,10 +277,10 @@ def parse_config_json(config_file):
             if ":" in mem_range_str:
                 try:
                     _, end = mem_range_str.split(":")
-                    mem_bytes = int(end) + 1 # size is end_addr + 1
+                    mem_bytes = int(end) + 1  # size is end_addr + 1
                     config_info["memory_size_gb"] = mem_bytes / (1024**3)
                 except (ValueError, IndexError):
-                    pass # Keep default 0.0
+                    pass  # Keep default 0.0
 
     except FileNotFoundError:
         print(f"⚠️  Config file not found: {config_file}")
@@ -275,6 +293,7 @@ def parse_config_json(config_file):
 # =============================================================================
 # REPORT GENERATION FUNCTIONS
 # =============================================================================
+
 
 def generate_report(m5out_dir, config_info, data):
     """
@@ -296,7 +315,7 @@ def generate_report(m5out_dir, config_info, data):
             data.get("general_stats", {}), m5out_dir, config_info
         )
     )
-    
+
     # General Simulation Statistics
     report_lines.append(
         generate_general_simulation_statistics(data.get("general_stats", {}))
@@ -304,6 +323,9 @@ def generate_report(m5out_dir, config_info, data):
 
     # ROI Statistics Section (includes spill detection)
     report_lines.append(generate_roi_report_section(data))
+
+    # Quick Summary Table (for comparison)
+    report_lines.append(generate_summary_table(data))
 
     report_lines.append("=" * 80)
     report_lines.append("Analysis Complete")
@@ -316,7 +338,7 @@ def generate_header_and_config_section(stats, m5out_dir, config_info):
     """
     Generate report header and general statistics section.
     (Renamed from generate_stats_section for clarity)
-    
+
     Args:
         stats (dict): General simulation statistics
         m5out_dir (str): Path to the m5out directory
@@ -404,7 +426,7 @@ def generate_general_simulation_statistics(stats):
 def generate_roi_report_section(data):
     """
     Generate ROI-only statistics section for the analysis report.
-    
+
     This section focuses exclusively on the Region of Interest (ROI)
     marked by m5_work_begin() and m5_work_end() in the simulated code.
 
@@ -419,7 +441,7 @@ def generate_roi_report_section(data):
     lines.append("🚧 🚧 🚧 ROI-ONLY STATISTICS (Region of Interest) 🚧 🚧 🚧")
     lines.append("=" * 80)
     lines.append("")
-    
+
     # Extract data
     roi_insts = data.get("roi_instructions", 0)
     roi_loads = data.get("roi_loads", 0)
@@ -430,14 +452,16 @@ def generate_roi_report_section(data):
     roi_mem_write_pct = data.get("roi_mem_write_pct", 0.0)
     roi_spills = data.get("roi_spills", 0)
     spill_stats = data.get("spill_stats", {})
-    
+
     if roi_insts == 0:
         lines.append("  ⚠️  No ROI statistics found")
-        lines.append("  💡  Make sure your code uses m5_work_begin() and m5_work_end()")
+        lines.append(
+            "  💡  Make sure your code uses m5_work_begin() and m5_work_end()"
+        )
         lines.append("  💡  (or that simInsts is present in stats.txt)")
         lines.append("")
         return "\n".join(lines)
-    
+
     # === INSTRUCTION COUNTS ===
     lines.append("🧮 INSTRUCTION COUNTS")
     lines.append("-" * 80)
@@ -451,27 +475,109 @@ def generate_roi_report_section(data):
     load_pct = (roi_loads / roi_insts) * 100 if roi_insts else 0
     store_pct = (roi_stores / roi_insts) * 100 if roi_insts else 0
     spill_pct = (roi_spills / roi_insts) * 100 if roi_insts else 0
-    
+
     lines.append(f"  Loads as % of ROI Instructions:    {load_pct:>15.2f}%")
     lines.append(f"  Stores as % of ROI Instructions:   {store_pct:>15.2f}%")
     lines.append(f"  Spills as % of ROI Instructions:   {spill_pct:>15.2f}%")
 
     lines.append("")
-    
+
     # === MEMORY OPERATIONS (from committedInstType) ===
     lines.append("💾 COMMITTED MEMORY OPERATIONS")
     lines.append("-" * 80)
-    lines.append(f"  MemRead (committed):               {roi_mem_reads:>15,}   ({roi_mem_read_pct:>6.2f}%)")
-    lines.append(f"  MemWrite (committed):              {roi_mem_writes:>15,}   ({roi_mem_write_pct:>6.2f}%)")
+    lines.append(
+        f"  MemRead (committed):               {roi_mem_reads:>15,}   ({roi_mem_read_pct:>6.2f}%)"
+    )
+    lines.append(
+        f"  MemWrite (committed):              {roi_mem_writes:>15,}   ({roi_mem_write_pct:>6.2f}%)"
+    )
     lines.append("")
-    
-    
+
+    return "\n".join(lines)
+
+
+def generate_summary_table(data):
+    """
+    Generate a quick summary table for easy comparison between benchmarks.
+    This table format matches the user's expected comparison format.
+
+    Args:
+        data (dict): Comprehensive data from read_data() function
+
+    Returns:
+        str: Formatted summary table
+    """
+    lines = []
+
+    # Extract values
+    total_insts = data.get("roi_instructions", 0)
+    load_insts = data.get("roi_loads", 0)
+    store_insts = data.get("roi_stores", 0)
+    mem_reads = data.get("roi_mem_reads", 0)
+    mem_writes = data.get("roi_mem_writes", 0)
+    spill_count = data.get("roi_spills", 0)
+
+    # General stats
+    general = data.get("general_stats", {})
+    cpu_cycles = general.get("cpu_cycles", 0)
+    sim_ticks = general.get("simulation_ticks", 0)
+    cpi = general.get("cpi", 0.0)
+    ipc = general.get("ipc", 0.0)
+
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("📋 QUICK SUMMARY TABLE (for comparison)")
+    lines.append("=" * 80)
+    lines.append("")
+    lines.append("┌─────────────────────────────┬─────────────────┐")
+    lines.append("│ Metric                      │ Value           │")
+    lines.append("├─────────────────────────────┼─────────────────┤")
+    lines.append(f"│ simInsts (Total Insts)      │ {total_insts:>15,} │")
+    lines.append(f"│ numLoadInsts                │ {load_insts:>15,} │")
+    lines.append(f"│ numStoreInsts               │ {store_insts:>15,} │")
+    lines.append(f"│ MemRead                     │ {mem_reads:>15,} │")
+    lines.append(f"│ MemWrite                    │ {mem_writes:>15,} │")
+    lines.append(f"│ Spill Count                 │ {spill_count:>15,} │")
+    lines.append("├─────────────────────────────┼─────────────────┤")
+    lines.append(f"│ CPU Cycles                  │ {cpu_cycles:>15,} │")
+    lines.append(f"│ Simulation Ticks            │ {sim_ticks:>15,} │")
+    lines.append(f"│ CPI                         │ {cpi:>15.4f} │")
+    lines.append(f"│ IPC                         │ {ipc:>15.4f} │")
+    lines.append("└─────────────────────────────┴─────────────────┘")
+    lines.append("")
+
+    # Spill analysis if available
+    spill_stats = data.get("spill_stats", {})
+    if spill_stats and spill_stats.get("total_spills", 0) > 0:
+        lines.append("📊 SPILL ANALYSIS")
+        lines.append("-" * 50)
+        lines.append(
+            f"  Unique Store PCs:          {spill_stats.get('unique_store_pcs', 0):>10}"
+        )
+        lines.append(
+            f"  Unique Load PCs:           {spill_stats.get('unique_load_pcs', 0):>10}"
+        )
+        lines.append(
+            f"  Unique Memory Addresses:   {spill_stats.get('unique_memory_addresses', 0):>10}"
+        )
+        lines.append(
+            f"  Avg Tick Diff:             {spill_stats.get('avg_tick_diff', 0):>10.0f}"
+        )
+        lines.append(
+            f"  Min Tick Diff:             {spill_stats.get('min_tick_diff', 0):>10}"
+        )
+        lines.append(
+            f"  Max Tick Diff:             {spill_stats.get('max_tick_diff', 0):>10}"
+        )
+        lines.append("")
+
     return "\n".join(lines)
 
 
 # =============================================================================
 # MAIN EXECUTION & HELPER FUNCTIONS
 # =============================================================================
+
 
 def parse_arguments():
     """
@@ -512,7 +618,7 @@ def validate_paths(m5out_dir, config_file, stats_file):
         print(f"❌ Error: Stats file not found: {stats_file}")
         print("💡 Make sure you are pointing to a valid m5out directory.")
         sys.exit(1)
-    
+
     print("✅ Directory and required files found.")
 
 
@@ -520,21 +626,23 @@ def get_spill_file_name(isa):
     """
     Returns the correct spill stats filename based on the detected ISA.
     Uses the ISA_SPILL_FILES dictionary.
-    
+
     Args:
         isa (str): The ISA string (e.g., "RISCV", "X86")
-        
+
     Returns:
         str: The corresponding spill file name.
     """
     isa_upper = isa.upper()
-    spill_file_name = ISA_SPILL_FILES.get(isa_upper, ISA_SPILL_FILES["UNKNOWN"])
-    
+    spill_file_name = ISA_SPILL_FILES.get(
+        isa_upper, ISA_SPILL_FILES["UNKNOWN"]
+    )
+
     if isa_upper not in ISA_SPILL_FILES:
         print(
             f"⚠️  Unknown ISA '{isa}'. Defaulting to spill file: {spill_file_name}"
         )
-    
+
     return spill_file_name
 
 
@@ -553,24 +661,24 @@ def print_analysis_header(m5out_dir, config_file, stats_file, spill_file):
 def save_and_print_report(report_content, m5out_dir, output_file_name):
     """
     Prints the report to the console and saves it to a file.
-    
+
     Args:
         report_content (str): The full text of the report
         m5out_dir (str): The directory to save the report in
         output_file_name (str): The name of the output file
     """
     output_file = os.path.join(m5out_dir, output_file_name)
-    
+
     # Print to console
     print(report_content)
-    
+
     # Save to file
     try:
         with open(output_file, "w") as f:
             f.write(report_content)
         print()
         print(f"✅ Report saved to: {output_file}")
-    except IOError as e:
+    except OSError as e:
         print()
         print(f"❌ Error: Could not write report to file: {e}")
 
@@ -581,7 +689,7 @@ def main():
     """
     # 1. Get m5out directory from command line or default
     m5out_dir = parse_arguments()
-    
+
     # 2. Define and validate required file paths
     config_file = os.path.join(m5out_dir, CONFIG_FILE_NAME)
     stats_file = os.path.join(m5out_dir, STATS_FILE_NAME)
@@ -592,14 +700,14 @@ def main():
     config_info = parse_config_json(config_file)
     isa = config_info.get("isa", "UNKNOWN")
     print(f"🧩 Detected ISA: {isa}")
-    
+
     # 4. Determine spill file path based on detected ISA
     spill_file_name = get_spill_file_name(isa)
     spill_file = os.path.join(m5out_dir, spill_file_name)
 
     # 5. Print header
     print_analysis_header(m5out_dir, config_file, stats_file, spill_file)
-    
+
     # 6. Read and process data
     print("📊 Reading all data from gem5 output files...")
     data = read_data(stats_file, spill_file)
