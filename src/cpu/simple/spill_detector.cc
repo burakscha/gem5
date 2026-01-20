@@ -336,10 +336,6 @@ void SpillDetector::reset() {
   roi_start_tick = 0;
 }
 
-// =========================================
-// ROI (Region of Interest) Methods
-// =========================================
-
 void SpillDetector::enterROI(uint64_t workid) {
   roi_active = true;
   inside_roi = true;
@@ -356,7 +352,7 @@ void SpillDetector::enterROI(uint64_t workid) {
   store_map.clear();
 
   // Log ROI entry
-  static std::ofstream log_file(SPILL_LOG_FILENAME, std::ios::app);
+  std::ofstream log_file(SPILL_LOG_FILENAME, std::ios::app);
   if (log_file.is_open()) {
     log_file << "\n# ========================================\n";
     log_file << "# ROI_BEGIN (workid=" << workid << ")\n";
@@ -364,6 +360,7 @@ void SpillDetector::enterROI(uint64_t workid) {
     log_file << "#   Total Instructions: " << total_instructions << "\n";
     log_file << "#   Total Spills: " << total_spills_detected << "\n";
     log_file << "# ========================================\n";
+    log_file.close();
   }
 
   DPRINTF(SpillDetector, "Entered ROI (workid=%d)\n", workid);
@@ -373,7 +370,7 @@ void SpillDetector::exitROI(uint64_t workid) {
   inside_roi = false;
 
   // Log ROI exit with summary
-  static std::ofstream log_file(SPILL_LOG_FILENAME, std::ios::app);
+  std::ofstream log_file(SPILL_LOG_FILENAME, std::ios::app);
   if (log_file.is_open()) {
     log_file << "\n# ========================================\n";
     log_file << "# ROI_END (workid=" << workid << ")\n";
@@ -389,6 +386,7 @@ void SpillDetector::exitROI(uint64_t workid) {
                << spill_rate << "%\n";
     }
     log_file << "# ========================================\n\n";
+    log_file.close();
   }
 
   DPRINTF(SpillDetector, "Exited ROI (workid=%d), ROI spills=%d\n", workid,
