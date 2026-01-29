@@ -237,6 +237,19 @@ bool SpillDetector::isLikelySpill(const StoreInfo &store_info, Addr load_pc,
     }
   }
 
+  /*
+  Vector gibi yapısal veri tipleri için size kontrolü ekleyebiliriz
+
+  yazmaya başladığımız adres ile veriyi çektiğimiz adres farklı gibi gözüküyor
+
+  adress + lenght bilgisi tutabiliriz.
+
+  vector.sw v10, 0(x10), 16
+  lw x8, 0(x0) --> aslında bu da spill
+
+
+  */
+
   // All checks passed - this is likely a register spill
   return true;
 }
