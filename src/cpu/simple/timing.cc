@@ -135,6 +135,10 @@ TimingSimpleCPU::TimingSimpleCPU(const BaseTimingSimpleCPUParams &p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
       fetchEvent([this] { fetch(); }, name()) {
   _status = Idle;
+  // Apply the spill_verbose parameter from the Python SimObject.
+  // setVerbose(true)  -> per-spill CSV lines + summary (verbose mode)
+  // setVerbose(false) -> compact summary only (default, safe for large runs)
+  spillDetector.setVerbose(p.spill_verbose);
 }
 
 TimingSimpleCPU::~TimingSimpleCPU() {
