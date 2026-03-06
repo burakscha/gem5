@@ -1,0 +1,301 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 541.leela\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{541.leela\_r} benchmark from SPEC CPU2017, executed on a RISC-V
+(RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{test.sgf}, 34 lines) was used as the input.
+Results show a spill rate of \textbf{4.44\%} within the ROI,
+corresponding to 1.16 billion detected spill events across 26 billion
+ROI instructions. The benchmark's Monte Carlo Tree Search (MCTS) engine
+for the game of Go creates deep, irregular call stacks with high register
+pressure at each node expansion.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{541.leela\_r} is the SPEC CPU2017 rate variant of Leela, a
+computer Go engine based on the Upper Confidence Trees (UCT) algorithm,
+a variant of Monte Carlo Tree Search (MCTS). Given a game record in
+Smart Game Format (SGF), Leela replays each position and, for each
+move, runs a UCT search to find the best response. The engine exercises
+recursive tree traversal, board state evaluation, random simulation
+(rollout), and backpropagation of scores --- all with irregular control
+flow and deep call stacks.
+
+The RISC-V binary (\texttt{leela\_r.riscv}) was compiled with gem5 ROI
+markers inserted in \texttt{src/Leela.cpp}, wrapping the main
+game-processing loop:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before the outer SGF-game loop
+    \item \texttt{m5\_work\_end(0,0)}   --- after the loop (in the exception handler)
+\end{itemize}
+
+For each game in the SGF file, the ROI loop loads the game tree,
+replays each move using \texttt{UCTSearch::think()}, and terminates
+when the game ends by resignation or two consecutive passes.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input Datasets}
+
+The three dataset sizes use different SGF game record files with
+different numbers of moves (Table~\ref{tab:inputs}). Each SGF game
+requires many UCT search iterations per move.
+
+\begin{table}[H]
+\centering
+\caption{leela\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Dataset} & \textbf{SGF file} & \textbf{File size (lines)} \\
+\midrule
+test    & test.sgf  &  34 \\
+train   & train.sgf &  20 \\
+refrate & ref.sgf   & 198 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset (\texttt{test.sgf}, 34 lines) was selected
+for this run. The SGF file encodes one or more Go game records;
+Leela processes each move in sequence, running a full UCT search tree
+for each position.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/leela/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/leela/leela_r.riscv
+  --options="benchmarks/leela/test.sgf"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. Leela processed all games in
+\texttt{test.sgf}, printing board states and move selections, and
+exited cleanly via the expected end-of-file exception.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI, the binary performed engine initialisation: loading
+Zobrist hash tables, setting up the pattern matcher
+(\texttt{Matcher::get\_Matcher()}), and allocating the main game state.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 929,649,876 \\
+Total spills detected (pre-ROI) & 86,033,182 \\
+Pre-ROI spill rate & 9.25\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI spill rate of 9.25\% is notably high, reflecting the
+register pressure during Leela's pattern matcher initialisation, which
+involves processing large lookup tables with complex indexing.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 541.leela\_r (test.sgf)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 26,063,891,645 \\
+ROI stores               &  1,756,742,699 \\
+ROI loads                &  5,110,627,713 \\
+\midrule
+\textbf{ROI spills}      & \textbf{1,158,236,271} \\
+\textbf{Spill rate}      & \textbf{4.4438\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 45.78\,s \\
+Host wall time           & 14,637\,s ($\approx$4.1\,hours) \\
+Total simulated instructions & 26,994,306,259 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{4.44\%} means that approximately
+1 in every 23 instructions inside the ROI is a register spill.
+Table~\ref{tab:compare} places this among all evaluated benchmarks.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+541.leela\_r     & 1,158,236,271 & \textbf{4.4438\%} \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (5.11B) is approximately $2.91\times$ higher than the
+store count (1.76B). This asymmetry is characteristic of tree-search
+workloads: during UCT rollouts, the engine reads board positions,
+move histories, and node statistics far more often than it writes them.
+Each node expansion reads the parent node's statistics for the UCT
+selection formula and loads the current board state for move generation,
+while only the selected child's statistics are updated.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{1{,}158{,}236{,}271}{5{,}110{,}627{,}713} \approx 22.7\%
+\]
+Nearly 1 in 4 load instructions is a spill reload. UCT search involves
+deeply nested function calls: \texttt{UCTSearch::think()} calls
+\texttt{UCTSearch::playout()}, which recursively calls
+\texttt{UCTNode::uct\_select()} and ultimately invokes the board
+simulation. Each call frame must save and restore multiple live
+variables (node pointers, board state references, visit counts,
+score accumulators), causing pervasive spilling throughout the search.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 9.25\% ($86{,}033{,}182$ spills over
+$929{,}649{,}876$ instructions) is the second-highest pre-ROI rate
+observed across all benchmarks (after cactuBSSN at 11.83\%).
+The Leela pattern matcher initialisation, which builds a large
+board pattern lookup table using recursive feature hashing, is
+itself computationally intensive and register-pressure-heavy.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $26{,}063{,}891{,}645$ out of
+$26{,}994{,}306{,}259$ total simulated instructions:
+\[
+\frac{26{,}063{,}891{,}645}{26{,}994{,}306{,}259} \approx 96.6\%
+\]
+The ROI captures 96.6\% of total execution, confirming that the
+game-processing loop dominates the benchmark's instruction footprint.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{541.leela\_r} benchmark exhibits a register spill rate of
+4.44\% within its UCT game-processing ROI on RISC-V RV64GC. With 1.16
+billion spill events across 26 billion ROI instructions, Leela's
+Monte Carlo tree search creates sustained register pressure through
+its deep and irregular call structure. The 2.91:1 load-to-store ratio
+and 22.7\% spill fraction of loads both reflect the read-dominated
+nature of tree traversal. Notably, the pre-ROI initialisation phase
+also exhibits a high spill rate (9.25\%), indicating that pattern
+matcher construction is itself register-intensive. These results
+position \texttt{541.leela\_r} as a mid-range spill benchmark, placing
+fourth among all evaluated SPEC CPU2017 workloads.
+
+\end{document}

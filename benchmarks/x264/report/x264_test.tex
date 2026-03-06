@@ -1,0 +1,362 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 525.x264\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{525.x264\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The \texttt{ldecod\_r} binary (JM reference H.264 decoder) was used,
+with \texttt{BuckBunny.264} as the test input. Results show a spill
+rate of \textbf{3.28\%} within the ROI, corresponding to 768 million
+detected spill events across 23.4 billion ROI instructions. H.264
+block-based decoding alternates between highly regular CABAC entropy
+decoding and IDCT/motion-compensation loops, producing moderate and
+relatively consistent register pressure throughout the decode pipeline.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{525.x264\_r} is the SPEC CPU2017 rate variant of the x264
+H.264/AVC video codec suite. The SPEC benchmark exercises two
+separate workloads:
+\begin{itemize}
+    \item \textbf{x264} (encoder): encodes a YUV video sequence to
+          an H.264 bitstream.
+    \item \textbf{ldecod\_r} (decoder): decodes an H.264 bitstream to
+          a raw YUV file using the JM reference software decoder.
+\end{itemize}
+This study uses the \textbf{ldecod\_r} binary, which implements the
+full H.264 syntax parsing, CABAC/CAVLC entropy decoding, inverse
+discrete cosine transform (IDCT), motion compensation, and in-loop
+deblocking filter. The decoder processes the bitstream slice by slice,
+maintaining the decoded picture buffer (DPB) and reference frame lists.
+
+The RISC-V binary (\texttt{ldecod\_r.riscv}) was compiled with gem5
+ROI markers inserted in \texttt{src/ldecod\_src/decoder\_test.c},
+wrapping the main per-frame decode loop:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before the do-while decode loop
+    \item \texttt{m5\_work\_end(0,0)}   --- after all frames are decoded
+\end{itemize}
+
+This ROI encompasses the complete decoding pipeline for every frame
+in the input bitstream.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{x264\_r},
+differing in video content, resolution, and the number of frames
+encoded and decoded (Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{x264\_r (ldecod\_r) Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Input} & \textbf{Description} \\
+\midrule
+test    & BuckBunny.264 (2.4\,MiB)  & Short H.264 clip \\
+train   & BuckBunny.264 (larger)    & Extended clip \\
+refrate & BuckBunny.264 (full)      & Full-length clip \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study.
+\texttt{BuckBunny.264} is a short segment of the Big Buck Bunny
+open-source animated film, encoded in H.264/AVC. Despite the
+compact file size (2.4\,MiB), the JM decoder is computationally
+intensive: it performs full compliance-level syntax checking, CABAC
+context initialisation for each slice, 4$\times$4 and 8$\times$8
+IDCT on every macroblock, and motion compensation with sub-pixel
+interpolation. The 23.4 billion ROI instructions reflect the
+instruction-level cost of a full-compliance software H.264 decoder.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/x264/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/x264/ldecod_r.riscv
+  --options="-i benchmarks/x264/BuckBunny.264
+             -o benchmarks/x264/BuckBunny.yuv"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+The \texttt{-i} flag specifies the input H.264 bitstream and
+\texttt{-o} specifies the output raw YUV file. The JM decoder
+reads the input file sequentially, processing each NAL unit in
+display order.
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. The JM decoder processed
+all frames in \texttt{BuckBunny.264} and wrote the decoded output
+to \texttt{BuckBunny.yuv}.
+
+\subsection{Pre-ROI Context}
+
+Before the decode loop ROI, the binary executed JM decoder
+initialisation: parsing the decoder configuration, allocating
+the decoded picture buffer, and initialising CABAC context tables.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 268,194 \\
+Total spills detected (pre-ROI) & 8,865 \\
+Pre-ROI spill rate & 3.31\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI phase is exceptionally small: only 268,194 instructions,
+making it the second smallest startup overhead of all evaluated
+benchmarks. The JM decoder initialises relatively little global
+state before entering the decode loop, with most data structures
+allocated lazily at first-frame decode time inside the ROI.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 525.x264\_r / ldecod\_r (BuckBunny.264)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 23,405,758,981 \\
+ROI stores               &  2,401,493,613 \\
+ROI loads                &  4,837,558,326 \\
+\midrule
+\textbf{ROI spills}      & \textbf{767,981,981} \\
+\textbf{Spill rate}      & \textbf{3.2812\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 45.63\,s \\
+Host wall time           & 16{,}720.87\,s ($\approx$4.6\,hours) \\
+Total simulated instructions & 23,406,228,013 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{3.28\%} places \texttt{x264\_r}
+eleventh among all evaluated SPEC CPU2017 benchmarks
+(Table~\ref{tab:compare}), in the moderate-pressure tier between
+\texttt{531.deepsjeng\_r} (4.17\%) and \texttt{544.nab\_r} (2.26\%).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+511.povray\_r    &   174,359,922 & 7.7809\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+520.omnetpp\_r   &   894,619,681 & 7.1994\% \\
+502.gcc\_r       &     1,108,838 & 6.9185\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & 4.6427\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+525.x264\_r      &   767,981,981 & \textbf{3.2812\%} \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+557.xz\_r        &    38,411,428 & 1.9069\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (4.84B) is $2.01\times$ higher than the store count
+(2.40B). This near-even 2:1 ratio reflects the H.264 decode pipeline's
+balanced read-write pattern: for each macroblock, the decoder reads
+residual coefficients and motion vectors from the bitstream buffers
+(loads) and writes the reconstructed pixel block to the frame buffer
+(stores). CABAC decoding reads probability tables (loads) and updates
+them in place (stores). The deblocking filter similarly reads boundary
+pixels and writes filtered values. The 2:1 ratio is structurally
+characteristic of entropy-decoding pipelines that maintain
+continuously updated probability or state tables alongside their
+output buffers.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{767{,}981{,}981}{4{,}837{,}558{,}326} \approx 15.9\%
+\]
+Approximately 1 in 6 load instructions is a spill reload. The JM
+decoder's decode pipeline propagates a macroblock context structure
+through multiple function layers: CABAC symbol decoding, inverse
+quantisation, IDCT, and motion compensation each receive the same
+macroblock descriptor, creating a set of live pointers (current
+macroblock, reference frame list, slice header, SPS/PPS parameters)
+that RISC-V's 32 registers cannot accommodate simultaneously across
+all nested calls. The resulting 15.9\% spill-to-load fraction is
+consistent with a moderately deep but non-recursive call chain.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 3.31\% ($8{,}865$ spills over $268{,}194$
+instructions) is consistent with the ROI rate (3.28\%), confirming
+that the JM decoder's initialisation code shares the same structural
+call patterns as the decode loop itself. The pre-ROI phase is
+negligibly small (268,194 instructions), representing essentially
+instantaneous startup overhead.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $23{,}405{,}758{,}981$ out of $23{,}406{,}228{,}013$
+total simulated instructions:
+\[
+\frac{23{,}405{,}758{,}981}{23{,}406{,}228{,}013} \approx 99.998\%
+\]
+This is the highest ROI coverage of all evaluated benchmarks: the
+decode loop begins almost immediately after process start, and the
+JM decoder performs virtually no computation outside the ROI.
+
+\subsection{H.264 Decode Pipeline Register Pressure}
+
+The moderate 3.28\% spill rate reflects the mixed nature of H.264
+decoding. The pipeline alternates between two structurally different
+phases:
+\begin{itemize}
+    \item \textbf{Entropy decoding (CABAC/CAVLC)}: a symbol-by-symbol
+          loop that maintains a compact state (range, offset, probability
+          tables), fitting mostly within RISC-V's register file. Spill
+          pressure is low in this phase.
+    \item \textbf{Reconstruction (IDCT + motion compensation)}: a
+          block-level operation that simultaneously requires: the residual
+          coefficient array, the reference frame buffer pointer, the motion
+          vector, the reconstructed macroblock buffer, and loop-filter
+          boundary values. This phase generates higher register pressure,
+          pulling the overall spill rate upward.
+\end{itemize}
+The resulting 3.28\% spill rate represents the time-weighted average
+across these two phases. Compared to object-oriented workloads with
+deep virtual dispatch chains (\texttt{omnetpp\_r} at 7.20\%,
+\texttt{xalancbmk\_r} at 4.64\%), the H.264 decoder's more regular
+data-flow pattern and shallower call depth yield a substantially lower
+spill rate while still exhibiting non-trivial register pressure due
+to the macroblock context propagation.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{525.x264\_r} benchmark (ldecod\_r) exhibits a register
+spill rate of 3.28\% within the H.264 decode loop ROI on RISC-V
+RV64GC, the eleventh highest across all 16 evaluated SPEC CPU2017
+benchmarks. With 768 million spill events across 23.4 billion ROI
+instructions and a near-perfect 99.998\% ROI coverage, the benchmark
+is comprehensively characterised by this run. The 2.01:1 load-to-store
+ratio reflects the balanced entropy-decode and reconstruction pipeline
+of the JM reference decoder, and the 15.9\% spill-to-load fraction
+arises from the macroblock context structure propagated through the
+multi-layer decode call chain. These results place \texttt{x264\_r}
+in the moderate register-pressure tier of the SPEC CPU2017 suite,
+below the object-oriented and recursive workloads but above the
+sequential data-processing and numerical benchmarks.
+
+\end{document}

@@ -1,0 +1,350 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 520.omnetpp\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{520.omnetpp\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{General} configuration, run~0,
+\texttt{sim-time-limit=0.003s}) was used as the input. Results show
+a spill rate of \textbf{7.20\%} within the ROI --- fourth highest
+across all SPEC CPU2017 benchmarks evaluated in this study ---
+corresponding to 895 million detected spill events across 12.4 billion
+ROI instructions. The heavily object-oriented OMNeT++ event-dispatch
+loop maintains a large set of simultaneously live module pointers,
+message objects, and scheduling state, creating persistent register
+pressure throughout the network simulation.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{520.omnetpp\_r} is the SPEC CPU2017 rate variant of
+OMNeT++~4.0, a discrete-event network simulator. The benchmark
+simulates a large Ethernet LAN (\texttt{LargeNet}) using the INET
+framework, exercising event scheduling, message passing between
+network modules, MAC layer processing, and packet forwarding.
+OMNeT++ is one of the most object-oriented workloads in the SPEC
+suite: the event loop dispatches messages through a deep C++ class
+hierarchy of simulated network components via virtual function calls,
+maintaining complex module state and scheduling bookkeeping.
+
+The RISC-V binary (\texttt{omnetpp\_r.riscv}) was compiled with gem5
+ROI markers inserted around the \texttt{setupUserInterface()} call
+in \texttt{src/simulator/main.cc}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{setupUserInterface()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{setupUserInterface()}
+\end{itemize}
+
+\texttt{setupUserInterface()} instantiates the Cmdenv command-line
+environment, which builds the simulated network, initialises all
+modules, runs the event loop for the configured simulation time,
+and calls \texttt{finish()} on each module. This call encompasses
+the entire simulated network execution.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{omnetpp\_r},
+differing in simulated network time and topology scale
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{omnetpp\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Sim time limit} & \textbf{Description} \\
+\midrule
+test    & 0.003\,s & LargeNet Ethernet, short burst \\
+train   & 0.1\,s   & LargeNet Ethernet, medium run \\
+refrate & 2.25\,s  & LargeNet Ethernet, full run \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study. Despite the
+short simulated time of 3\,ms, the OMNeT++ event loop generates
+12.4 billion RISC-V instructions because each discrete network event
+requires traversing the full C++ object hierarchy: scheduler lookup,
+message delivery through module virtual functions, MAC layer state
+machine evaluation, and statistics recording. The network topology
+(\texttt{LargeNet}) contains numerous Ethernet switches, hosts, and
+buses, each modelled as a separate C++ object.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/omnetpp/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/omnetpp/omnetpp_r.riscv
+  --options="-c General -r 0"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+The binary locates \texttt{omnetpp.ini} in the gem5 working directory
+via a symbolic link, with the \texttt{ned-path} pointing to the
+benchmark's \texttt{ned/} directory containing the LargeNet NED
+module definitions.
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. OMNeT++ ran the
+\texttt{General} configuration for run~0, processed all network
+events up to the 3\,ms simulation time limit, called
+\texttt{finish()} on all modules, and exited cleanly.
+
+\subsection{Pre-ROI Context}
+
+Before \texttt{setupUserInterface()} was entered, the binary
+executed the OMNeT++ runtime initialisation: dynamic library
+resolution, global object construction, NED file loading (13 files),
+and configuration parsing. Table~\ref{tab:preroi} shows the global
+counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 1,623,908 \\
+Total spills detected (pre-ROI) & 56,740 \\
+Pre-ROI spill rate & 3.49\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 520.omnetpp\_r (test, 0.003\,s)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 12,426,280,892 \\
+ROI stores               &  1,491,466,063 \\
+ROI loads                &  2,793,818,477 \\
+\midrule
+\textbf{ROI spills}      & \textbf{894,619,681} \\
+\textbf{Spill rate}      & \textbf{7.1994\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 30.17\,s \\
+Host wall time           & 7{,}777.80\,s ($\approx$2.16\,hours) \\
+Total simulated instructions & 12,429,400,619 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{7.20\%} places
+\texttt{omnetpp\_r} fourth among all evaluated SPEC CPU2017
+benchmarks (Table~\ref{tab:compare}), between
+\texttt{500.perlbench\_r} (7.28\%) and \texttt{502.gcc\_r} (6.92\%).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+511.povray\_r    &   174,359,922 & 7.7809\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+520.omnetpp\_r   &   894,619,681 & \textbf{7.1994\%} \\
+502.gcc\_r       &     1,108,838 & 6.9185\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & 4.6427\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+525.x264\_r      &   767,981,981 & 3.2812\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+557.xz\_r        &    38,411,428 & 1.9069\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (2.79B) is $1.87\times$ higher than the store count
+(1.49B). This load-dominated ratio characterises OMNeT++'s event
+dispatch pattern: each event requires reading the module's state
+(current queue, pending timers, MAC address tables) and reading
+message header fields to determine how to process and forward the
+packet. Writes occur when updating module state, recording statistics,
+and scheduling new events. The event loop reads far more than it writes
+because evaluating a network event involves traversing multiple
+linked data structures before producing a single scheduling write.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{894{,}619{,}681}{2{,}793{,}818{,}477} \approx 32.0\%
+\]
+Approximately 1 in 3 load instructions is a spill reload. This is
+the second highest spill-to-load fraction observed in the study,
+behind only \texttt{502.gcc\_r} (37.5\%). The OMNeT++ event loop
+must simultaneously maintain: a pointer to the current event, the
+receiving module pointer, the message object pointer, the simulation
+clock, the future event set iterator, and the per-module state
+structure. The deep C++ virtual dispatch chain --- from the scheduler
+to the module's \texttt{handleMessage()} to the specific protocol
+handler --- spills and reloads these pointers at every level,
+as RISC-V's 32 registers cannot hold all of them live across
+nested virtual calls.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 3.49\% ($56{,}740$ spills over
+$1{,}623{,}908$ instructions) reflects the OMNeT++ runtime
+initialisation: loading NED module definitions, parsing the ini
+file, and registering global C++ objects. This moderate pre-ROI
+rate indicates that even the OMNeT++ startup phase involves
+non-trivial register pressure from its object registration framework.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $12{,}426{,}280{,}892$ out of $12{,}429{,}400{,}619$
+total simulated instructions:
+\[
+\frac{12{,}426{,}280{,}892}{12{,}429{,}400{,}619} \approx 99.97\%
+\]
+The near-perfect ROI coverage confirms that
+\texttt{setupUserInterface()} encompasses virtually all benchmark
+computation. The 0.03\% outside the ROI corresponds to
+pre-ROI startup and post-simulation shutdown.
+
+\subsection{Discrete-Event Simulation Register Pressure}
+
+The 7.20\% spill rate is structurally driven by OMNeT++'s
+object-oriented event dispatch architecture. Each call to
+\texttt{cSimulation::doOneEvent()} invokes a chain of virtual
+functions that must propagate the current message, the receiving
+module, and the simulation context through multiple layers of
+abstraction:
+\begin{itemize}
+    \item \texttt{cScheduler} $\rightarrow$ \texttt{cSimpleModule::handleMessage()}
+    \item MAC layer dispatch (EtherMAC, EtherHub, EtherSwitch)
+    \item Statistics recording (\texttt{cOutVector}, \texttt{cStdDev})
+\end{itemize}
+At each level, the caller's pointers must be preserved across the
+virtual call, and RISC-V's 32-register file cannot accommodate all
+live pointers simultaneously. The result is that every network event
+produces several spill-reload cycles in the dispatch chain, yielding
+the observed 32.0\% spill-to-load fraction.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{520.omnetpp\_r} benchmark exhibits a register spill rate
+of 7.20\% within the \texttt{setupUserInterface()} ROI on RISC-V
+RV64GC, the fourth highest across all 16 evaluated SPEC CPU2017
+benchmarks. With 895 million spill events across 12.4 billion ROI
+instructions and a 99.97\% ROI coverage, the benchmark is
+comprehensively characterised by this run. The 1.87:1 load-to-store
+ratio and 32.0\% spill-to-load fraction reflect the read-dominated
+event dispatch pattern of the OMNeT++ simulator, where each network
+event triggers a deep virtual call chain that continuously exhausts
+RISC-V's register file. These results confirm that object-oriented
+discrete-event simulation is among the most register-pressure
+intensive workload classes on RISC-V RV64GC.
+
+\end{document}

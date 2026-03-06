@@ -1,0 +1,292 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 505.mcf\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{505.mcf\_r} benchmark from SPEC CPU2017, executed on a RISC-V
+(RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (5,985 nodes, 84,449 arcs) was used.
+Two simulation runs were attempted: the first failed with an
+out-of-memory error; the second, with 4\,GB of simulated memory,
+completed successfully. Results show a spill rate of 1.83\%
+within the ROI, corresponding to 446 million detected spill events
+across 24.4 billion simulated instructions.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{505.mcf\_r} is the SPEC CPU2017 rate variant of MCF, a
+minimum-cost flow optimizer used for public transit scheduling.
+The algorithm constructs a transportation network as a graph and
+solves it using the successive shortest path / simplex method.
+The benchmark is memory-intensive and pointer-heavy, performing
+large numbers of graph traversals.
+
+The RISC-V binary (\texttt{mcf\_r.riscv}) was compiled with gem5 ROI
+markers inserted around the main optimization call in \texttt{mcf.c}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} — inserted before \texttt{global\_opt()}
+    \item \texttt{m5\_work\_end(0,0)}   — inserted after  \texttt{global\_opt()}
+\end{itemize}
+
+Only spills occurring inside \texttt{global\_opt()} are counted
+toward the reported statistics.
+
+% =========================================================
+\section{Input Datasets}
+
+MCF reads a single graph file (\texttt{inp.in}) whose first line
+encodes the problem size as \texttt{<nodes> <arcs>}.
+Table~\ref{tab:inputs} summarises all four standard datasets.
+
+\begin{table}[H]
+\centering
+\caption{MCF Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Dataset} & \textbf{Nodes} & \textbf{Arcs} & \textbf{Lines in inp.in} \\
+\midrule
+test     &  5,985 &  84,449 &  90,435 \\
+train    & —      & —       & 177,967 \\
+refrate  & 15,000 & 117,202 & 132,203 \\
+refspeed & —      & —       & 210,494 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Only the test dataset was run} in this study.
+The test \texttt{inp.in} file is 1.2\,MB (90,435 lines).
+Even with the smallest dataset, the simplex algorithm executes
+71,002 iterations internally, making it one of the heavier
+benchmarks despite its modest graph size.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+\subsection{Run History}
+
+Two simulation runs were performed on the same test input, as
+summarised in Table~\ref{tab:runs}.
+
+\begin{table}[H]
+\centering
+\caption{MCF Simulation Run Summary}
+\label{tab:runs}
+\begin{tabular}{llll}
+\toprule
+\textbf{Run} & \textbf{Mem} & \textbf{Outcome} & \textbf{Output} \\
+\midrule
+Run 1 (old binary) & 512\,MB & \textcolor{red}{OOM crash} & 37.1\,GB verbose log \\
+Run 2 (new binary) & 4\,GB   & \textcolor{green!50!black}{Completed} & $\approx$300\,B summary \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Run 1} used the previous verbose SpillDetector (every spill
+written to disk) with the default gem5 memory of 512\,MB.
+MCF's simplex algorithm dynamically expands its arc storage via
+\texttt{mremapping}, eventually exhausting the simulated physical memory
+at simplex iteration 57,610. The run was terminated by gem5 with
+\texttt{Out of memory}; no valid ROI summary was produced.
+
+\textbf{Run 2} used the refactored counter-only SpillDetector with
+4\,GB of simulated memory. The simulation ran to completion (simplex
+iteration 71,002, checksum verified) and produced a compact summary file.
+All reported results below are from Run 2.
+
+The full gem5 invocation for Run 2 was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/mcf/m5out_test_summary
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/mcf/mcf_r.riscv
+  --options="benchmarks/mcf/inp.in"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results — Test Input}
+
+\subsection{Pre-ROI Context}
+
+Before entering \texttt{global\_opt()}, the binary reads and constructs
+the network graph. Table~\ref{tab:preroi} shows global counters at the
+moment \texttt{m5\_work\_begin} fired.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 194,085,337 \\
+Total spills detected (pre-ROI) & 19,671,795 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected exclusively
+within the ROI (\texttt{global\_opt()} call, test input).
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics — 505.mcf\_r (test input)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 24,426,982,048 \\
+ROI stores               &  1,300,618,520 \\
+ROI loads                &  8,113,038,194 \\
+\midrule
+\textbf{ROI spills}      & \textbf{446,113,136} \\
+\textbf{Spill rate}      & \textbf{1.8263\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing — Run 2 (test input, completed)}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time  & 147.42\,s \\
+Host wall time  & 17,512\,s ($\approx$4.9\,hours) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{1.83\%} means that approximately
+1 in every 55 instructions inside the ROI is a register spill.
+This is notably higher than the pre-ROI phase:
+
+\[
+\text{Pre-ROI spill rate} = \frac{19{,}671{,}795}{194{,}085{,}337} \approx 10.1\%
+\]
+
+The graph-construction phase (pre-ROI) is therefore more
+register-pressure-intensive than the optimization loop itself.
+
+\subsection{Store vs.\ Load Balance}
+
+Inside the ROI, loads (8.11B) outnumber stores (1.30B) by a factor
+of approximately 6.2$\times$. This reflects MCF's access pattern:
+the simplex iterations repeatedly read graph-node fields
+(\texttt{cost}, \texttt{potential}, \texttt{flow}) without rewriting
+them every access, so the same spilled values are reloaded many more
+times than they are written.
+
+\subsection{Spill-to-Load Ratio}
+
+\[
+\frac{446{,}113{,}136}{8{,}113{,}038{,}194} \approx 5.50\%
+\]
+
+Roughly 1 in 18 load instructions inside the ROI is a spill reload,
+indicating moderate but sustained register pressure throughout the
+optimization phase.
+
+\subsection{Memory Requirement}
+
+Run 1 (512\,MB) crashed at simplex iteration 57,610 out of 71,002.
+Run 2 (4\,GB) completed cleanly. MCF's dynamic arc expansion
+(\texttt{mremapping}) requires substantially more simulated physical
+memory than the default gem5 SE configuration provides.
+Future runs of larger datasets (refrate/refspeed) will also
+require at least \texttt{--mem-size=4GB}.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{505.mcf\_r} benchmark exhibits a spill rate of 1.83\%
+within its core \texttt{global\_opt()} ROI on RISC-V RV64GC.
+With 446 million spill events across 24.4 billion instructions,
+MCF presents a higher spill burden than NAMD (1.03\%) from the same
+study, consistent with its pointer-chasing, graph-traversal nature
+which stresses register allocation more than floating-point pipelines.
+The graph-construction phase (pre-ROI) reaches 10.1\%, making it
+the highest-pressure region of the entire run.
+Larger dataset runs (refrate: 15,000 nodes / 117,202 arcs) are
+expected to scale the spill count roughly proportionally to the
+increase in simplex iterations.
+
+\end{document}

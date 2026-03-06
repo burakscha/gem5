@@ -274,6 +274,12 @@ void SpillDetector::writeROISummary(uint64_t workid) {
 // ROI entry / exit
 // -------------------------------------------------------------------------
 void SpillDetector::enterROI(uint64_t workid) {
+  // Truncate the log file so stale data from previous runs is never mixed in.
+  // This ensures exactly one ROI summary per simulation output file.
+  {
+    std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::trunc);
+  }
+
   roi_active     = true;
   inside_roi     = true;
   current_roi_id = workid;

@@ -1,0 +1,327 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 523.xalancbmk\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{523.xalancbmk\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{test.xml} transformed via \texttt{xalanc.xsl})
+was used as the input. Results show a spill rate of \textbf{4.64\%}
+within the ROI, corresponding to 18.4 million detected spill events
+across 396 million ROI instructions. XPath expression evaluation and
+DOM tree traversal maintain a large set of simultaneously live node
+pointers and context objects, creating persistent register pressure
+throughout the XSLT transformation pipeline.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{523.xalancbmk\_r} is the SPEC CPU2017 rate variant of
+Xalan-C++ 1.10, an XSLT processor that applies XSL Transformation
+stylesheets to XML input documents. The benchmark exercises XML
+parsing (via Xerces-C++), XSL stylesheet compilation, XPath expression
+evaluation, and DOM tree traversal with namespace resolution. It is
+one of the most object-oriented workloads in the SPEC suite, with a
+large C++ class hierarchy and heavy use of virtual dispatch throughout
+the transformation pipeline.
+
+The RISC-V binary (\texttt{xalancbmk\_r.riscv}) was compiled with gem5
+ROI markers inserted around the \texttt{xsltMain()} call in
+\texttt{src/XalanExe.cpp}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{xsltMain()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{xsltMain()}
+\end{itemize}
+
+\texttt{xsltMain()} encompasses the entire transformation pipeline:
+input parsing, stylesheet compilation, XPath evaluation, and output
+serialisation.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{xalancbmk\_r},
+differing in the size and complexity of the XML input document
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{xalancbmk\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{XML input} & \textbf{Description} \\
+\midrule
+test    & test.xml (28\,KB)   & Small SPEC benchmark table \\
+train   & Various XML files   & Medium-sized documents \\
+refrate & t5.xml ($\approx$100\,MB) & Large XHTML document, repeated \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study. The input
+\texttt{test.xml} is a 28\,KB XML document containing SPEC benchmark
+reference data, transformed by the 16\,KB \texttt{xalanc.xsl}
+stylesheet into an XHTML table. The transformation exercises XPath
+predicates, template matching, and recursive element processing
+representative of the full Xalan-C++ code paths.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/xalancbmk/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/xalancbmk/xalancbmk_r.riscv
+  --options="-v benchmarks/xalancbmk/test.xml
+             benchmarks/xalancbmk/xalanc.xsl"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. The output was a correctly
+formed XHTML document containing the SPEC benchmark reference table,
+confirming the transformation completed without errors.
+
+\subsection{Pre-ROI Context}
+
+Before \texttt{xsltMain()} was entered, the binary executed
+Xalan-C++ initialisation: loading the Xerces XML parser, initialising
+the XSLT processor, and registering built-in XPath functions.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 2,689,452 \\
+Total spills detected (pre-ROI) & 90,538 \\
+Pre-ROI spill rate & 3.37\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 523.xalancbmk\_r (test.xml)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 395,919,950 \\
+ROI stores               &  38,990,477 \\
+ROI loads                & 106,032,294 \\
+\midrule
+\textbf{ROI spills}      & \textbf{18,381,250} \\
+\textbf{Spill rate}      & \textbf{4.6427\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 0.968\,s \\
+Host wall time           & 280.72\,s ($\approx$4.7\,min) \\
+Total simulated instructions & 401,232,382 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{4.64\%} places \texttt{xalancbmk\_r}
+fifth among all evaluated SPEC CPU2017 benchmarks
+(Table~\ref{tab:compare}), between \texttt{526.blender\_r} (6.22\%)
+and \texttt{541.leela\_r} (4.44\%).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+502.gcc\_r       &     1,108,838 & 6.9185\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & \textbf{4.6427\%} \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (106.0M) is $2.72\times$ higher than the store count
+(39.0M). This strongly load-dominated ratio characterises XPath
+evaluation: each template match requires traversing the DOM tree by
+following node pointers, loading the node type, name, and attribute
+list, and evaluating XPath predicates against the node content.
+The same DOM nodes are frequently revisited during recursive template
+instantiation, generating many loads for each store (the stores
+correspond to writing output nodes into the result tree).
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{18{,}381{,}250}{106{,}032{,}294} \approx 17.3\%
+\]
+Approximately 1 in 6 load instructions is a spill reload.
+The Xalan-C++ transformation pipeline passes a rich context object
+through each recursive template invocation: the current source node,
+the current result tree fragment, the XPath evaluation context, the
+variable binding frame, and the namespace resolution context. With
+RISC-V providing 32 general-purpose registers and the heavy use of
+virtual dispatch adding call-frame overhead, these context pointers
+are continuously spilled to and reloaded from the stack.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 3.37\% ($90{,}538$ spills over
+$2{,}689{,}452$ instructions) reflects the Xalan-C++ and Xerces
+initialisation phase: loading the XML parser, registering XSLT
+extension functions, and initialising the XPath function library.
+This rate is comparable to \texttt{gcc\_r}'s pre-ROI rate (3.34\%),
+suggesting that complex C++ framework initialisation consistently
+produces moderate register pressure.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $395{,}919{,}950$ out of $401{,}232{,}382$
+total simulated instructions:
+\[
+\frac{395{,}919{,}950}{401{,}232{,}382} \approx 98.7\%
+\]
+The near-perfect ROI coverage confirms that \texttt{xsltMain()}
+encompasses virtually all benchmark computation, with only 1.3\%
+of instructions outside the ROI for program startup and teardown.
+
+\subsection{XSLT-Driven Register Pressure}
+
+The 4.64\% spill rate is structurally driven by Xalan-C++'s
+object-oriented XSLT engine. During each template instantiation step,
+the following objects must be kept simultaneously live:
+\begin{itemize}
+    \item The current DOM source node (\texttt{XalanNode*})
+    \item The XPath evaluation context (\texttt{XPathExecutionContext})
+    \item The current result tree builder (\texttt{FormatterListener*})
+    \item The active variable binding stack (\texttt{XalanQName})
+    \item The namespace resolver (\texttt{PrefixResolver*})
+\end{itemize}
+Each virtual function call in the dispatch chain saves and restores
+these pointers, as the RISC-V backend cannot keep all of them in
+registers simultaneously. The 2.72:1 load-to-store ratio directly
+reflects the read-heavy nature of DOM traversal, where nodes are
+read many times per write to the output tree.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{523.xalancbmk\_r} benchmark exhibits a register spill rate
+of 4.64\% within the \texttt{xsltMain()} ROI on RISC-V RV64GC, the
+fifth highest among all evaluated SPEC CPU2017 benchmarks. With 18.4
+million spill events across 396 million ROI instructions and a 98.7\%
+ROI coverage, the benchmark is well-characterised by this run. The
+2.72:1 load-to-store ratio reflects the read-heavy DOM traversal
+pattern of XPath evaluation, and the 17.3\% spill-to-load fraction
+arises from the rich set of live context pointers that the Xalan-C++
+template instantiation engine must maintain simultaneously. These
+results place \texttt{523.xalancbmk\_r} firmly in the moderate-to-high
+register-pressure tier of the evaluated SPEC suite.
+
+\end{document}
