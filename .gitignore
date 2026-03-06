@@ -81,3 +81,12 @@ util/m5/m5_build_log.txt
 tests/spill_test/tc*/out/
 tests/spill_test/tc*/*.riscv
 tests/spill_test/tc*/*.o
+
+# ── Python bytecode cache ────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── gem5 compiled build output (multi-GB) ────────────────────────────────────
+build/
+util/m5/build/
