@@ -55,6 +55,25 @@ benchmarks/omnetpp/*.ini
 /omnetpp.ini
 /ned
 
+# ── nab/perlbench input data at repo root ────────────────────────────────────
+/1am0/
+/aminos/
+/gcn4dna/
+/WORDS
+/dictionary
+/spec_train.par
+/validate
+
+# ── nab input data in benchmarks/nab/ ────────────────────────────────────────
+benchmarks/nab/*.pdb
+benchmarks/nab/*.prm
+benchmarks/nab/aminos/
+benchmarks/nab/gcn4dna/
+
+# ── perlbench word lists ──────────────────────────────────────────────────────
+benchmarks/perlbench/WORDS
+benchmarks/perlbench/dictionary
+
 # ── Build artefacts at repo root ─────────────────────────────────────────────
 build_log*.txt
 *.xl
