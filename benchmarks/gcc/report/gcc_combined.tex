@@ -1,0 +1,489 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+% Section divider for TEST / TRAIN / REF inputs
+\newcommand{\inputpart}[2]{%
+    \vspace{1em}
+    \noindent\rule{\linewidth}{0.4pt}
+    \section{#1}
+    \textit{#2}
+    \vspace{0.2em}
+}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 502.gcc\_r} \\
+    \normalsize Register Spill Analysis on RISC-V via gem5 \\
+    \normalsize Test \textbar{} Train \textbar{} Ref Inputs
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% =========================================================
+\begin{abstract}
+This report presents the register spill characterisation of
+\texttt{502.gcc\_r} across all three SPEC CPU2017 input sizes
+(test, train, refrate) executed on RISC-V (RV64GC) using the
+gem5 TimingSimpleCPU simulator with a custom SpillDetector.
+Spill rates are \textbf{6.92\%} (test, 1 file), \textbf{8.12\%}
+(train, 3 files combined), and \textbf{$\approx$7.4\%} (refrate,
+3 of 5 files completed). The train input is the highest across
+all 17 evaluated SPEC CPU2017 benchmarks. Two-thirds of store
+traffic and one-third of load traffic in the train ROI are
+spill-related, confirming that \texttt{gcc\_r} is the most
+register-pressure-intensive workload in the suite on RISC-V.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{502.gcc\_r} is the SPEC CPU2017 rate variant of GCC~4.3.2.
+It executes a RISC-V binary of GCC that produces \textbf{x86}
+assembly output: the compiler itself runs on RISC-V inside gem5,
+but targets x86. All register pressure measured by the SpillDetector
+arises from the RISC-V execution of the compiler.
+
+ROI markers were inserted around the \texttt{toplev\_main(argc, argv)}
+call in \texttt{src/main.c}, encompassing the complete compilation
+pipeline:
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{toplev\_main()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{toplev\_main()}
+\end{itemize}
+
+\subsection{Input Datasets}
+
+\begin{table}[H]
+\centering
+\caption{502.gcc\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{llr}
+\toprule
+\textbf{Dataset} & \textbf{Input files} & \textbf{Runs} \\
+\midrule
+test    & \texttt{t1.c} (69\,B)       & 1 \\
+train   & \texttt{200.c}, \texttt{scilab.c}, \texttt{train01.c} & 3 \\
+refrate & \texttt{gcc-pp.c} (×2), \texttt{gcc-smaller.c},
+          \texttt{ref32.c} (×2) & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{gem5 Configuration (all inputs)}
+
+\begin{itemize}
+    \item \textbf{CPU:} TimingSimpleCPU, RISC-V RV64GC
+    \item \textbf{Caches:} enabled (default L1 I/D + L2)
+    \item \textbf{Memory:} 4\,GB simulated physical RAM
+    \item \textbf{Spill mode:} summary (\texttt{spill\_verbose=False})
+    \item \textbf{Host:} AMD EPYC 7763 (castEpyc), 128 threads, 251\,GB RAM
+\end{itemize}
+
+% ==========================================================
+% ==========================================================
+\inputpart{TEST INPUT}{t1.c --- minimal C file, 1 gem5 run}
+% ==========================================================
+% ==========================================================
+
+\section{Test: Simulation Setup}
+
+The test input \texttt{t1.c} (a minimal \texttt{printf("hello world")}
+program) is compiled with \texttt{-O3 -finline-limit=50000}. Despite
+the trivial source, GCC's startup, option processing, and back-end
+initialisation all execute in full.
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/gcc/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/gcc/gcc_r.riscv
+  --options="benchmarks/gcc/t1.c
+    -O3 -finline-limit=50000
+    -o benchmarks/gcc/t1.s"
+  --cpu-type=TimingSimpleCPU
+  --caches --mem-size=4GB
+\end{verbatim}
+
+\section{Test: Results}
+
+\subsection{ROI Statistics}
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- test}
+\label{tab:test_roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions    & 16,027,045 \\
+ROI stores          & 1,955,576 \\
+ROI loads           & 2,957,463 \\
+\midrule
+\textbf{ROI spills} & \textbf{1,108,838} \\
+\textbf{Spill rate} & \textbf{6.9185\%} \\
+Spill / loads       & 37.49\% \\
+Spill / stores      & 56.70\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Load/Store Breakdown}
+
+\begin{table}[H]
+\centering
+\caption{ROI Load/Store Breakdown --- test}
+\label{tab:test_lsbreakdown}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\multicolumn{3}{l}{\textit{Store instructions}} \\
+\quad Spill stores   & 1,108,838 & 56.70\% of stores \\
+\quad Non-spill stores & 846,738 & 43.30\% of stores \\
+\quad \textbf{Total stores} & \textbf{1,955,576} & 12.20\% of ROI \\
+\midrule
+\multicolumn{3}{l}{\textit{Load instructions}} \\
+\quad Spill reloads    & 1,108,838 & 37.49\% of loads \\
+\quad Non-spill loads  & 1,848,625 & 62.51\% of loads \\
+\quad \textbf{Total loads} & \textbf{2,957,463} & 18.45\% of ROI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing --- test}
+\label{tab:test_timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 0.042\,s \\
+Host wall time           & 11.87\,s \\
+Total simulated instr.   & 20,805,917 \\
+ROI coverage             & 77.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Test: Analysis}
+
+The spill rate of \textbf{6.92\%} is the third highest across all
+evaluated benchmarks (behind \texttt{cactuBSSN\_r} at 7.88\% and
+\texttt{perlbench\_r} at 7.28\%). The spill-to-load ratio of
+\textbf{37.5\%} is the highest in the study: nearly 2 in 5 loads
+is a spill reload. The test input exercises only a narrow subset of
+GCC's passes, yet the fixed per-compilation overhead produces severe
+register pressure even for a 69-byte source file.
+
+% ==========================================================
+% ==========================================================
+\inputpart{TRAIN INPUT}{200.c, scilab.c, train01.c --- 3 gem5 runs}
+% ==========================================================
+% ==========================================================
+
+\section{Train: Simulation Setup}
+
+Three C source files are compiled independently with identical flags
+(\texttt{-O3 -finline-limit=50000}), each as a separate gem5
+invocation:
+
+\begin{itemize}
+    \item \texttt{200.c} (1.81\,MB) $\rightarrow$ \texttt{m5out\_train\_200}
+    \item \texttt{scilab.c} (1.09\,MB) $\rightarrow$ \texttt{m5out\_train\_scilab}
+    \item \texttt{train01.c} (1.19\,MB) $\rightarrow$ \texttt{m5out\_train\_train01}
+\end{itemize}
+
+\section{Train: Results}
+
+\subsection{Per-File ROI Statistics}
+
+\begin{table}[H]
+\centering
+\caption{Per-File ROI Statistics --- train}
+\label{tab:train_perfile}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{File} & \textbf{ROI Instr} & \textbf{Spills} & \textbf{Rate}
+    & \textbf{Sp/Ld} & \textbf{Sp/St} \\
+\midrule
+200.c     & 118.4\,B & 9,876\,M & 8.3381\% & 35.11\% & 67.87\% \\
+scilab.c  &  92.3\,B & 7,232\,M & 7.8336\% & 33.23\% & 65.25\% \\
+train01.c &  10.0\,B &   811\,M & 8.0836\% & 32.32\% & 65.67\% \\
+\midrule
+\textbf{Combined} & \textbf{220.8\,B} & \textbf{17,918\,M}
+    & \textbf{8.1160\%} & \textbf{34.19\%} & \textbf{66.69\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Combined ROI Statistics}
+
+\begin{table}[H]
+\centering
+\caption{Combined ROI Statistics --- train}
+\label{tab:train_roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions (total)   & 220,789,486,676 \\
+ROI stores (total)         &  26,867,426,671 \\
+ROI loads (total)          &  52,398,708,738 \\
+\midrule
+\textbf{ROI spills (total)} & \textbf{17,918,365,207} \\
+\textbf{Combined spill rate} & \textbf{8.1160\%} \\
+Spill / loads  & 34.19\% \\
+Spill / stores & 66.69\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Load/Store Breakdown}
+
+\begin{table}[H]
+\centering
+\caption{ROI Load/Store Breakdown --- train}
+\label{tab:train_lsbreakdown}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\multicolumn{3}{l}{\textit{Store instructions}} \\
+\quad Spill stores    & 17,918,365,207 & 66.69\% of stores \\
+\quad Non-spill stores &  8,949,061,464 & 33.31\% of stores \\
+\quad \textbf{Total stores} & \textbf{26,867,426,671} & 12.17\% of ROI \\
+\midrule
+\multicolumn{3}{l}{\textit{Load instructions}} \\
+\quad Spill reloads   & 17,918,365,207 & 34.19\% of loads \\
+\quad Non-spill loads & 34,480,343,531 & 65.81\% of loads \\
+\quad \textbf{Total loads} & \textbf{52,398,708,738} & 23.73\% of ROI \\
+\midrule
+\multicolumn{3}{l}{\textit{Combined spill memory ops}} \\
+\quad Spill ops (store+load) & 35,836,730,414 & 45.22\% of all mem ops \\
+\quad Total memory ops       & 79,266,135,409 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Per-File Simulation Timing --- train}
+\label{tab:train_timing}
+\begin{tabular}{lrr}
+\toprule
+\textbf{File} & \textbf{Sim time} & \textbf{Host time} \\
+\midrule
+200.c     & 293.45\,s & $\approx$21.4\,h \\
+scilab.c  & 232.52\,s & $\approx$16.9\,h \\
+train01.c &  26.47\,s &  $\approx$1.8\,h \\
+\midrule
+\textbf{Total} & \textbf{552.43\,s} & \textbf{$\approx$40.1\,h} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Train: Analysis}
+
+The combined spill rate of \textbf{8.12\%} is the highest of all
+17 evaluated benchmarks. The 1.95:1 load-to-store ratio reflects
+GCC's IR-traversal pattern: GCC reads pointer fields far more often
+than it writes them. Two-thirds (66.7\%) of all stores are spill
+writes, and nearly half (45.2\%) of all memory operations in the
+ROI are spill-related --- the dominant form of memory activity.
+
+Compared to test, the spill rate rises from 6.92\% to 8.12\%
+(+17.3\%), while the spill/load fraction drops from 37.5\% to
+34.2\%. The larger source files activate the full GIMPLE and RTL
+optimisation pipelines, increasing total memory traffic faster
+than spill count grows.
+
+ROI coverage: $220{,}789{,}486{,}676 / 220{,}801{,}545{,}416
+\approx \mathbf{99.99\%}$.
+
+% ==========================================================
+% ==========================================================
+\inputpart{REFRATE INPUT}{gcc-pp.c (×2), gcc-smaller.c, ref32.c (×2) --- 5 gem5 runs}
+% ==========================================================
+% ==========================================================
+
+\section{Ref: Simulation Setup}
+
+The refrate dataset consists of 5 independent gem5 invocations with
+different input files and compiler flags (Table~\ref{tab:ref_runs}).
+Simulations were run in parallel on castEpyc (AMD EPYC 7763).
+
+\begin{table}[H]
+\centering
+\caption{Refrate Runs}
+\label{tab:ref_runs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Run} & \textbf{Input} & \textbf{Flags} \\
+\midrule
+ref\_pp\_O3    & gcc-pp.c    & \texttt{-O3 -finline-limit=0 ...} \\
+ref\_pp\_O2    & gcc-pp.c    & \texttt{-O2 -finline-limit=36000 -fpic} \\
+ref\_smaller   & gcc-smaller.c & \texttt{-O3 -fipa-pta} \\
+ref32\_O5      & ref32.c     & \texttt{-O5} \\
+ref32\_O3sel   & ref32.c     & \texttt{-O3 -fselective-scheduling...} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Ref: Results}
+
+\textit{Note: ref\_pp\_O2 and ref32\_O3sel were still running at
+the time of writing. The table below shows completed runs only.}
+
+\begin{table}[H]
+\centering
+\caption{Per-Run ROI Statistics --- refrate (completed runs)}
+\label{tab:ref_perrun}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Run} & \textbf{Spills} & \textbf{Rate}
+    & \textbf{Sp/Ld} & \textbf{Sp/St} \\
+\midrule
+ref\_pp\_O3   & 17,975,549,878 & 7.9941\% & 32.79\% & 64.46\% \\
+ref\_pp\_O2   & \multicolumn{4}{c}{\textit{pending}} \\
+ref\_smaller  & 17,186,451,138 & 6.7484\% & 24.62\% & 64.22\% \\
+ref32\_O5     & 16,411,960,922 & 7.6673\% & 30.71\% & 56.49\% \\
+ref32\_O3sel  & \multicolumn{4}{c}{\textit{pending}} \\
+\midrule
+\textbf{Partial total} & \textbf{51,573,961,938}
+    & $\approx$\textbf{7.44\%} & \textbf{28.96\%} & \textbf{61.61\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Load/Store Breakdown --- refrate (3 completed runs)}
+\label{tab:ref_lsbreakdown}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\multicolumn{3}{l}{\textit{Store instructions}} \\
+\quad Spill stores    & 51,573,961,938 & 61.61\% of stores \\
+\quad Non-spill stores & 32,127,370,195 & 38.39\% of stores \\
+\quad \textbf{Total stores} & \textbf{83,701,332,133} & --- \\
+\midrule
+\multicolumn{3}{l}{\textit{Load instructions}} \\
+\quad Spill reloads    & 51,573,961,938 & 28.96\% of loads \\
+\quad Non-spill loads  & 126,500,428,118 & 71.04\% of loads \\
+\quad \textbf{Total loads} & \textbf{178,074,390,056} & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Ref: Analysis}
+
+Across the three completed ref runs, the spill rate ranges from
+6.75\% (\texttt{ref\_smaller} with \texttt{-O3 -fipa-pta}) to
+7.99\% (\texttt{ref\_pp\_O3} with \texttt{-O3 -finline-limit=0}).
+Disabling inlining (\texttt{-finline-limit=0}) produces the highest
+spill rate by preventing GCC from collapsing call chains, keeping more
+live variables simultaneously active across more function boundaries.
+By contrast, \texttt{-fipa-pta} enables interprocedural pointer
+analysis, which reduces aliasing uncertainty and allows better register
+allocation, resulting in the lowest spill rate of the set.
+
+The ref spill/store ratios ($\approx$56--64\%) are consistent with
+train (66.7\%) and the 61.6\% partial average confirms the pattern.
+The ref spill/load ratio (28.96\% partial) is slightly lower than
+train (34.19\%), reflecting larger input files that generate more
+genuine IR data-load traffic relative to spill reloads.
+
+% ==========================================================
+\section*{Cross-Input Summary}
+
+The following metrics are used throughout the table:
+\begin{itemize}
+    \item \textbf{Rate} $= \text{ROI spills} / \text{ROI instructions}$
+    \item \textbf{Sp/Ld} $= \text{ROI spills} / \text{ROI loads}$ \quad (fraction of loads that are spill reloads)
+    \item \textbf{Sp/St} $= \text{ROI spills} / \text{ROI stores}$ \quad (fraction of stores that are spill writes)
+\end{itemize}
+Spill counts are abbreviated: B\,=\,$10^9$, M\,=\,$10^6$.
+
+\begin{table}[H]
+\centering
+\caption{502.gcc\_r --- All Runs Across Input Sizes}
+\label{tab:summary}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{File / Flags} & \textbf{Spills}
+    & \textbf{Rate} & \textbf{Sp/Ld} & \textbf{Sp/St} \\
+\midrule
+\multicolumn{5}{l}{\textit{Test}} \\
+\quad\texttt{t1.c -O3}            &   1.11\,M & 6.92\% & 37.49\% & 56.70\% \\
+\midrule
+\multicolumn{5}{l}{\textit{Train}} \\
+\quad\texttt{200.c -O3}           &   9.88\,B & 8.34\% & 35.11\% & 67.87\% \\
+\quad\texttt{scilab.c -O3}        &   7.23\,B & 7.83\% & 33.23\% & 65.25\% \\
+\quad\texttt{train01.c -O3}       &  811\,M   & 8.08\% & 32.32\% & 65.67\% \\
+\quad\textit{combined}            &  17.92\,B & \textbf{8.12\%} & 34.19\% & 66.69\% \\
+\midrule
+\multicolumn{5}{l}{\textit{Refrate (3 of 5 completed)}} \\
+\quad\texttt{gcc-pp.c -O3 -finline=0}   & 17.98\,B & 7.99\% & 32.79\% & 64.46\% \\
+\quad\texttt{gcc-pp.c -O2 -fpic}        & \multicolumn{4}{c}{\textit{pending}} \\
+\quad\texttt{gcc-smaller.c -fipa-pta}   & 17.19\,B & 6.75\% & 24.62\% & 64.22\% \\
+\quad\texttt{ref32.c -O5}               & 16.41\,B & 7.67\% & 30.71\% & 56.49\% \\
+\quad\texttt{ref32.c -O3 -fsel-sched}   & \multicolumn{4}{c}{\textit{pending}} \\
+\quad\textit{partial combined}          & 51.57\,B & $\approx$7.44\% & 28.96\% & 61.61\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+The spill rate rises from test to train because the larger source
+files activate more GCC optimisation passes and longer call chains.
+The ref partial result falls between test and train. Across all
+input sizes the spill/store ratio (57--67\%) significantly exceeds
+the spill/load ratio (29--37\%), confirming that stack writes dominate
+the store stream while spill reloads are diluted by the large volume
+of genuine IR pointer reads.
+
+\end{document}
