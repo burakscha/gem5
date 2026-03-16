@@ -110,22 +110,29 @@ for entry in "${RUNS[@]}"; do
     legacy_log="$B/$bench/${bench}_test_run.log"
     [ ! -f "$log" ] && [ -f "$legacy_log" ] && log="$legacy_log"
 
-    stats_size=$(wc -c < "$stats" 2>/dev/null || echo "0")
+    stats_size=$(cat "$stats" 2>/dev/null | wc -c)
     is_running=$(ps aux | grep gem5 | grep -v grep | grep "$outd" | wc -l)
 
     stats_size="${stats_size//[[:space:]]/}"
     if [ "${stats_size:-0}" -gt 10 ] 2>/dev/null; then
         # Stats file has content → DONE
-        spill_rate=$(grep "# spill_rate" "$stats" 2>/dev/null | awk '{print $NF}')
-        roi_spills=$(grep "# roi_spills" "$stats" 2>/dev/null | awk '{print $NF}')
-        roi_loads=$(grep "# roi_loads"  "$stats" 2>/dev/null | awk '{print $NF}')
-        roi_stores=$(grep "# roi_stores" "$stats" 2>/dev/null | awk '{print $NF}')
+        spill_rate=$(grep "# spill_rate" "$stats" 2>/dev/null | tail -1 | awk '{print $NF}')
+        roi_spills=$(grep "# roi_spills" "$stats" 2>/dev/null | tail -1 | awk '{print $NF}')
+        roi_loads=$(grep "# roi_loads"  "$stats" 2>/dev/null | tail -1 | awk '{print $NF}')
+        roi_stores=$(grep "# roi_stores" "$stats" 2>/dev/null | tail -1 | awk '{print $NF}')
+
+        # Detect verbose-mode log (no summary lines, only CSV SPILL entries)
+        is_verbose=$(head -2 "$stats" 2>/dev/null | grep -c "C++ Register Spill Detection Log")
 
         if [ -n "$spill_rate" ] && [ -n "$roi_loads" ] && [ "$roi_loads" -gt 0 ] 2>/dev/null; then
             sp_ld=$(awk "BEGIN {printf \"%.2f%%\", $roi_spills/$roi_loads*100}")
             sp_st=$(awk "BEGIN {printf \"%.2f%%\", $roi_spills/$roi_stores*100}")
             printf "${GREEN}%-14s %-16s %-10s %-10s %-8s %-8s${NC}\n" \
                 "$bench" "$input" "DONE" "$spill_rate" "$sp_ld" "$sp_st"
+        elif [ "$is_verbose" -gt 0 ]; then
+            # Verbose log: known mcf ref result (1.98%, Sp/Ld/Sp/St not available)
+            printf "${GREEN}%-14s %-16s %-10s${NC}\n" \
+                "$bench" "$input" "DONE(verbose)"
         else
             printf "${YELLOW}%-14s %-16s %-10s${NC}\n" \
                 "$bench" "$input" "DONE(no ROI)"
