@@ -102,7 +102,7 @@ void SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
   }
 }
 
-void SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
+bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
                                       unsigned size, Addr current_stack_ptr,
                                       ThreadContext *tc) {
   total_loads++;
@@ -130,10 +130,16 @@ void SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
                            store_info.instruction_count, total_instructions);
           writeSpillToLog(spill);
         }
+
+        store_map.erase(store_it);
+        // Signal the caller that this load is a spill reload inside the ROI
+        // so it can tag the Request with Request::SPILL_LOAD.
+        return true;
       }
     }
     store_map.erase(store_it);
   }
+  return false;
 }
 
 void SpillDetector::onInstructionExecute(Addr pc, Tick tick) {

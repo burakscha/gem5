@@ -153,7 +153,9 @@ public:
   void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
                           Addr current_stack_ptr);
 
-  void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
+  // Returns true when the load is confirmed as a spill reload inside the ROI.
+  // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_LOAD.
+  bool onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
                          Addr current_stack_ptr, ThreadContext *tc = nullptr);
 
   void onInstructionExecute(Addr pc, Tick tick);

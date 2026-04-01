@@ -1144,6 +1144,18 @@ class BaseCache : public ClockedObject
          */
         statistics::Scalar dataContractions;
 
+        /**
+         * Register-spill reload (demand load) hit/miss counters.
+         * Incremented only for requests tagged Request::SPILL_LOAD
+         * that are pkt->isDemand().  Counts are ROI-scoped when the
+         * benchmark resets stats at m5_work_begin.
+         *
+         * L2 local hit rate  = spillLoadHits / (spillLoadHits + spillLoadMisses)
+         * L2 rescue rate     = spillLoadHits / L1.spillLoadMisses
+         */
+        statistics::Scalar spillLoadHits;
+        statistics::Scalar spillLoadMisses;
+
         /** Per-command statistics */
         std::vector<std::unique_ptr<CacheCmdStats>> cmd;
     } stats;
@@ -1278,11 +1290,15 @@ class BaseCache : public ClockedObject
             if (missCount == 0)
                 exitSimLoop("A cache reached the maximum miss count");
         }
+        if (pkt->isDemand() && pkt->req->isSpillLoad())
+            stats.spillLoadMisses++;
     }
     void incHitCount(PacketPtr pkt)
     {
         assert(pkt->req->requestorId() < system->maxRequestors());
         stats.cmdStats(pkt).hits[pkt->req->requestorId()]++;
+        if (pkt->isDemand() && pkt->req->isSpillLoad())
+            stats.spillLoadHits++;
     }
 
     /**

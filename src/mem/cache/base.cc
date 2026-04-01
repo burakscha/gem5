@@ -2336,6 +2336,10 @@ BaseCache::CacheStats::CacheStats(BaseCache &c)
              "number of data expansions"),
     ADD_STAT(dataContractions, statistics::units::Count::get(),
              "number of data contractions"),
+    ADD_STAT(spillLoadHits, statistics::units::Count::get(),
+             "number of demand hits for register-spill reload requests"),
+    ADD_STAT(spillLoadMisses, statistics::units::Count::get(),
+             "number of demand misses for register-spill reload requests"),
     cmd(MemCmd::NUM_MEM_CMDS)
 {
     for (int idx = 0; idx < MemCmd::NUM_MEM_CMDS; ++idx)

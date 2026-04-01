@@ -497,12 +497,15 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   // REGISTER SPILL DETECTION: Track this load instruction
   // Get architecture-specific stack pointer for spill analysis
   Addr current_sp = getStackPointer(thread);
-  spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp,
-                                  thread->getTC());
+  bool is_spill_load = spillDetector.onLoadInstruction(addr, pc, curTick(),
+                                  size, current_sp, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
+  // Tag request so BaseCache can count spill-specific hit/miss stats.
+  if (is_spill_load)
+      req->setFlags(Request::SPILL_LOAD);
 
   req->taskId(taskId());
 
