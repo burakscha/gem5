@@ -1150,11 +1150,25 @@ class BaseCache : public ClockedObject
          * that are pkt->isDemand().  Counts are ROI-scoped when the
          * benchmark resets stats at m5_work_begin.
          *
-         * L2 local hit rate  = spillLoadHits / (spillLoadHits + spillLoadMisses)
-         * L2 rescue rate     = spillLoadHits / L1.spillLoadMisses
+         * L1 spill load hit rate  = spillLoadHits / (spillLoadHits + spillLoadMisses)
+         * L2 rescue rate          = l2.spillLoadHits / L1.spillLoadMisses
          */
         statistics::Scalar spillLoadHits;
         statistics::Scalar spillLoadMisses;
+
+        /**
+         * Register-spill write (demand store) hit/miss counters.
+         * Incremented only for requests tagged Request::SPILL_STORE
+         * that are pkt->isDemand().
+         *
+         * NOTE: This is an over-approximation — all stack stores inside the
+         * ROI are tagged, not only those that are paired with a spill reload.
+         * Useful for measuring cache pressure from spill writes.
+         *
+         * L1 spill store hit rate = spillStoreHits / (spillStoreHits + spillStoreMisses)
+         */
+        statistics::Scalar spillStoreHits;
+        statistics::Scalar spillStoreMisses;
 
         /** Per-command statistics */
         std::vector<std::unique_ptr<CacheCmdStats>> cmd;
@@ -1292,6 +1306,8 @@ class BaseCache : public ClockedObject
         }
         if (pkt->isDemand() && pkt->req->isSpillLoad())
             stats.spillLoadMisses++;
+        if (pkt->isDemand() && pkt->req->isSpillStore())
+            stats.spillStoreMisses++;
     }
     void incHitCount(PacketPtr pkt)
     {
@@ -1299,6 +1315,8 @@ class BaseCache : public ClockedObject
         stats.cmdStats(pkt).hits[pkt->req->requestorId()]++;
         if (pkt->isDemand() && pkt->req->isSpillLoad())
             stats.spillLoadHits++;
+        if (pkt->isDemand() && pkt->req->isSpillStore())
+            stats.spillStoreHits++;
     }
 
     /**

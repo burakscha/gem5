@@ -150,8 +150,10 @@ public:
   // -------------------------------------------------------
   // Hot-path callbacks (called per instruction)
   // -------------------------------------------------------
-  void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
-                          Addr current_stack_ptr);
+  // Returns true when the store is a spill write (stack store inside ROI).
+  // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_STORE.
+  bool onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
+                          Addr current_stack_ptr, ThreadContext *tc = nullptr);
 
   // Returns true when the load is confirmed as a spill reload inside the ROI.
   // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_LOAD.

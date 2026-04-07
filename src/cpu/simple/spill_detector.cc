@@ -84,8 +84,9 @@ void SpillDetector::setVerbose(bool v) {
 // -------------------------------------------------------------------------
 // Hot-path callbacks
 // -------------------------------------------------------------------------
-void SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
-                                       unsigned size, Addr current_stack_ptr) {
+bool SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
+                                       unsigned size, Addr current_stack_ptr,
+                                       ThreadContext *tc) {
   total_stores++;
   dynamic_store_count++;
 
@@ -100,6 +101,23 @@ void SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
   if (store_map.size() > MAX_STORE_ENTRIES) {
     cleanupOldStores(tick);
   }
+
+  // A store is tagged as a spill store when it is inside the ROI and its
+  // target address is within the process stack region.  This is intentionally
+  // a conservative over-approximation (not every stack store is a true
+  // register spill), but it is correct enough for a first-pass analysis.
+  if (!inside_roi)
+    return false;
+
+  if (tc) {
+    Process *process = tc->getProcessPtr();
+    if (process && process->memState) {
+      Addr stackBase = process->memState->getStackBase();
+      Addr stackMin  = process->memState->getStackMin();
+      return (address >= stackMin && address < stackBase);
+    }
+  }
+  return false;
 }
 
 bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,

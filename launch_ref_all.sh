@@ -227,8 +227,31 @@ nohup $GEM5 \
 echo "  PID=$!"
 
 # -------------------------------------------------------
-# 18. namd ref already counted above as #9
 # -------------------------------------------------------
+# 18. gcc ref  (gcc-pp.c -O3 — canonical ref workload)
+# -------------------------------------------------------
+echo "[18/19] gcc ref: gcc-pp.c O3"
+mkdir -p benchmarks/gcc/m5out_ref
+nohup $GEM5 \
+  --outdir=benchmarks/gcc/m5out_ref $CFG \
+  --cmd=benchmarks/gcc/gcc_r.riscv \
+  '--options=benchmarks/gcc/gcc-pp.c -O3 -finline-limit=0 -fif-conversion -fif-conversion2 -o benchmarks/gcc/ref_pp_O3.s' \
+  $OPTS \
+  > benchmarks/gcc/m5out_ref/nohup.log 2>&1 &
+echo "  PID=$!"
+
+# -------------------------------------------------------
+# 19. mcf ref  (inp.in — single canonical input)
+# -------------------------------------------------------
+echo "[19/19] mcf ref"
+mkdir -p benchmarks/mcf/m5out_ref
+nohup $GEM5 \
+  --outdir=benchmarks/mcf/m5out_ref $CFG \
+  --cmd=benchmarks/mcf/mcf_r.riscv \
+  --options=benchmarks/mcf/inp.in \
+  $OPTS \
+  > benchmarks/mcf/m5out_ref/nohup.log 2>&1 &
+echo "  PID=$!"
 
 echo ""
 echo "=== All launched. $(date) ==="
