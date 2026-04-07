@@ -75,7 +75,7 @@ def find_best_m5out(bench_dir: Path):
         if not stats.exists():
             continue
         with open(stats) as f:
-            has_new = 'spillLoadHits' in f.read()
+            has_new = any('spillLoadHits' in line for line in f)
         candidates.append((d.name, d, has_new))
 
     if not candidates:

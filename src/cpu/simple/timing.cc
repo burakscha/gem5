@@ -589,7 +589,6 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
-  // Tag request so BaseCache can count spill-specific store hit/miss stats.
   if (is_spill_store)
       req->setFlags(Request::SPILL_STORE);
 

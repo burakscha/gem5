@@ -102,22 +102,8 @@ bool SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
     cleanupOldStores(tick);
   }
 
-  // A store is tagged as a spill store when it is inside the ROI and its
-  // target address is within the process stack region.  This is intentionally
-  // a conservative over-approximation (not every stack store is a true
-  // register spill), but it is correct enough for a first-pass analysis.
-  if (!inside_roi)
-    return false;
-
-  if (tc) {
-    Process *process = tc->getProcessPtr();
-    if (process && process->memState) {
-      Addr stackBase = process->memState->getStackBase();
-      Addr stackMin  = process->memState->getStackMin();
-      return (address >= stackMin && address < stackBase);
-    }
-  }
-  return false;
+  // Over-approximation: tag all stack stores inside ROI as spill writes.
+  return inside_roi && isStackAddress(address, tc);
 }
 
 bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
@@ -185,18 +171,19 @@ bool SpillDetector::isLikelySpill(const StoreInfo &store_info, Addr load_pc,
   }
 
   // 3. Stack region check (SE mode only)
-  if (tc) {
-    Process *process = tc->getProcessPtr();
-    if (process && process->memState) {
-      Addr stackBase = process->memState->getStackBase();
-      Addr stackMin  = process->memState->getStackMin();
-      if (address < stackMin || address >= stackBase) {
-        return false;
-      }
-    }
-  }
+  if (tc && !isStackAddress(address, tc))
+    return false;
 
   return true;
+}
+
+bool SpillDetector::isStackAddress(Addr address, ThreadContext *tc) {
+  if (!tc) return false;
+  Process *process = tc->getProcessPtr();
+  if (!process || !process->memState) return false;
+  Addr stackBase = process->memState->getStackBase();
+  Addr stackMin  = process->memState->getStackMin();
+  return (address >= stackMin && address < stackBase);
 }
 
 // -------------------------------------------------------------------------

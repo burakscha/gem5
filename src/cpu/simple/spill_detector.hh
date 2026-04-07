@@ -165,6 +165,9 @@ public:
   bool isLikelySpill(const StoreInfo &store_info, Addr load_pc, Addr address,
                      Tick load_tick, unsigned load_size, ThreadContext *tc);
 
+  // Returns true if address falls within the process stack region (SE mode).
+  bool isStackAddress(Addr address, ThreadContext *tc);
+
   void printSpillReport() const;
 
   // -------------------------------------------------------
