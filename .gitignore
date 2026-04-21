@@ -86,7 +86,9 @@ me.prm
 spec_test.par
 statistics
 test_python_link.c
-001-m0.vtk
+*.vtk
+benchmarks/blender/blendcache_*/
+benchmarks/lbm/report/
 get-pip.py
 Miniconda3-*.sh
 
