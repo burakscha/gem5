@@ -115,7 +115,7 @@ private:
   bool verbose; // set by TimingSimpleCPU from params.spill_verbose
 
   // Detection window / map limits
-  static const Tick     MAX_SPILL_WINDOW  = 10000000;
+  static const Tick     MAX_SPILL_WINDOW  = 50000000;   // 50 µs — wide enough for micro-tests
   static const unsigned MAX_STORE_ENTRIES = 10000;
 
   // -------------------------------------------------------
