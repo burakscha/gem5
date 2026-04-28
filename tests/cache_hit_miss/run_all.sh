@@ -23,6 +23,10 @@ TESTS=(
     "store/l1_hit"
     "store/l1_miss"
     "store/l1miss_l2miss"
+    "negative/non_stack"
+    "negative/roi_outside"
+    "negative/size_mismatch"
+    "negative/window_expired"
 )
 
 PASS_COUNT=0
