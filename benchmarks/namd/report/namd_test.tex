@@ -1,0 +1,253 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 508.namd\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{508.namd\_r} benchmark from SPEC CPU2017, executed on a RISC-V
+(RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (1 iteration) was used to obtain a fast yet representative
+measurement. Results show a spill rate of approximately 1.03\% within the
+ROI, corresponding to over 327 million detected spill events out of
+31.9 billion simulated instructions.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{508.namd\_r} is the SPEC CPU2017 rate variant of NAMD, a molecular
+dynamics application used to simulate large biomolecular systems.
+The benchmark models the ApoA1 lipid-protein complex and is
+compute-intensive, dominated by floating-point arithmetic and
+repeated force-calculation loops.
+
+The RISC-V binary (\texttt{namd\_r.riscv}) was compiled with gem5 ROI
+markers inserted around the main iteration loop in \texttt{spec\_namd.C}.
+The markers delimit the Region of Interest using the gem5 \texttt{m5ops}
+pseudo-instructions:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} — inserted before the iteration loop
+    \item \texttt{m5\_work\_end(0,0)}   — inserted after  the iteration loop
+\end{itemize}
+
+Only spills occurring between these two markers are counted toward the
+reported statistics.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input}
+
+NAMD accepts a single molecular structure file (\texttt{apoa1.input})
+shared across all dataset sizes. The dataset variant is controlled
+solely by the \texttt{--iterations} argument. Table~\ref{tab:inputs}
+summarises the three standard dataset sizes.
+
+\begin{table}[H]
+\centering
+\caption{NAMD Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Dataset} & \textbf{Iterations} & \textbf{Input File} \\
+\midrule
+test     & 1  & apoa1.input \\
+train    & 8  & apoa1.input \\
+refrate  & 65 & apoa1.input \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset (1 iteration) was selected for this run to
+obtain a quick and verifiable result. The input file \texttt{apoa1.input}
+is 7.8\,MB and represents the ApoA1 system with 92,224 atoms.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/namd/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/namd/namd_r.riscv
+  --options="--input benchmarks/namd/apoa1.input
+             --iterations 1
+             --output benchmarks/namd/apoa1.test.output"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully with the output:
+\texttt{"SUCCESSFUL COMPLETION — 1 ITERATIONS"}.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI was entered, the binary executed setup and
+initialization code. Table~\ref{tab:preroi} shows the global
+counters at the moment \texttt{m5\_work\_begin} was triggered.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 1,558,178,327 \\
+Total spills detected (pre-ROI) & 125,215,610 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected exclusively
+within the ROI (one NAMD iteration).
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics — 508.namd\_r (test, 1 iteration)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 31,914,751,100 \\
+ROI stores               &  1,945,521,360 \\
+ROI loads                &  8,380,476,926 \\
+\midrule
+\textbf{ROI spills}      & \textbf{327,718,955} \\
+\textbf{Spill rate}      & \textbf{1.0269\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time  & 68.73\,s \\
+Host wall time  & 25,169\,s ($\approx$7\,hours) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{1.03\%} means that approximately
+1 in every 97 instructions inside the ROI is a register spill
+(a stack load matching a prior stack store).
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{327{,}718{,}955}{8{,}380{,}476{,}926} \approx 3.91\%
+\]
+meaning roughly 1 in 25 load instructions is a spill reload.
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (8.38B) is approximately 4.3$\times$ higher than the
+store count (1.95B). This asymmetry is characteristic of
+floating-point-heavy kernels: values are loaded many times for
+repeated force calculations but written back to the stack
+less frequently.
+
+\subsection{Pre-ROI vs.\ ROI Spill Density}
+
+Pre-ROI spills: $125{,}215{,}610$ over $1{,}558{,}178{,}327$ instructions
+= \textbf{8.03\%} spill rate. This is notably higher than the ROI
+rate (1.03\%), indicating that NAMD's initialization and data-loading
+phase is more register-pressure-intensive than the core iteration loop.
+
+\subsection{Scaling to Refrate}
+
+The test dataset uses 1 iteration; the refrate dataset uses 65.
+Assuming the ROI spill count scales linearly with iteration count,
+the estimated refrate spill count would be:
+\[
+327{,}718{,}955 \times 65 \approx 21.3 \text{ billion spills}
+\]
+This projection should be verified against an actual refrate run.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{508.namd\_r} benchmark exhibits a moderate register spill
+rate of 1.03\% within its core computation ROI on RISC-V RV64GC.
+With 327 million spill events across 31.9 billion instructions in a
+single iteration, the benchmark presents a meaningful but not dominant
+spill workload. The pre-ROI initialization phase shows a significantly
+higher spill density (8.03\%), suggesting that the molecular structure
+loading phase is the primary source of register pressure in NAMD.
+
+\end{document}

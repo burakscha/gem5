@@ -4,15 +4,20 @@
  *
  * Generic Register Spill Detection System for gem5
  *
- * This implements real-time instruction-level analysis to detect register
- * spills by tracking store-load patterns to the same memory addresses.
+ * VERBOSITY FLAG
+ * ==============
+ * spill_verbose (default: false)
+ *   false -> summary-only mode: counters are updated in RAM;
+ *            a compact block is written to the log file only at ROI end.
+ *            Output stays tiny (< 1 KB) regardless of spill count.
+ *   true  -> verbose mode: every detected spill inside the ROI is written
+ *            to the log file immediately, followed by a summary block.
+ *            WARNING: can produce tens of GB for long workloads.
  *
- * GENERIC ISA IMPLEMENTATION:
- * ============================
- * - Optimized for multiple architectures (X86, RISC-V, etc.)
- * - Ultra-basic detection mode with minimal filtering
- * - Silent operation with file-only logging
- * - Enhanced header documentation for spill analysis
+ * Set via gem5 Python parameter:
+ *   system.cpu.spill_verbose = True
+ * or from se.py with --param:
+ *   --param 'system.cpu.spill_verbose=True'
  */
 
 #ifndef __CPU_SIMPLE_SPILL_DETECTOR_HH__
@@ -20,10 +25,7 @@
 
 #include "base/types.hh"
 #include <fstream>
-#include <map>
-#include <set>
 #include <unordered_map>
-#include <vector>
 
 namespace gem5 {
 
@@ -32,30 +34,19 @@ class ThreadContext;
 class Process;
 class MemState;
 
-/**
- * Generic Register Spill Detection System
- *
- * This class implements ultra-basic spill detection:
- * - Uses C++ std::unordered_map to track store operations
- * - Monitors each instruction's memory accesses in real-time
- * - Detects when a load operation accesses the same address as a recent store
- * - Counts such patterns as potential register spills (minimal filtering)
- */
 class SpillDetector {
 public:
-  // Structure to store information about a store operation
+  // -------------------------------------------------------
+  // Store operation metadata (core of the detection map)
+  // -------------------------------------------------------
   struct StoreInfo {
-    Addr address;               // Memory address that was stored to
-    Addr pc;                    // Program counter of store instruction
-    Tick tick;                  // Simulation tick when store occurred
-    unsigned size;              // Size of data stored (in bytes)
-    uint64_t instruction_count; // Global instruction counter
-
-    // Generic stack pointer (replaces X86's rsp_at_store and RISC-V's
-    // sp_at_store)
+    Addr address;
+    Addr pc;
+    Tick tick;
+    unsigned size;
+    uint64_t instruction_count;
     Addr stack_ptr_at_store;
 
-    // Default constructor for std::unordered_map
     StoreInfo()
         : address(0), pc(0), tick(0), size(0), instruction_count(0),
           stack_ptr_at_store(0) {}
@@ -67,17 +58,18 @@ public:
           stack_ptr_at_store(current_stack_ptr) {}
   };
 
-  // Structure to store information about a detected spill
-  // This structure is identical for both X86 and RISC-V
+  // -------------------------------------------------------
+  // Per-spill event (used only in verbose mode)
+  // -------------------------------------------------------
   struct SpillEvent {
-    Addr store_pc;             // PC of the store instruction
-    Addr load_pc;              // PC of the load instruction
-    Addr address;              // Memory address involved in spill
-    Tick store_tick;           // When store happened
-    Tick load_tick;            // When load happened
-    Tick tick_diff;            // Time difference between store and load
-    uint64_t store_inst_count; // Instruction count when store occurred
-    uint64_t load_inst_count;  // Instruction count when load occurred
+    Addr store_pc;
+    Addr load_pc;
+    Addr address;
+    Tick store_tick;
+    Tick load_tick;
+    Tick tick_diff;
+    uint64_t store_inst_count;
+    uint64_t load_inst_count;
 
     SpillEvent(Addr s_pc, Addr l_pc, Addr addr, Tick s_tick, Tick l_tick,
                uint64_t s_inst, uint64_t l_inst)
@@ -87,138 +79,118 @@ public:
   };
 
 private:
-  // Map to track store operations: address -> StoreInfo
-  // This is the core C++ map structure for ultra-basic spill detection
+  // address -> StoreInfo map (core detection structure)
   std::unordered_map<Addr, StoreInfo> store_map;
 
-  // Vector to store all detected spill events
-  std::vector<SpillEvent> detected_spills;
-
-  // Statistics counters
+  // Global counters
   uint64_t total_instructions;
   uint64_t total_stores;
   uint64_t total_loads;
   uint64_t total_spills_detected;
-  mutable uint64_t
-      total_spills_logged; // Counter for spills actually written to log file
 
-  // Static analysis counters
+  // Static / dynamic analysis counters (kept for completeness)
   uint64_t static_store_count;
   uint64_t static_load_count;
-
-  // Dynamic analysis counters
   uint64_t dynamic_store_count;
   uint64_t dynamic_load_count;
 
   // =========================================
-  // ROI (Region of Interest) Tracking
+  // ROI tracking
   // =========================================
-  bool roi_active;         // Is ROI mode enabled (any ROI markers present)?
-  bool inside_roi;         // Are we currently inside a ROI?
-  uint64_t current_roi_id; // Current ROI work ID
+  bool roi_active;
+  bool inside_roi;
+  uint64_t current_roi_id;
 
-  // ROI-specific counters (reset when entering ROI)
   uint64_t roi_spills_detected;
   uint64_t roi_stores;
   uint64_t roi_loads;
   uint64_t roi_instructions;
-  Tick roi_start_tick; // When ROI started
+  Tick     roi_start_tick;
+  uint64_t roi_entry_total_insts;
+  uint64_t roi_entry_total_spills;
 
-  // Configuration parameters - ultra-basic mode with minimal constraints
-  static const Tick MAX_SPILL_WINDOW =
-      10000000; // Large window for maximum detection
-  static const unsigned MAX_STORE_ENTRIES =
-      10000; // Max stored addresses to track
+  // =========================================
+  // Verbosity flag
+  // =========================================
+  bool verbose; // set by TimingSimpleCPU from params.spill_verbose
 
-  // Helper methods
+  // Detection window / map limits
+  static const Tick     MAX_SPILL_WINDOW  = 50000000;   // 50 µs — wide enough for micro-tests
+  static const unsigned MAX_STORE_ENTRIES = 10000;
+
+  // -------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------
   void cleanupOldStores(Tick current_tick);
-  void writeSpillToLog(const SpillEvent &spill);
+
+  // Writes the SPILL-format header (verbose mode only, called once)
   void writeLogHeader();
+
+  // Writes a single SPILL CSV line (verbose mode only, per spill)
+  void writeSpillToLog(const SpillEvent &spill);
+
+  // Writes the compact ROI summary block (both modes)
+  void writeROISummary(uint64_t workid);
 
 public:
   SpillDetector();
   ~SpillDetector();
 
+  // -------------------------------------------------------
+  // Verbosity control — called by TimingSimpleCPU constructor
+  // -------------------------------------------------------
   /**
-   * Called when a store instruction executes
-   * This is where we populate our C++ map with store information
-   * Uses a generic 'current_stack_ptr' parameter
+   * Enable or disable per-spill verbose logging.
+   * Must be called before any ROI begins.
+   * When set to true the SPILL-format header is written immediately.
    */
-  void onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
-                          Addr current_stack_ptr);
+  void setVerbose(bool v);
+  bool isVerbose() const { return verbose; }
 
-  /**
-   * Called when a load instruction executes
-   * This is where we check the map for matching stores and detect spills
-   * Uses a generic 'current_stack_ptr' parameter
-   * @param tc ThreadContext for stack bounds access (can be nullptr)
-   */
-  void onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
+  // -------------------------------------------------------
+  // Hot-path callbacks (called per instruction)
+  // -------------------------------------------------------
+  // Returns true when the store is a spill write (stack store inside ROI).
+  // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_STORE.
+  bool onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
+                          Addr current_stack_ptr, ThreadContext *tc = nullptr);
+
+  // Returns true when the load is confirmed as a spill reload inside the ROI.
+  // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_LOAD.
+  bool onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
                          Addr current_stack_ptr, ThreadContext *tc = nullptr);
 
-  /**
-   * Called for every instruction to update instruction counter
-   */
   void onInstructionExecute(Addr pc, Tick tick);
 
-  /**
-   * Determine if a store-load pair is likely a register spill
-   * @param store_info Information about the store operation
-   * @param load_pc PC of the load instruction
-   * @param address Memory address being accessed
-   * @param load_tick Simulation tick when load occurred
-   * @param load_size Size of data being loaded (for size match check)
-   * @param tc ThreadContext for accessing Process memState (stack bounds)
-   */
   bool isLikelySpill(const StoreInfo &store_info, Addr load_pc, Addr address,
                      Tick load_tick, unsigned load_size, ThreadContext *tc);
 
-  /**
-   * Print spill report (silent operation - no console output)
-   */
+  // Returns true if address falls within the process stack region (SE mode).
+  bool isStackAddress(Addr address, ThreadContext *tc);
+
   void printSpillReport() const;
 
-  /**
-   * Get current spill statistics
-   */
-  uint64_t getTotalSpills() const { return total_spills_detected; }
+  // -------------------------------------------------------
+  // Accessors
+  // -------------------------------------------------------
+  uint64_t getTotalSpills()       const { return total_spills_detected; }
   uint64_t getTotalInstructions() const { return total_instructions; }
-  uint64_t getTotalStores() const { return total_stores; }
-  uint64_t getTotalLoads() const { return total_loads; }
+  uint64_t getTotalStores()       const { return total_stores; }
+  uint64_t getTotalLoads()        const { return total_loads; }
 
-  /**
-   * Reset all counters and clear maps
-   */
   void reset();
 
-  // =========================================
-  // ROI (Region of Interest) Control Methods
-  // =========================================
-
-  /**
-   * Called when m5_work_begin is executed
-   * Activates ROI mode and resets ROI-specific counters
-   */
+  // -------------------------------------------------------
+  // ROI control (called from pseudo_inst.cc)
+  // -------------------------------------------------------
   void enterROI(uint64_t workid);
-
-  /**
-   * Called when m5_work_end is executed
-   * Exits ROI mode and logs ROI-specific statistics
-   */
   void exitROI(uint64_t workid);
 
-  /**
-   * Check if currently inside ROI
-   */
-  bool isInsideROI() const { return inside_roi; }
-
-  /**
-   * Get ROI-specific spill count
-   */
-  uint64_t getROISpills() const { return roi_spills_detected; }
-  uint64_t getROIStores() const { return roi_stores; }
-  uint64_t getROILoads() const { return roi_loads; }
-  uint64_t getROIInstructions() const { return roi_instructions; }
+  bool     isInsideROI()       const { return inside_roi; }
+  uint64_t getROISpills()      const { return roi_spills_detected; }
+  uint64_t getROIStores()      const { return roi_stores; }
+  uint64_t getROILoads()       const { return roi_loads; }
+  uint64_t getROIInstructions()const { return roi_instructions; }
 };
 
 } // namespace gem5

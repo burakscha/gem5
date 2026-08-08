@@ -1,0 +1,388 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 510.parest\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{510.parest\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{test.prm}, 8$\times$8$\times$4 coarse mesh,
+1 experiment) was used as the input. Results show a spill rate of
+\textbf{0.34\%} within the ROI --- the lowest of all 17 evaluated
+SPEC CPU2017 benchmarks --- with 128 million detected spill events
+across 37.3 billion ROI instructions. The parest finite element solver
+is dominated by sparse matrix--vector products and conjugate gradient
+iterations, which exhibit a highly regular memory access pattern and
+an extreme load-to-store ratio of 11.8:1. The register file is
+effectively utilized by the iterative solver kernels, leaving
+almost no spill pressure on the RISC-V register allocator.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{510.parest\_r} is the SPEC CPU2017 rate variant of
+\emph{par}allel \emph{est}imation (parest), a C++ application for
+parameter estimation in partial differential equations, specifically
+medical diffuse optical tomography. The benchmark solves an
+inverse problem: given synthetic boundary measurements of light
+transport in a 3-D tissue phantom, recover the spatially varying
+absorption coefficient using an iterative Newton-CG method backed
+by the deal.II finite element library.
+
+The computational core involves:
+\begin{itemize}
+    \item Assembling the finite element stiffness matrix on a
+          3-D hexahedral mesh (8$\times$8$\times$4 elements for the
+          test dataset);
+    \item Solving forward and adjoint PDEs via conjugate gradient
+          with AMG preconditioning;
+    \item Evaluating the misfit functional and its gradient;
+    \item Performing mesh refinement and updating the parameter
+          discretisation across Newton iterations.
+\end{itemize}
+
+The RISC-V binary (\texttt{parest\_r.riscv}) was compiled with gem5
+ROI markers inserted around the \texttt{do\_job()} call in
+\texttt{src/source/me-tomography/me\_tomography.cc}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{do\_job()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{do\_job()}
+\end{itemize}
+
+\texttt{do\_job()} encompasses all Newton iterations including mesh
+assembly, forward/adjoint solves, gradient evaluation, and adaptive
+mesh refinement.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{parest\_r},
+differing in mesh resolution and number of Newton iterations
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{parest\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Mesh} & \textbf{Description} \\
+\midrule
+test    & 8$\times$8$\times$4    & 1 experiment, coarse mesh \\
+train   & medium                 & more refinement levels \\
+refrate & fine                   & full production run \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study. Despite the
+coarse mesh, the Newton-CG solver generates 37.3 billion RISC-V
+instructions because each conjugate gradient iteration on even a
+small 3-D FEM mesh requires numerous sparse matrix--vector products,
+each traversing large irregular data structures in memory.
+
+\subsection{gem5 SE Mode Compatibility}
+
+The parest source accesses \texttt{/proc/loadavg} to report system
+load in diagnostic output. This virtual file is not available in
+gem5's Syscall Emulation (SE) mode. The single call site in
+\texttt{src/source/base/utilities.cc} (\texttt{get\_cpu\_load()})
+was patched to return 0.0 unconditionally; this value is used
+only for logging and has no effect on the simulation result.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/parest/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/parest/parest_r.riscv
+  --options="benchmarks/parest/test.prm"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+The single argument \texttt{test.prm} is the deal.II parameter file
+that specifies the mesh dimensions, FEM discretisation, Newton solver
+tolerances, and output format.
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. The Newton solver executed all
+configured iterations, produced VTK output files for the solution,
+and exited cleanly.
+
+\subsection{Pre-ROI Context}
+
+Before \texttt{do\_job()} was entered, the binary executed deal.II
+runtime initialisation: parsing the parameter file, constructing the
+finite element and quadrature objects, and building the coarse mesh.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 4,282,420 \\
+Total spills detected (pre-ROI) & 145,908 \\
+Pre-ROI spill rate & 3.41\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI spill rate (3.41\%) is an order of magnitude higher than
+the ROI rate (0.34\%). This contrast arises because the initialisation
+phase exercises deep C++ constructor chains from deal.II (cell
+iterators, FE objects, triangulation structures), which generate
+significant register pressure, whereas the ROI solver kernels are
+dominated by numerically flat inner loops.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 510.parest\_r (test.prm)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 37,262,401,282 \\
+ROI stores               &  1,009,678,754 \\
+ROI loads                & 11,899,900,782 \\
+\midrule
+\textbf{ROI spills}      & \textbf{127,688,196} \\
+\textbf{Spill rate}      & \textbf{0.3427\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 94.18\,s \\
+Host wall time           & 23{,}977.00\,s ($\approx$6.66\,hours) \\
+Total simulated instructions & 37,270,019,516 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{0.34\%} places
+\texttt{parest\_r} seventeenth (last) among all 17 evaluated SPEC
+CPU2017 benchmarks (Table~\ref{tab:compare}), well below the
+previous minimum of 1.03\% (\texttt{508.namd\_r}).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+511.povray\_r    &   174,359,922 & 7.7809\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+520.omnetpp\_r   &   894,619,681 & 7.1994\% \\
+502.gcc\_r       &     1,108,838 & 6.9185\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & 4.6427\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+525.x264\_r      &   767,981,981 & 3.2812\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+557.xz\_r        &    38,411,428 & 1.9069\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+510.parest\_r    &   127,688,196 & \textbf{0.3427\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (11.90B) is $\mathbf{11.79\times}$ higher than the
+store count (1.01B), the most extreme load dominance observed across
+all 17 evaluated benchmarks. This structural characteristic of the
+finite element solver arises directly from the conjugate gradient
+algorithm:
+\begin{itemize}
+    \item \textbf{Sparse matrix--vector products (SpMV)}: each SpMV
+          traverses the entire non-zero structure of the stiffness
+          matrix (loads from \texttt{values[]} and \texttt{col\_ind[]}
+          arrays) and accumulates results into a dense output vector
+          (one store per row). The non-zero count greatly exceeds the
+          row count, producing many loads per store.
+    \item \textbf{Vector updates} (\texttt{axpy}, dot products): these
+          read two input vectors and write one output, yielding 2:1
+          load:store ratios that compound across the CG loop.
+    \item \textbf{AMG preconditioner application}: similar SpMV
+          pattern at each level of the multigrid hierarchy.
+\end{itemize}
+Across all CG iterations, the cumulative effect is an 11.79:1
+load-to-store ratio, far exceeding the 2--3:1 typical of
+object-oriented or tree-traversal workloads.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{127{,}688{,}196}{11{,}899{,}900{,}782} \approx 1.07\%
+\]
+Fewer than 1 in 90 load instructions is a spill reload. The FEM
+solver inner loop operates on a small set of variables: the current
+residual vector pointer, the search direction pointer, two scalar
+step-size values ($\alpha$, $\beta$), and the iteration counter.
+RISC-V's 32 registers accommodate this working set trivially, leaving
+virtually no register pressure. The 1.07\% spill-to-load fraction
+is the lowest of all evaluated benchmarks, reflecting the
+register-friendly nature of iterative Krylov solvers.
+
+\subsection{Pre-ROI vs.\ ROI Spill Rate Contrast}
+
+The pre-ROI spill rate (3.41\%) is $10\times$ higher than the ROI
+rate (0.34\%). This inversion is structurally caused by the layered
+initialisation of the deal.II library: constructing a
+\texttt{Triangulation}, a \texttt{DoFHandler}, and a
+\texttt{ConstraintMatrix} involves deep C++ constructor chains with
+many arguments passed by reference across multiple abstraction layers,
+generating register pressure comparable to object-oriented benchmarks.
+Once initialisation completes and the solver enters the Newton loop,
+the computational character shifts entirely to numerical kernels with
+minimal function-call depth.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $37{,}262{,}401{,}282$ out of $37{,}270{,}019{,}516$
+total simulated instructions:
+\[
+\frac{37{,}262{,}401{,}282}{37{,}270{,}019{,}516} \approx 99.98\%
+\]
+The near-perfect ROI coverage confirms that \texttt{do\_job()}
+encompasses virtually all benchmark computation. The 0.02\% outside
+the ROI corresponds to deal.II mesh construction and parameter file
+parsing.
+
+\subsection{FEM Solver Register Efficiency}
+
+The 0.34\% spill rate demonstrates that iterative finite element
+solvers are among the most register-efficient workloads on RISC-V
+RV64GC. The CG and SpMV kernels that dominate execution share two
+structural properties:
+\begin{itemize}
+    \item \textbf{Flat call depth}: the hot path is a tight loop with
+          no virtual dispatch or recursive calls, so the compiler can
+          keep all live variables in registers without spilling.
+    \item \textbf{Memory bandwidth bound}: the bottleneck is cache
+          miss latency during sparse matrix traversal, not
+          register-file capacity. Spills would add additional memory
+          traffic that the compiler actively avoids.
+\end{itemize}
+The extreme 11.79:1 load-to-store ratio thus reflects the memory
+access pattern of the algorithm, not register pressure: the register
+file is not oversubscribed, but the working data structures (sparse
+matrices, multi-level vectors) far exceed cache capacity and are
+streamed from DRAM on every iteration.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{510.parest\_r} benchmark exhibits a register spill rate
+of 0.34\% within the \texttt{do\_job()} ROI on RISC-V RV64GC, the
+lowest of all 17 evaluated SPEC CPU2017 benchmarks. With 128 million
+spill events across 37.3 billion ROI instructions and a 99.98\%
+ROI coverage, the benchmark is comprehensively characterised. The
+11.79:1 load-to-store ratio is the highest of the entire benchmark
+suite, reflecting the streaming sparse matrix--vector access pattern
+of the underlying conjugate gradient solver. The 1.07\% spill-to-load
+fraction and the sharp 10$\times$ contrast between pre-ROI (3.41\%)
+and ROI (0.34\%) spill rates together confirm that iterative FEM
+solvers are naturally register-efficient on RISC-V: the sparse
+numerical kernels that dominate execution keep a minimal working set
+in registers, while the algorithmic bottleneck is memory bandwidth
+rather than register-file capacity.
+
+\end{document}

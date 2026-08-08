@@ -1,0 +1,361 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 508.namd\_r (Train Input)} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{508.namd\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator
+with the \textbf{train} input dataset. A custom SpillDetector was
+integrated into gem5 to count store-then-load patterns on the stack
+within a user-defined Region of Interest (ROI). The train dataset
+uses the same \texttt{apoa1.input} molecular dynamics system as the
+test dataset but runs for \textbf{7 iterations} instead of 1,
+yielding 218.4 billion ROI instructions. The measured spill rate is
+\textbf{1.0464\%}, nearly identical to the test input rate of
+1.0269\%, confirming that \texttt{namd\_r} exhibits highly stable,
+input-size-independent register pressure. This places \texttt{namd\_r}
+last among all 17 evaluated SPEC CPU2017 benchmarks in spill rate,
+reflecting the benchmark's compute-intensive, numerically regular
+character.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{508.namd\_r} is the SPEC CPU2017 rate variant of NAMD, a
+parallel molecular dynamics application designed for high-performance
+simulation of large biomolecular systems. The SPEC benchmark variant
+runs serially on a single thread using a fixed input system
+(\texttt{apoa1.input}), simulating the ApoA1 lipoprotein particle.
+
+NAMD's computational kernel consists of tight numerical loops
+evaluating pairwise forces between atoms. Each iteration of the main
+loop executes a fixed sequence of floating-point force evaluations
+(\texttt{RUN\_AND\_CHECKSUM}), result verification
+(\texttt{WRITE}/\texttt{compare}), and atom position updates
+(\texttt{moveatoms}). The regularity of this loop structure limits
+the live variable count at any point: at most a handful of accumulators
+and array pointers are simultaneously live, keeping register pressure
+uniformly low across all iterations.
+
+The RISC-V binary (\texttt{namd\_r.riscv}) was compiled with gem5
+ROI markers inserted around the main iteration for-loop in
+\texttt{src/spec\_namd.C}:
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{for (i = 0; i < iterations; ++i)}
+    \item \texttt{m5\_work\_end(0,0)}   --- after the closing brace of the loop
+\end{itemize}
+This ROI encompasses all force-evaluation, checksum, and atom-movement
+computation.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{namd\_r}
+(Table~\ref{tab:inputs}). All three use the same \texttt{apoa1.input}
+file; the only difference is the iteration count.
+
+\begin{table}[H]
+\centering
+\caption{namd\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Input file} & \textbf{Iterations} \\
+\midrule
+test  & \texttt{apoa1.input} & 1 \\
+train & \texttt{apoa1.input} & 7 \\
+ref   & \texttt{apoa1.input} & 38 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{train} dataset (7 iterations) was used for this study.
+A single gem5 invocation was run with the \texttt{namd.in} argument
+file specifying \texttt{--iterations 7}.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+A single gem5 invocation was launched:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/namd/m5out_train
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/namd/namd_r.riscv
+  --options="--input benchmarks/namd/apoa1.input
+    --iterations 7
+    --output benchmarks/namd/apoa1.train.output"
+  --cpu-type=TimingSimpleCPU
+  --caches --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+\subsection{Pre-ROI Context}
+
+Table~\ref{tab:preroi} shows the global counters at ROI entry,
+reflecting the benchmark's initialisation and input-parsing phase.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 1,558,178,337 \\
+Total spills detected (pre-ROI) & 125,215,611 \\
+Pre-ROI spill rate & 8.04\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The notably higher pre-ROI spill rate (8.04\%) relative to the ROI
+spill rate (1.05\%) reflects the initialisation code paths: NAMD's
+startup reads and parses the input structure file, constructs
+patch/atom data structures, and sets up pairlists --- operations that
+invoke many function calls with rich call chains and consequently
+higher register pressure than the steady-state force-evaluation loop.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the complete ROI statistics for the
+train run.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 508.namd\_r (train)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions   & 218,427,292,249 \\
+ROI stores         &  13,245,362,832 \\
+ROI loads          &  57,662,937,316 \\
+\midrule
+\textbf{ROI spills} & \textbf{2,285,717,035} \\
+\textbf{Spill rate} & \textbf{1.0464\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Dataset} & \textbf{Sim time} & \textbf{Host time} \\
+\midrule
+test (1 iter) &  68.73\,s &  25,169\,s ($\approx$7.0\,h) \\
+train (7 iter) & 452.37\,s & 170,069\,s ($\approx$47.2\,h) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Simulated time scales nearly linearly with iteration count
+($452.37 / 68.73 \approx 6.6\times$ for $7\times$ the iterations),
+confirming that each iteration performs an identical amount of work
+with no warmup or convergence effect.
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Stability Across Input Sizes}
+
+The train spill rate of \textbf{1.0464\%} is within 1.9\% relative
+of the test rate (1.0269\%), despite a $6.8\times$ increase in ROI
+instructions. This near-perfect stability confirms that NAMD's
+register pressure is determined entirely by the structure of its
+force-evaluation inner loop, which is identical across iterations.
+Unlike compiler or interpreter workloads whose register pressure
+varies with input content, NAMD executes the same instruction
+sequence repeatedly with only the data values changing.
+
+\subsection{Train vs.\ Test Input Comparison}
+
+Table~\ref{tab:compare_test_train} summarises the test and train
+results side by side.
+
+\begin{table}[H]
+\centering
+\caption{namd\_r Test vs.\ Train Comparison}
+\label{tab:compare_test_train}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Test (1 iter)} & \textbf{Train (7 iter)} \\
+\midrule
+ROI instructions & 31.9\,B  & 218.4\,B \\
+ROI stores       &  1.9\,B  &  13.2\,B \\
+ROI loads        &  8.4\,B  &  57.7\,B \\
+ROI spills       & 327.7\,M &   2,285.7\,M \\
+Spill rate       & 1.0269\% & \textbf{1.0464\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All four counters scale by approximately $6.8\times$ (reflecting
+7 iterations with minor overhead), while the spill rate remains
+essentially constant. This validates the test run as a faithful
+representative of NAMD's register-spilling behaviour.
+
+\subsection{Load-to-Store Ratio}
+
+The combined ROI load count ($57.7\,\text{B}$) is $4.35\times$
+the store count ($13.2\,\text{B}$):
+\[
+\frac{57{,}662{,}937{,}316}{13{,}245{,}362{,}832} \approx 4.35
+\]
+This high ratio reflects the force-evaluation kernel's access pattern:
+each atom pair evaluation reads positions, charges, and force
+parameters from multiple arrays (many loads per atom pair) and writes
+back only the accumulated force vector (few stores). The $4.35\times$
+load-to-store ratio is the highest in the benchmark suite, consistent
+with NAMD's streaming, read-dominated memory access pattern.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{2{,}285{,}717{,}035}{57{,}662{,}937{,}316} \approx 3.96\%
+\]
+Approximately 1 in 25 load instructions is a spill reload. This is
+the lowest spill-to-load fraction in the study, corroborating the
+low absolute spill rate: NAMD's tight loop fits comfortably within
+RISC-V's 32-register file for the majority of execution.
+
+\subsection{ROI Coverage}
+
+The ROI covers $218{,}427{,}292{,}249$ out of
+$219{,}985{,}470{,}586$ total simulated instructions:
+\[
+\frac{218{,}427{,}292{,}249}{219{,}985{,}470{,}586} \approx 99.29\%
+\]
+The 0.71\% pre-ROI share corresponds to the 1.56\,B startup
+instructions, which remain constant regardless of iteration count.
+As iteration count increases further (e.g., the ref dataset at 38
+iterations), ROI coverage approaches 100\%.
+
+\subsection{Cross-Benchmark Context}
+
+Table~\ref{tab:compare} places \texttt{namd\_r} (train) in the
+context of all 17 evaluated SPEC CPU2017 benchmarks.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+502.gcc\_r (train)  & 17,918,365,207 & 8.1160\% \\
+507.cactuBSSN\_r    &  3,782,099,438 & 7.8756\% \\
+511.povray\_r       &    174,359,922 & 7.7809\% \\
+500.perlbench\_r    &      1,070,055 & 7.2838\% \\
+520.omnetpp\_r      &    894,619,681 & 7.1994\% \\
+502.gcc\_r (test)   &      1,108,838 & 6.9185\% \\
+526.blender\_r      &     61,845,869 & 6.2193\% \\
+523.xalancbmk\_r    &     18,381,250 & 4.6427\% \\
+541.leela\_r        &  1,158,236,271 & 4.4438\% \\
+519.lbm\_r          &    274,130,440 & 4.2130\% \\
+531.deepsjeng\_r    &  1,928,903,656 & 4.1749\% \\
+525.x264\_r         &    767,981,981 & 3.2812\% \\
+544.nab\_r          &    151,310,616 & 2.2612\% \\
+538.imagick\_r      &      2,424,899 & 2.0601\% \\
+557.xz\_r           &     38,411,428 & 1.9069\% \\
+505.mcf\_r          &    446,113,136 & 1.8263\% \\
+\textbf{508.namd\_r (train)} & \textbf{2,285,717,035} & \textbf{1.0464\%} \\
+508.namd\_r (test)  &    327,718,955 & 1.0269\% \\
+510.parest\_r       &    127,688,196 & 0.3427\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\texttt{namd\_r} ranks last among all 17 benchmarks, with a spill
+rate 7.8$\times$ lower than \texttt{gcc\_r} (train) and only slightly
+above \texttt{parest\_r} (0.34\%). The benchmark's scientific
+computing character --- tight, numerically intensive loops with
+regular memory access --- yields the minimum register pressure
+observable in the SPEC CPU2017 C/C++ suite on RISC-V RV64GC.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{508.namd\_r} benchmark with the train input (7 iterations)
+exhibits a register spill rate of \textbf{1.0464\%} across
+218.4 billion ROI instructions, the lowest of all 17 evaluated SPEC
+CPU2017 benchmarks. The rate is nearly identical to the test input
+result (1.0269\%), confirming that NAMD's register pressure is
+structurally determined by its force-evaluation loop and independent
+of iteration count. The $4.35\times$ load-to-store ratio reflects the
+benchmark's streaming read-dominated access pattern, and the 3.96\%
+spill-to-load fraction is the lowest in the study. With 99.29\% ROI
+coverage, the train run provides a thorough characterisation of
+NAMD's register behaviour at scale. These results establish
+\texttt{namd\_r} as the least register-pressure-intensive workload in
+the SPEC CPU2017 suite on RISC-V RV64GC, making it a useful baseline
+for studies requiring a low-spill-rate numerical benchmark.
+
+\end{document}

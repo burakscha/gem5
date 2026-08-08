@@ -1,0 +1,352 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 511.povray\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{511.povray\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (a $50\times50$ pixel scene rendered at quality
+level~9 with antialiasing) was used as the input. Results show a
+spill rate of \textbf{7.78\%} within the ROI --- the second highest
+observed across all SPEC CPU2017 benchmarks evaluated in this study,
+behind only \texttt{507.cactuBSSN\_r} (7.88\%) --- corresponding to
+174 million detected spill events across 2.24 billion ROI instructions.
+The ray-tracing pipeline simultaneously maintains ray state, surface
+intersection records, shading context, and texture parameters, creating
+extreme register pressure throughout the per-pixel rendering loop.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{511.povray\_r} is the SPEC CPU2017 rate variant of POV-Ray
+3.6.1 (SPEC-modified), a ray-tracing renderer that produces
+photorealistic images from scene descriptions. The benchmark exercises
+recursive ray tracing with reflection, refraction, and shadow rays;
+procedural texture evaluation; antialiasing with supersampling;
+and bounding-box hierarchy traversal. Each rendered pixel requires
+an unpredictable number of recursive ray casts, each evaluating
+intersection tests against scene geometry, lighting models, and
+multi-layered texture functions.
+
+The RISC-V binary (\texttt{povray\_r.riscv}) was compiled with gem5
+ROI markers inserted in \texttt{src/povray.cpp}, wrapping
+\texttt{frontend.StartRender()} and the cooperate loop:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{StartRender()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after the render completes
+\end{itemize}
+
+This ROI encompasses the complete per-pixel ray-tracing computation,
+including all recursive ray spawning, shading, and texture evaluation.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{povray\_r},
+differing in image resolution, scene complexity, and rendering quality
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{povray\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Resolution} & \textbf{Scene} \\
+\midrule
+test    & $50\times50$           & SPEC-benchmark-test.pov \\
+train   & $\sim$$200\times150$   & SPEC-benchmark-train.pov \\
+refrate & $1280\times768$        & SPEC-benchmark-ref.pov \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study. The input
+\texttt{SPEC-benchmark-test.ini} specifies a $50\times50$ pixel
+render at quality level~9 (maximum) with antialiasing
+(\texttt{Antialias\_Depth=3}). Although the image is small, each
+pixel requires the full recursive ray-tracing pipeline, including
+bounding-box traversal, surface intersection, Phong shading, and
+procedural texture evaluation using the POV-Ray standard include
+libraries (\texttt{colors.inc}, \texttt{textures.inc},
+\texttt{metals.inc}, \texttt{woods.inc}, \texttt{skies.inc}).
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/povray/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/povray/povray_r.riscv
+  --options="benchmarks/povray/
+             SPEC-benchmark-test.ini"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+The ini file includes a \texttt{Library\_Path} directive pointing to
+the benchmark directory so that POV-Ray's standard include files
+(\texttt{*.inc}) are found at runtime.
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. POV-Ray rendered the
+$50\times50$ pixel scene and wrote the output TGA image file.
+
+\subsection{Pre-ROI Context}
+
+Before the render ROI, the binary executed POV-Ray initialisation:
+parsing the ini file, loading and compiling the scene description
+(\texttt{.pov} file), parsing all \texttt{\#include} directives
+(six standard include libraries), and building the bounding-box
+hierarchy. Table~\ref{tab:preroi} shows the global counters at
+ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 890,500 \\
+Total spills detected (pre-ROI) & 48,951 \\
+Pre-ROI spill rate & 5.50\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI spill rate of 5.50\% is the second highest pre-ROI rate
+across all evaluated benchmarks, reflecting the complexity of
+POV-Ray's scene compilation phase: parsing recursive \texttt{\#include}
+files, constructing texture trees, and building the scene graph all
+involve heavily recursive C++ call stacks.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 511.povray\_r (test, $50\times50$)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 2,240,865,845 \\
+ROI stores               &   287,983,968 \\
+ROI loads                &   716,257,788 \\
+\midrule
+\textbf{ROI spills}      & \textbf{174,359,922} \\
+\textbf{Spill rate}      & \textbf{7.7809\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 4.97\,s \\
+Host wall time           & 1{,}528.79\,s ($\approx$25.5\,min) \\
+Total simulated instructions & 2,242,138,784 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{7.78\%} is the second highest
+across all SPEC CPU2017 benchmarks evaluated in this study
+(Table~\ref{tab:compare}), behind only \texttt{507.cactuBSSN\_r}
+(7.88\%) by a margin of just 0.10 percentage points. Approximately
+1 in 13 instructions inside the ROI is a register spill.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+511.povray\_r    &   174,359,922 & \textbf{7.7809\%} \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+502.gcc\_r       &     1,108,838 & 6.9185\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & 4.6427\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+557.xz\_r        &    38,411,428 & 1.9069\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (716.3M) is $2.49\times$ higher than the store count
+(288.0M). This load-dominated ratio reflects the ray-tracing access
+pattern: each intersection test reads the geometry of candidate
+objects (bounding boxes, sphere parameters, triangle vertices), and
+each shading step reads texture parameters and material properties,
+while writes occur only when recording hit records and writing output
+pixels. The many levels of recursive ray spawning amplify the read
+dominance as each ray inherits the scene's read-only geometry data.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{174{,}359{,}922}{716{,}257{,}788} \approx 24.3\%
+\]
+Approximately 1 in 4 load instructions is a spill reload. At each
+level of the recursive ray-tracing call stack, POV-Ray must keep alive:
+the ray origin and direction (6 floating-point values), the current
+intersection record (hit distance, surface normal, UV coordinates),
+the active lighting context, and the current texture evaluation state.
+With RISC-V RV64GC providing 32 floating-point and 32 integer
+registers, the compiler cannot keep all these values live across
+nested function calls, resulting in pervasive spilling of both
+integer pointers and floating-point ray parameters.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 5.50\% ($48{,}951$ spills over $890{,}500$
+instructions) is the second highest pre-ROI rate of all evaluated
+benchmarks (behind only the 11.83\% of \texttt{cactuBSSN\_r}).
+This high rate reflects POV-Ray's scene compilation phase, which
+involves parsing deeply nested \texttt{\#include} files, recursively
+evaluating texture macros, and constructing complex scene graph
+objects — all highly recursive operations that produce severe
+register pressure even before the first ray is cast.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $2{,}240{,}865{,}845$ out of $2{,}242{,}138{,}784$
+total simulated instructions:
+\[
+\frac{2{,}240{,}865{,}845}{2{,}242{,}138{,}784} \approx 99.94\%
+\]
+This is among the highest ROI coverage fractions of all evaluated
+benchmarks. The negligibly small pre-ROI phase (only 890,500
+instructions) confirms that scene parsing is extremely fast relative
+to the rendering computation, and the ROI captures nearly the
+complete simulated workload.
+
+\subsection{Ray-Tracing Register Pressure}
+
+The 7.78\% spill rate is structurally driven by the recursive nature
+of ray tracing. Each recursive call to cast a reflection, refraction,
+or shadow ray requires saving the caller's full ray state to the stack.
+At depth $d$, the call stack contains $d$ complete ray records
+simultaneously. With POV-Ray's maximum recursion depth and RISC-V's
+32 available registers (of which only $\sim$27 are usable for
+general computation after accounting for the frame pointer, stack
+pointer, and return address), even a modest recursion depth of 3--4
+levels exceeds the register file capacity for the combined floating-point
+and integer state. This forced spilling is compounded by the vectorised
+texture evaluation functions, which also maintain large numbers of
+simultaneously live floating-point intermediates. The result is a
+spill pattern that closely resembles \texttt{cactuBSSN\_r}'s tensor
+field operations: both workloads suffer from too many simultaneously
+live floating-point values relative to the RISC-V register file size.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{511.povray\_r} benchmark exhibits a register spill rate
+of 7.78\% within the rendering ROI on RISC-V RV64GC, the second
+highest across all 14 evaluated SPEC CPU2017 benchmarks. With 174
+million spill events across 2.24 billion ROI instructions and a
+99.94\% ROI coverage, the benchmark is comprehensively characterised
+by this run. The 2.49:1 load-to-store ratio reflects the read-heavy
+geometry and texture access pattern of ray tracing, and the 24.3\%
+spill-to-load fraction arises from the recursive ray state that must
+be preserved across each spawned ray call. The near-identical spill
+rate to \texttt{cactuBSSN\_r} (7.88\%) reveals that recursive
+floating-point workloads and structured tensor-field computations
+both approach the effective limit of the RISC-V RV64GC register
+file for sustained floating-point computation.
+
+\end{document}

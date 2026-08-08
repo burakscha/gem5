@@ -262,6 +262,16 @@ class Request : public Extensible<Request>
         /** TLBI_EXT_SYNC_COMP seems to be the largest value
             of FlagsType, so HAS_NO_ADDR's value is that << 1 */
         HAS_NO_ADDR                = 0x0001000000000000,
+
+        /** The request is the load side of a register spill pair.
+         *  Set by TimingSimpleCPU when SpillDetector confirms the load
+         *  reloads a value previously spilled to the stack. */
+        SPILL_LOAD                 = 0x0002000000000000,
+
+        /** The request is the store side of a register spill pair.
+         *  Set by TimingSimpleCPU when SpillDetector confirms the store
+         *  writes a register value to the stack (spill write). */
+        SPILL_STORE                = 0x0004000000000000,
         // clang-format on
     };
     static const FlagsType STORE_NO_DATA = CACHE_BLOCK_ZERO |
@@ -1025,6 +1035,8 @@ class Request : public Extensible<Request>
     bool isStrictlyOrdered() const { return _flags.isSet(STRICT_ORDER); }
     bool isInstFetch() const { return _flags.isSet(INST_FETCH); }
     bool hasNoAddr() const { return _flags.isSet(HAS_NO_ADDR); }
+    bool isSpillLoad()  const { return _flags.isSet(SPILL_LOAD);  }
+    bool isSpillStore() const { return _flags.isSet(SPILL_STORE); }
     bool
     isPrefetch() const
     {

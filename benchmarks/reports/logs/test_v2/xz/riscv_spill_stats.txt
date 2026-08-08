@@ -1,0 +1,54 @@
+# ================================================
+# ROI SUMMARY  ISA=RISC-V  workid=0
+# (summary mode - set spill_verbose=True for per-spill lines)
+# ------------------------------------------------
+# entry_total_insts  : 932903724
+# entry_total_spills : 7486139
+# roi_instructions   : 2014351522
+# roi_stores         : 183548298
+# roi_loads          : 367733280
+# roi_spills         : 32945274
+# spill_rate         : 1.6355%
+# roi_spill_reloads  : 36336439   (total reload accesses incl. repeats;
+#                       == dcache spillLoadHits+Misses)
+# roi_nonspill_reuse : 9667427   (stack reuse pairs rejected by SP/FP filter;
+#                       roi_spills + this ~= old broad definition)
+# ------------------------------------------------
+# store_map_live     : 648384
+# store_map_peak     : 1048576
+# store_map_evicted  : 1572867
+# reuse distance histogram (spills, log2 of instruction
+# distance between store and reload):
+# reuse_log2[ 0]     : 1   (dist >= 0 insts)
+# reuse_log2[ 1]     : 114   (dist >= 2 insts)
+# reuse_log2[ 2]     : 24   (dist >= 4 insts)
+# reuse_log2[ 3]     : 325298   (dist >= 8 insts)
+# reuse_log2[ 4]     : 2504517   (dist >= 16 insts)
+# reuse_log2[ 5]     : 4274961   (dist >= 32 insts)
+# reuse_log2[ 6]     : 4892495   (dist >= 64 insts)
+# reuse_log2[ 7]     : 10322532   (dist >= 128 insts)
+# reuse_log2[ 8]     : 5712208   (dist >= 256 insts)
+# reuse_log2[ 9]     : 4003030   (dist >= 512 insts)
+# reuse_log2[10]     : 914678   (dist >= 1024 insts)
+# reuse_log2[11]     : 208492   (dist >= 2048 insts)
+# reuse_log2[12]     : 757525   (dist >= 4096 insts)
+# reuse_log2[13]     : 46583   (dist >= 8192 insts)
+# reuse_log2[14]     : 73917   (dist >= 16384 insts)
+# reuse_log2[15]     : 123399   (dist >= 32768 insts)
+# reuse_log2[16]     : 227517   (dist >= 65536 insts)
+# reuse_log2[17]     : 419314   (dist >= 131072 insts)
+# reuse_log2[18]     : 669311   (dist >= 262144 insts)
+# reuse_log2[19]     : 597207   (dist >= 524288 insts)
+# reuse_log2[20]     : 222826   (dist >= 1048576 insts)
+# reuse_log2[21]     : 24293   (dist >= 2097152 insts)
+# reuse_log2[22]     : 5560   (dist >= 4194304 insts)
+# reuse_log2[23]     : 458   (dist >= 8388608 insts)
+# reuse_log2[24]     : 197   (dist >= 16777216 insts)
+# reuse_log2[25]     : 395   (dist >= 33554432 insts)
+# reuse_log2[26]     : 1035   (dist >= 67108864 insts)
+# reuse_log2[27]     : 2381   (dist >= 134217728 insts)
+# reuse_log2[28]     : 2394   (dist >= 268435456 insts)
+# reuse_log2[29]     : 2380   (dist >= 536870912 insts)
+# reuse_log2[30]     : 1397   (dist >= 1073741824 insts)
+# ================================================
+

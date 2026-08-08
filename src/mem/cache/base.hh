@@ -48,7 +48,9 @@
 
 #include <cassert>
 #include <cstdint>
+#include <deque>
 #include <string>
+#include <unordered_map>
 
 #include "base/addr_range.hh"
 #include "base/compiler.hh"
@@ -398,6 +400,52 @@ class BaseCache : public ClockedObject
     WriteAllocator * const writeAllocator;
 
     /**
+     * Research experiment (register-spill study): see Cache.py
+     * spill_bypass_alloc for rationale. When true, allocOnFill() refuses
+     * to allocate for any demand miss tagged SPILL_LOAD/SPILL_STORE.
+     */
+    const bool spillBypassAlloc;
+
+    /**
+     * Research experiment (eviction attribution): remembers, for each
+     * recently evicted address in THIS cache, whether the access that
+     * caused the eviction was spill-tagged. Written in allocateBlock()
+     * right before the victim's tag is overwritten; consulted (and the
+     * entry erased) in incMissCount() so a later miss on that same
+     * address can be attributed to spill or non-spill eviction. See the
+     * spillEvictedBySpill/spillEvictedByNonSpill/nonSpillEvictedBySpill/
+     * nonSpillEvictedByNonSpill stats above.
+     *
+     * Bounded like SpillDetector::store_map: if it ever exceeds
+     * MAX_EVICTION_LEDGER_ENTRIES, the oldest half (by insertion order,
+     * approximated via evictionLedgerInsertOrder) is dropped so any
+     * censoring is visible in evictionLedgerDropped rather than silent.
+     */
+    std::unordered_map<Addr, bool> evictionLedger;
+    std::deque<Addr> evictionLedgerInsertOrder;
+    static const size_t MAX_EVICTION_LEDGER_ENTRIES = 1 << 20; // ~1M entries
+    uint64_t evictionLedgerDropped = 0;
+
+    /**
+     * Records that `victimAddr` was just evicted from this cache by a
+     * demand access; `evictorIsSpill` says whether that evicting access
+     * was tagged SPILL_LOAD/SPILL_STORE. Called from allocateBlock().
+     */
+    void recordEviction(Addr victimAddr, bool evictorIsSpill);
+
+    /**
+     * If `addr` was recently evicted from this cache (per evictionLedger),
+     * classifies the current demand miss on `addr` into one of the eight
+     * eviction-attribution stats above, based on whether the evicting
+     * access was spill-tagged, and whether the current (missing) access
+     * is spill-tagged and whether it is a load or a store. The ledger
+     * entry is erased either way. If `addr` is not in the ledger, does
+     * nothing (miss cause is not attributable -- compulsory miss or the
+     * entry aged out). Called from incMissCount().
+     */
+    void attributeMiss(Addr addr, bool accessIsSpill, bool accessIsLoad);
+
+    /**
      * Temporary cache block for occasional transitory use.  We use
      * the tempBlock to fill when allocation fails (e.g., when there
      * is an outstanding request that accesses the victim block) or
@@ -440,8 +488,17 @@ class BaseCache : public ClockedObject
      * @param cmd Command of the incoming requesting packet
      * @return Whether we should allocate on the fill
      */
-    inline bool allocOnFill(MemCmd cmd) const
+    inline bool allocOnFill(PacketPtr pkt) const
     {
+        // Research experiment: spill-tagged demand misses never allocate,
+        // so they cannot evict lines that other (non-spill) accesses would
+        // have hit on. See Cache.py spill_bypass_alloc.
+        if (spillBypassAlloc && pkt->isDemand() && pkt->req &&
+            (pkt->req->isSpillLoad() || pkt->req->isSpillStore())) {
+            return false;
+        }
+
+        MemCmd cmd = pkt->cmd;
         return clusivity == enums::mostly_incl ||
             cmd == MemCmd::WriteLineReq ||
             cmd == MemCmd::ReadReq ||
@@ -1144,6 +1201,86 @@ class BaseCache : public ClockedObject
          */
         statistics::Scalar dataContractions;
 
+        /**
+         * Register-spill reload (demand load) hit/miss counters.
+         * Incremented only for requests tagged Request::SPILL_LOAD
+         * that are pkt->isDemand().  Counts are ROI-scoped when the
+         * benchmark resets stats at m5_work_begin.
+         *
+         * L1 spill load hit rate  = spillLoadHits / (spillLoadHits + spillLoadMisses)
+         * L2 rescue rate          = l2.spillLoadHits / L1.spillLoadMisses
+         */
+        statistics::Scalar spillLoadHits;
+        statistics::Scalar spillLoadMisses;
+
+        /**
+         * Register-spill write (demand store) hit/miss counters.
+         * Incremented only for requests tagged Request::SPILL_STORE
+         * that are pkt->isDemand().
+         *
+         * NOTE: This is an over-approximation — all stack stores inside the
+         * ROI are tagged, not only those that are paired with a spill reload.
+         * Useful for measuring cache pressure from spill writes.
+         *
+         * L1 spill store hit rate = spillStoreHits / (spillStoreHits + spillStoreMisses)
+         */
+        statistics::Scalar spillStoreHits;
+        statistics::Scalar spillStoreMisses;
+
+        /**
+         * Eviction-attribution counters (research experiment): classify
+         * every demand miss whose address was recently evicted from THIS
+         * cache, along three independent dimensions: (a) whether the
+         * current access is spill-tagged, (b) whether it is a load or a
+         * store, and (c) whether the access that evicted it was
+         * spill-tagged. See evictionLedger below for the mechanism. A
+         * miss whose address is not found in the ledger (e.g. a genuine
+         * compulsory miss, or the evicting event aged out of the bounded
+         * ledger) is not counted in any of these eight -- it is still
+         * counted normally in the existing hit/miss and
+         * spillLoad/StoreMisses stats above.
+         *
+         * Naming: <accessKind>EvictedBy<evictorKind>, where accessKind is
+         * one of {spillLoad, spillStore, nonSpillLoad, nonSpillStore}
+         * (the CURRENT, missing access) and evictorKind is one of
+         * {Spill, NonSpill} (whoever evicted its data earlier).
+         *
+         *   spillLoadEvictedBySpill      : a spill reload missed because
+         *                                  another spill access evicted
+         *                                  it (spill self-interference)
+         *   spillLoadEvictedByNonSpill   : a spill reload missed because
+         *                                  a non-spill access evicted it
+         *   spillStoreEvictedBySpill     : a spill write missed because
+         *                                  another spill access evicted
+         *                                  its (reused) slot
+         *   spillStoreEvictedByNonSpill  : a spill write missed because a
+         *                                  non-spill access evicted its
+         *                                  slot
+         *   nonSpillLoadEvictedBySpill   : an ordinary read missed
+         *                                  because a spill access evicted
+         *                                  it (the "spill pollutes the
+         *                                  rest of the cache" case)
+         *   nonSpillLoadEvictedByNonSpill: an ordinary read missed
+         *                                  because another ordinary
+         *                                  access evicted it (control
+         *                                  group, unrelated to spilling)
+         *   nonSpillStoreEvictedBySpill  : an ordinary write missed
+         *                                  because a spill access evicted
+         *                                  it
+         *   nonSpillStoreEvictedByNonSpill: an ordinary write missed
+         *                                  because another ordinary
+         *                                  access evicted it (control
+         *                                  group)
+         */
+        statistics::Scalar spillLoadEvictedBySpill;
+        statistics::Scalar spillLoadEvictedByNonSpill;
+        statistics::Scalar spillStoreEvictedBySpill;
+        statistics::Scalar spillStoreEvictedByNonSpill;
+        statistics::Scalar nonSpillLoadEvictedBySpill;
+        statistics::Scalar nonSpillLoadEvictedByNonSpill;
+        statistics::Scalar nonSpillStoreEvictedBySpill;
+        statistics::Scalar nonSpillStoreEvictedByNonSpill;
+
         /** Per-command statistics */
         std::vector<std::unique_ptr<CacheCmdStats>> cmd;
     } stats;
@@ -1176,7 +1313,7 @@ class BaseCache : public ClockedObject
     {
         MSHR *mshr = mshrQueue.allocate(pkt->getBlockAddr(blkSize), blkSize,
                                         pkt, time, order++,
-                                        allocOnFill(pkt->cmd));
+                                        allocOnFill(pkt));
 
         if (mshrQueue.isFull()) {
             setBlocked((BlockedCause)MSHRQueue_MSHRs);
@@ -1278,11 +1415,32 @@ class BaseCache : public ClockedObject
             if (missCount == 0)
                 exitSimLoop("A cache reached the maximum miss count");
         }
+        if (pkt->isDemand() && pkt->req->isSpillLoad())
+            stats.spillLoadMisses++;
+        if (pkt->isDemand() && pkt->req->isSpillStore())
+            stats.spillStoreMisses++;
+        // Attribute this miss to whoever evicted its address, if known.
+        // Called for every demand miss (spill or not, load or store) so
+        // all eight eviction-attribution boxes get populated.
+        if (pkt->isDemand()) {
+            // Must match regenerateBlkAddr()'s block-aligned addressing
+            // (used when recording evictions in allocateBlock()) -- the
+            // raw pkt->getAddr() is the exact byte address and will not
+            // line up with the evicted block's base address unless the
+            // access happens to be block-aligned.
+            attributeMiss(pkt->getBlockAddr(blkSize),
+                          pkt->req->isSpillLoad() || pkt->req->isSpillStore(),
+                          pkt->isRead());
+        }
     }
     void incHitCount(PacketPtr pkt)
     {
         assert(pkt->req->requestorId() < system->maxRequestors());
         stats.cmdStats(pkt).hits[pkt->req->requestorId()]++;
+        if (pkt->isDemand() && pkt->req->isSpillLoad())
+            stats.spillLoadHits++;
+        if (pkt->isDemand() && pkt->req->isSpillStore())
+            stats.spillStoreHits++;
     }
 
     /**

@@ -1,0 +1,132 @@
+════════════════════════════════════════════════════════════════
+ xalancbmk  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=7848338475  loads=1998392467  spills=604860097
+  SP/inst% =   7.71%   SP/load% =  30.27%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 614838239
+    L1 hit            : 602902352  →  98.06% of total
+    L1 miss           : 11935887  →   1.94% of total
+    └─ L2 hit         : 11027520  →   1.79% of total
+    └─ DRAM           : 908367  →   0.15% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 630294118
+    L1 hit            : 608653630  →  96.57% of total
+    L1 miss           : 21640488  →   3.43% of total
+    └─ L2 hit         : 20159881  →   3.20% of total
+    └─ DRAM           : 1480607  →   0.23% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+════════════════════════════════════════════════════════════════
+ gcc  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=10027113058  loads=2507354671  spills=796350698
+  SP/inst% =   7.94%   SP/load% =  31.76%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 840470948
+    L1 hit            : 831102221  →  98.89% of total
+    L1 miss           : 9368727  →   1.11% of total
+    └─ L2 hit         : 9043230  →   1.08% of total
+    └─ DRAM           : 325497  →   0.04% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 844186271
+    L1 hit            : 824071666  →  97.62% of total
+    L1 miss           : 20114605  →   2.38% of total
+    └─ L2 hit         : 18346420  →   2.17% of total
+    └─ DRAM           : 1768185  →   0.21% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+════════════════════════════════════════════════════════════════
+ povray  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=28621075428  loads=9207409506  spills=2168445014
+  SP/inst% =   7.58%   SP/load% =  23.55%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 2189637521
+    L1 hit            : 2145433702  →  97.98% of total
+    L1 miss           : 44203819  →   2.02% of total
+    └─ L2 hit         : 33844007  →   1.55% of total
+    └─ DRAM           : 10359812  →   0.47% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 2244519901
+    L1 hit            : 2191049983  →  97.62% of total
+    L1 miss           : 53469918  →   2.38% of total
+    └─ L2 hit         : 30842141  →   1.37% of total
+    └─ DRAM           : 22627777  →   1.01% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+════════════════════════════════════════════════════════════════
+ x264  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=23405758003  loads=4837558149  spills=734734663
+  SP/inst% =   3.14%   SP/load% =  15.19%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 812639120
+    L1 hit            : 793839572  →  97.69% of total
+    L1 miss           : 18799548  →   2.31% of total
+    └─ L2 hit         : 18705290  →   2.30% of total
+    └─ DRAM           : 94258  →   0.01% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 839671636
+    L1 hit            : 819166994  →  97.56% of total
+    L1 miss           : 20504642  →   2.44% of total
+    └─ L2 hit         : 19250439  →   2.29% of total
+    └─ DRAM           : 1254203  →   0.15% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+════════════════════════════════════════════════════════════════
+ nab  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=38232521998  loads=8726174428  spills=776006522
+  SP/inst% =   2.03%   SP/load% =   8.89%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 2424251387
+    L1 hit            : 2398795236  →  98.95% of total
+    L1 miss           : 25456151  →   1.05% of total
+    └─ L2 hit         : 25405597  →   1.05% of total
+    └─ DRAM           : 50554  →   0.00% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 796929294
+    L1 hit            : 791135192  →  99.27% of total
+    L1 miss           : 5794102  →   0.73% of total
+    └─ L2 hit         : 5730103  →   0.72% of total
+    └─ DRAM           : 63999  →   0.01% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+════════════════════════════════════════════════════════════════
+ xz  (DONE)
+════════════════════════════════════════════════════════════════
+  ROI: instructions=45071901346  loads=8781014341  spills=1271080795
+  SP/inst% =   2.82%   SP/load% =  14.48%
+
+  SPILL LOADS  (payda = total_load = L1hit + L1miss)
+    Toplam spill load : 1481019818
+    L1 hit            : 1455519699  →  98.28% of total
+    L1 miss           : 25500119  →   1.72% of total
+    └─ L2 hit         : 25420991  →   1.72% of total
+    └─ DRAM           : 79128  →   0.01% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+
+  SPILL STORES  (payda = total_store = L1hit + L1miss)
+    Toplam spill store: 1406940591
+    L1 hit            : 1339348684  →  95.20% of total
+    L1 miss           : 67591907  →   4.80% of total
+    └─ L2 hit         : 67307089  →   4.78% of total
+    └─ DRAM           : 284818  →   0.02% of total
+    Kontrol: L1hit% + L2hit% + DRAM% = 100.0000%  (≈100% olmalı)
+

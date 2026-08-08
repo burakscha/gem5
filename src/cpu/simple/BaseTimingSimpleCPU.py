@@ -33,6 +33,17 @@ class BaseTimingSimpleCPU(BaseSimpleCPU):
     cxx_header = "cpu/simple/timing.hh"
     cxx_class = "gem5::TimingSimpleCPU"
 
+    # Spill detection verbosity flag.
+    # False (default): write only a compact counter summary at ROI end.
+    #                  Output file stays tiny regardless of spill count.
+    # True           : write one SPILL line per detected event inside ROI,
+    #                  then the summary.  WARNING: can produce tens of GB for
+    #                  long workloads (e.g. MCF had 419M spills -> 38 GB).
+    spill_verbose = Param.Bool(
+        False,
+        "Log every individual spill event (True) or summary only (False).",
+    )
+
     @classmethod
     def memory_mode(cls):
         return "timing"
