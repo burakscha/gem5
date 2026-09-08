@@ -100,8 +100,10 @@ util/m5/m5_build_log.txt
 
 # ── Test case compiled outputs (source .S files ARE tracked) ─────────────────
 tests/spill_test/tc*/out/
+tests/spill_test/tc*/out_*/
 tests/spill_test/tc*/*.riscv
 tests/spill_test/tc*/*.o
+tests/spill_test/results/
 
 # ── Python bytecode cache ────────────────────────────────────────────────────
 __pycache__/
@@ -111,3 +113,4 @@ __pycache__/
 # ── gem5 compiled build output (multi-GB) ────────────────────────────────────
 build/
 util/m5/build/
+toolchain-shim/

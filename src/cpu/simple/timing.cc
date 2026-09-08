@@ -66,6 +66,7 @@
 #include "params/BaseTimingSimpleCPU.hh"
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
+#include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
 // Architecture-specific register headers
@@ -122,22 +123,35 @@ using namespace gem5::MipsISA;
 
 namespace gem5 {
 
-// Returns true when the memory instruction addresses memory relative to
-// the stack or frame pointer (any integer source register is SP or FP).
+// Returns true when the memory instruction's effective-address BASE register
+// is the stack or frame pointer.
 // This is how compiler-generated spill/reload code addresses spill slots.
 // Note: a scalar local variable accessed via sp-offset looks identical to
 // a register spill at this level — that ambiguity is inherent without
 // compiler metadata. What this filter removes are stack accesses through
 // computed pointers (arrays/structs/buffers on the stack).
 static inline bool isSpFpRelativeMemInst(const StaticInst *si) {
-  if (!si)
+  if (!si || si->numSrcRegs() == 0)
     return false;
+
+#if defined(USE_RISCV_ISA)
+  // For scalar, compressed, atomic, and vector RISC-V memory instructions,
+  // srcRegIdx(0) is rs1, the effective-address base. A store's later source
+  // operands are the value being written and must not influence this test
+  // (e.g. `sd s0, 0(a3)` is a3-relative, not frame-pointer-relative).
+  const RegId &base = si->srcRegIdx(0);
+  return base == ARCH_STACK_PTR_REG || base == ARCH_FRAME_PTR_REG;
+#else
+  // The study is validated on RISC-V. Preserve the historical conservative
+  // behavior for other ISAs until each decoder exposes an address-base
+  // operand explicitly.
   for (int i = 0; i < si->numSrcRegs(); i++) {
     const RegId &r = si->srcRegIdx(i);
     if (r == ARCH_STACK_PTR_REG || r == ARCH_FRAME_PTR_REG)
       return true;
   }
   return false;
+#endif
 }
 
 // Helper function to get stack pointer in an architecture-aware way
@@ -168,11 +182,16 @@ TimingSimpleCPU::TimingSimpleCPU(const BaseTimingSimpleCPUParams &p)
   // Apply the spill_verbose parameter from the Python SimObject.
   // setVerbose(true)  -> per-spill CSV lines + summary (verbose mode)
   // setVerbose(false) -> compact summary only (default, safe for large runs)
+  spillDetector.configurePcMap(p.spill_pc_map);
   spillDetector.setVerbose(p.spill_verbose);
+  // SimObjects are destroyed after gem5's output directory has begun
+  // teardown, which is too late for SpillDetector's destructor to append the
+  // whole-simulation totals.  Exit callbacks run while simout is still valid.
+  registerExitCallback([this]() { spillDetector.finalize(); });
 }
 
 TimingSimpleCPU::~TimingSimpleCPU() {
-  // Silent shutdown
+  spillDetector.finalize();
 }
 
 DrainState TimingSimpleCPU::drain() {
@@ -520,6 +539,9 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   const Addr pc = thread->pcState().instAddr();
   unsigned block_size = cacheLineSize();
   BaseMMU::Mode mode = BaseMMU::Read;
+  Addr split_addr = roundDown(addr + size - 1, block_size);
+  assert(split_addr <= addr || split_addr - addr < block_size);
+  const unsigned l1_fragments = split_addr > addr ? 2 : 1;
 
   if (traceData)
     traceData->setMem(addr, size, flags);
@@ -530,6 +552,7 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
   bool is_spill_load = spillDetector.onLoadInstruction(addr, pc, curTick(),
                                   size, current_sp, sp_fp_rel,
+                                  l1_fragments,
                                   thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
@@ -540,9 +563,6 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
       req->setFlags(Request::SPILL_LOAD);
 
   req->taskId(taskId());
-
-  Addr split_addr = roundDown(addr + size - 1, block_size);
-  assert(split_addr <= addr || split_addr - addr < block_size);
 
   _status = DTBWaitResponse;
   if (split_addr > addr) {
@@ -600,6 +620,9 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   const Addr pc = thread->pcState().instAddr();
   unsigned block_size = cacheLineSize();
   BaseMMU::Mode mode = BaseMMU::Write;
+  Addr split_addr = roundDown(addr + size - 1, block_size);
+  assert(split_addr <= addr || split_addr - addr < block_size);
+  const unsigned l1_fragments = split_addr > addr ? 2 : 1;
 
   if (data == NULL) {
     assert(flags & Request::STORE_NO_DATA);
@@ -617,7 +640,8 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   Addr current_sp = getStackPointer(thread);
   bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
   bool is_spill_store = spillDetector.onStoreInstruction(
-      addr, pc, curTick(), size, current_sp, sp_fp_rel, thread->getTC());
+      addr, pc, curTick(), size, current_sp, sp_fp_rel, l1_fragments,
+      thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
@@ -626,9 +650,6 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
       req->setFlags(Request::SPILL_STORE);
 
   req->taskId(taskId());
-
-  Addr split_addr = roundDown(addr + size - 1, block_size);
-  assert(split_addr <= addr || split_addr - addr < block_size);
 
   _status = DTBWaitResponse;
 
@@ -819,6 +840,9 @@ void TimingSimpleCPU::advanceInst(const Fault &fault) {
     return;
 
   if (fault != NoFault) {
+    // Any staged load/store classification belongs to the faulting
+    // instruction and must not reach committed instruction/spill counters.
+    spillDetector.discardPendingInstruction();
     // hardware transactional memory
     // If a fault occurred within a transaction
     // ensure that the transaction aborts
@@ -861,10 +885,13 @@ void TimingSimpleCPU::advanceInst(const Fault &fault) {
   }
 
   if (!t_info.stayAtPC) {
-    // REGISTER SPILL DETECTION: Track instruction execution
+    // REGISTER SPILL DETECTION: commit exactly once after successful
+    // execution. This also commits any staged load/store classification.
     SimpleThread *thread = t_info.thread;
     const Addr pc = thread->pcState().instAddr();
-    spillDetector.onInstructionExecute(pc, curTick());
+    const bool is_load = curStaticInst && curStaticInst->isLoad();
+    const bool is_store = curStaticInst && curStaticInst->isStore();
+    spillDetector.onInstructionCommit(is_load, is_store, pc, curTick());
 
     advancePC(fault);
   }
@@ -1012,6 +1039,17 @@ void TimingSimpleCPU::completeDataAccess(PacketPtr pkt) {
          pkt->req->getFlags().isSet(Request::NO_ACCESS));
 
   pkt->req->setAccessLatency();
+
+  // Preserve each fragment's L1/L2 result before the response packet is
+  // deleted. For a split access this method is invoked once per fragment;
+  // SpillDetector aggregates both fragments in the staged instruction.
+  if (pkt->req->isSpillLoad() || pkt->req->isSpillStore()) {
+    for (unsigned level = 0;
+         level < pkt->req->spillCacheOutcomeCount(); ++level) {
+      spillDetector.recordPendingCacheOutcome(
+          level, pkt->req->spillCacheOutcomeWasHit(level));
+    }
+  }
 
   updateCycleCounts();
   updateCycleCounters(BaseCPU::CPU_STATE_ON);

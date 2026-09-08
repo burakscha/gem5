@@ -1419,6 +1419,10 @@ class BaseCache : public ClockedObject
             stats.spillLoadMisses++;
         if (pkt->isDemand() && pkt->req->isSpillStore())
             stats.spillStoreMisses++;
+        if (pkt->isDemand() &&
+            (pkt->req->isSpillLoad() || pkt->req->isSpillStore())) {
+            pkt->req->recordSpillCacheOutcome(false);
+        }
         // Attribute this miss to whoever evicted its address, if known.
         // Called for every demand miss (spill or not, load or store) so
         // all eight eviction-attribution boxes get populated.
@@ -1441,6 +1445,10 @@ class BaseCache : public ClockedObject
             stats.spillLoadHits++;
         if (pkt->isDemand() && pkt->req->isSpillStore())
             stats.spillStoreHits++;
+        if (pkt->isDemand() &&
+            (pkt->req->isSpillLoad() || pkt->req->isSpillStore())) {
+            pkt->req->recordSpillCacheOutcome(true);
+        }
     }
 
     /**

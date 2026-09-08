@@ -1,29 +1,20 @@
 /*
- * negative/window_expired/test.c
+ * Long-reuse-distance spill regression (legacy directory name).
  *
- * Guard tested: cleanupOldStores() removes entries older than MAX_SPILL_WINDOW
- *               (50,000,000 ticks = 50 µs)
+ * Guard tested: elapsed simulation time must NOT discard a pending store.
  *
  * How:
  *   1. Stack store inside ROI at tick T → store_map[&x] = {tick=T}
- *   2. 512 cold BSS reads inside ROI, each one calls cleanupOldStores(tick).
- *      512 cold DRAM misses × ~185K ticks ≈ 95M ticks >> 50M ticks.
- *      Somewhere around access 270 (50M / 185K), cleanupOldStores removes
- *      x's entry from store_map.
- *   3. Load x inside ROI → store_map.find(&x) == end() → no entry → no SPILL_LOAD.
- *
- * Why BSS reads trigger the cleanup:
- *   onLoadInstruction() is called for ALL loads (not just stack loads).
- *   The very first line is: cleanupOldStores(tick).
- *   So each BSS read advances current_tick and may evict stale entries.
+ *   2. Cold BSS reads create a delay greater than the removed historical
+ *      50M-tick window.
+ *   3. Load x inside ROI. The store entry must still match and be tagged.
  *
  * Why BSS reads don't produce false positives:
  *   store_map has no entry for BSS addresses (we never stored to delay_buf).
  *   Even if there were an entry, isLikelySpill() would fail isStackAddress().
  *
  * Expected:
- *   dcache.spillLoadHits   = 0
- *   dcache.spillLoadMisses = 0
+ *   dcache.spillLoadHits + dcache.spillLoadMisses = 1
  */
 
 #include <gem5/m5ops.h>
@@ -34,7 +25,7 @@
  * starts, so delay_buf is completely cold (never touched in simulated code).
  * Average L2 miss latency (SimpleMemory default) ≈ 63,000 ticks.
  * 1024 cold DRAM misses × 63,000 ticks ≈ 64.5M ticks >> MAX_SPILL_WINDOW (50M).
- * Entry expires at iteration ~794 (50,000,000 / 63,000). */
+ * This deliberately exceeds the old, invalid 50M-tick cutoff. */
 #define DELAY_LINES  1024
 #define LINE_BYTES   64
 
@@ -48,15 +39,13 @@ int main(void)
     volatile int64_t x;
     x = (int64_t)0xA5A5A5A5A5A5A5A5LL;
 
-    /* Step 2: delay loop — 512 cold BSS reads.
-     * Each read calls cleanupOldStores(current_tick).
-     * After ~270 iterations, 50M ticks have elapsed and x's entry is removed. */
+    /* Step 2: delay loop — enough cold BSS reads to exceed the old cutoff. */
     int acc = 0;
     int i;
     for (i = 0; i < DELAY_LINES; i++)
         acc += delay_buf[i * LINE_BYTES];
 
-    /* Step 3: load x — store_map entry is gone → no SPILL_LOAD */
+    /* Step 3: load x — the entry survives and produces one SPILL_LOAD. */
     int64_t v = x;
 
     m5_work_end(0, 0);

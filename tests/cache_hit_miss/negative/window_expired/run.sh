@@ -8,7 +8,7 @@ BIN="$SCRIPT_DIR/test.riscv"
 OUTDIR="$SCRIPT_DIR/m5out"
 [ ! -f "$BIN" ] && echo "ERROR: $BIN not found — run 'make' first." && exit 1
 mkdir -p "$OUTDIR"
-echo "=== negative/window_expired: running gem5 ==="
+echo "=== long-distance reload (legacy window_expired path): running gem5 ==="
 "$GEM5" --outdir="$OUTDIR" "$CFG" --cmd="$BIN" \
     --cpu-type=TimingSimpleCPU --caches --l2cache \
     --l1d_size=1kB --l1d_assoc=4 \

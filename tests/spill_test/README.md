@@ -1,207 +1,146 @@
-# Register Spill Detection — Test Suite
+# SpillDetector integration tests
 
-This directory contains three RISC-V assembly test cases that deliberately
-trigger register spills and verify the gem5 SpillDetector counts them correctly.
-Each test has a deterministic, hand-verified expected `roi_spills` value.
+This directory contains deterministic RISC-V assembly tests for the corrected
+schema-v4 spill metrics. The suite assembles every source in a temporary
+directory, runs it with `TimingSimpleCPU`, L1D and L2 caches, parses both
+`riscv_spill_stats.txt` and `stats.txt`, and fails on any counter mismatch.
 
----
-
-## Directory Layout
-
-```
-tests/spill_test/
-├── README.md                          # This file
-├── tc1_callee_save/
-│   ├── tc1_callee_save.S              # Source
-│   ├── tc1_callee_save.riscv          # Pre-built binary
-│   └── out/riscv_spill_stats.txt      # Last run result
-├── tc2_reg_pressure/
-│   ├── tc2_reg_pressure.S
-│   ├── tc2_reg_pressure.riscv
-│   └── out/riscv_spill_stats.txt
-└── tc3_loop_spill/
-    ├── tc3_loop_spill.S
-    ├── tc3_loop_spill.riscv
-    └── out/riscv_spill_stats.txt
-```
-
----
-
-## Test Cases
-
-### TC1 — Callee-Save Register Spill (`tc1_callee_save`)
-
-**Scenario**: Simulates a real function prologue/epilogue.
-Every non-leaf function in the RISC-V ABI must preserve the caller's s-registers
-(s0–s5). It saves them to the stack at entry, uses them for computation,
-then restores them before returning. Each save+restore pair is one spill.
-
-**Key property**: Store and load are *not* adjacent — real arithmetic separates
-them. This tests that `store_map` retains entries across a multi-instruction
-basic block, which is the behaviour that matters for real benchmark workloads.
-
-```
-ROI:
-  sd s0-s5 to stack    ← 6 stores (prologue)
-  li / add / mul …     ← body: no stack access
-  ld s0-s5 from stack  ← 6 loads (epilogue) → 6 SPILLS
-```
-
-**Expected**: `roi_spills = 6`, `roi_stores = 6`, `roi_loads = 6`
-
----
-
-### TC2 — Register Pressure Spill (`tc2_reg_pressure`)
-
-**Scenario**: Simulates the register allocator spilling the entire live set.
-When there are more live values than physical registers, the compiler emits
-a "spill-out" phase (all stores) followed by a "spill-in" phase (all reloads).
-
-**Key property**: All 8 stores complete *before* any load — the `store_map`
-holds 8 live entries simultaneously. This is the hallmark of genuine register
-pressure and cannot happen in a simple store-immediately-followed-by-load test.
-
-```
-ROI:
-  Phase 1 (spill-out):
-    li t0,11  sd t0, 0(sp)
-    li t1,22  sd t1, 8(sp)
-    …         …                ← 8 stores, store_map grows to 8 entries
-    li a2,88  sd a2,56(sp)
-
-  Phase 2 (spill-in):
-    ld t0, 0(sp)   add t0,t0,t1   ← SPILL #1
-    ld t1, 8(sp)   add t0,t0,t2   ← SPILL #2
-    …                             ← … 8 total
-    ld a2,56(sp)   add t0,t0,a2   ← SPILL #8
-```
-
-**Expected**: `roi_spills = 8`, `roi_stores = 8`, `roi_loads = 8`
-
----
-
-### TC3 — Loop Body Spill (`tc3_loop_spill`)
-
-**Scenario**: Simulates a loop whose body requires more live registers than
-are available, so the compiler spills 3 values per iteration.
-5 iterations × 3 spills/iteration = 15 ROI spills.
-
-**Key property**: Each iteration's store overwrites the `store_map` entry for
-that slot, so every iteration produces exactly 3 fresh spill pairs. Slot
-addresses are reused across iterations, which correctly models how loop bodies
-share the same stack slots each time around.
-
-```
-ROI:
-  loop (i = 0 … 4):
-    addi t0, s0, 10   sd t0, 16(sp)   ld t1, 16(sp)   ← SPILL A
-    slli t2, s0,  2   sd t2, 24(sp)   ld t3, 24(sp)   ← SPILL B
-    add  s2, s2, …    sd s2, 32(sp)   ld t5, 32(sp)   ← SPILL C
-    i++
-```
-
-**Expected**: `roi_spills = 15`, `roi_stores = 15`, `roi_loads = 15`
-
----
-
-## Quick Reference
-
-| Test                | Expected `roi_spills` | Pattern                          |
-|---------------------|-----------------------|----------------------------------|
-| `tc1_callee_save`   | 6                     | s0-s5 save/restore (non-adjacent)|
-| `tc2_reg_pressure`  | 8                     | all-store-then-all-reload         |
-| `tc3_loop_spill`    | 15                    | 5 iters × 3 spills/iter           |
-
----
-
-## How to Re-Build Binaries
+Run from the gem5 root:
 
 ```bash
-AS=/cta/research/level0/RISCV/bin/riscv64-unknown-linux-gnu-as
-LD=/cta/research/level0/RISCV/bin/riscv64-unknown-linux-gnu-ld
-BASE=tests/spill_test
-
-for tc in tc1_callee_save tc2_reg_pressure tc3_loop_spill; do
-  $AS -o $BASE/$tc/$tc.o  $BASE/$tc/$tc.S
-  $LD -o $BASE/$tc/$tc.riscv $BASE/$tc/$tc.o
-  echo "Built: $tc.riscv"
-done
+python3 tests/spill_test/run_tests.py
 ```
 
----
-
-## How to Run All Tests
-
-Run from the gem5 root (`/cta/users/bkaya/riscv-spec-register-spilling/gem5`):
+Run selected cases or keep artifacts:
 
 ```bash
-GEM5=./build/RISCV/gem5.opt
-CFG=configs/deprecated/example/se.py
-BASE=tests/spill_test
-
-$GEM5 --outdir=$BASE/tc1_callee_save/out  $CFG --cmd=$BASE/tc1_callee_save/tc1_callee_save.riscv  --cpu-type=TimingSimpleCPU --caches 2>/dev/null
-$GEM5 --outdir=$BASE/tc2_reg_pressure/out $CFG --cmd=$BASE/tc2_reg_pressure/tc2_reg_pressure.riscv --cpu-type=TimingSimpleCPU --caches 2>/dev/null
-$GEM5 --outdir=$BASE/tc3_loop_spill/out   $CFG --cmd=$BASE/tc3_loop_spill/tc3_loop_spill.riscv     --cpu-type=TimingSimpleCPU --caches 2>/dev/null
+python3 tests/spill_test/run_tests.py tc5_repeated_reload tc11_split_line
+python3 tests/spill_test/run_tests.py --keep /tmp/spill-results
 ```
 
-Inspect results:
+The default toolchain paths can be overridden with `--gem5`, `--assembler`,
+`--linker`, and `--nm`.
 
-```bash
-for tc in tc1_callee_save tc2_reg_pressure tc3_loop_spill; do
-  echo "=== $tc ==="
-  cat tests/spill_test/$tc/out/riscv_spill_stats.txt
-done
+## Counter semantics
+
+All instruction counters count successfully completed dynamic instructions.
+The `m5_work_begin` and `m5_work_end` marker instructions are excluded from
+the ROI. Instructions used to prepare the arguments for `m5_work_end` remain
+inside the ROI, as they execute before the marker.
+
+- `total_instructions`, `total_load_insts`, `total_store_insts`: whole-run
+  committed instruction counts.
+- `roi_instructions`, `roi_load_insts`, `roi_store_insts`: committed counts
+  between ROI markers.
+- `roi_candidate_stack_store_insts`: stores eligible to start a spill pair.
+  In heuristic mode these are SP/FP-relative stack stores; in exact mode they
+  are stack stores whose PCs appear in the supplied compiler map.
+- `roi_spill_events`: store generations whose first qualifying later load was
+  observed. A store followed by three matching loads is one event.
+- `roi_spill_load_insts`: every qualifying reload, including repeated reloads.
+- `roi_spill_store_insts`: the matched store, counted once when its first
+  qualifying reload confirms it.
+- `roi_spill_mem_insts`: `roi_spill_load_insts + roi_spill_store_insts`.
+- `roi_repeated_spill_load_insts`: qualifying reloads after the first reload
+  of the current store generation.
+- `roi_nonspill_reuse`: same-address/same-size stack store-to-load reuse that
+  is rejected by the SP/FP operand filter in heuristic mode.
+
+The dynamic matching order is **STORE -> later LOAD**. A load followed by a
+store is not a spill event. A newer store to the same address starts a new
+generation and replaces the previous generation in the map.
+
+## Instruction counts versus cache accesses
+
+One memory instruction can cross a cache-line boundary and become two cache
+requests. For this reason the report keeps instruction and access populations
+separate:
+
+```text
+roi_spill_load_l1_accesses
+  = roi_spill_load_insts + roi_spill_load_extra_fragments
+  = roi_spill_load_l1_hits + roi_spill_load_l1_misses
+
+roi_spill_store_l1_accesses
+  = roi_spill_store_insts + roi_spill_store_extra_fragments
+  = roi_spill_store_l1_hits + roi_spill_store_l1_misses
 ```
 
-### Verbose mode (per-spill lines)
+The same identities exist for candidate stores. With the suite's two-level
+cache configuration:
 
-Add `--param "system.cpu[0].spill_verbose=True"` to log each individual spill:
-
-```bash
-$GEM5 --outdir=$BASE/tc1_callee_save/out_v $CFG \
-  --cmd=$BASE/tc1_callee_save/tc1_callee_save.riscv \
-  --cpu-type=TimingSimpleCPU --caches \
-  --param "system.cpu[0].spill_verbose=True" 2>/dev/null
+```text
+L2 accesses = L1 misses = L2 hits + L2 misses
 ```
 
----
+`system.cpu.dcache.spillStoreHits/Misses` are retained for compatibility, but
+they count **candidate** store requests because a future reload is unknown at
+store issue time. The schema-v4 `roi_spill_store_l{1,2}_{hits,misses}` fields
+are retrospective, confirmed-store results and are the correct headline
+store population.
 
-## How SpillDetector Works
+Useful percentages are:
 
-1. **Store tracking** — every `sd`/`sw` writes the address into `store_map`
-2. **Load check** — every `ld`/`lw` looks up that address in `store_map`
-3. **Spill detected** — if the load finds a pending store at the same stack address
+```text
+spill instruction share = roi_spill_mem_insts / roi_instructions
+L1 hit rate              = L1 hits / (L1 hits + L1 misses)
+L2 local hit rate        = L2 hits / (L2 hits + L2 misses)
+L2 rescue of L1 total    = L2 hits / L1 accesses
+DRAM share of L1 total   = L2 misses / L1 accesses
+```
 
-Filters that must all pass:
-- Load tick > store tick (temporal order)
-- Load width == store width (same access size)
-- Address is inside the stack region (`stackBase` / `stackMin`)
-- Both store and load address memory SP/FP-relative (base register is
-  `sp` or `s0/fp`) — stack accesses through computed pointers count as
-  `roi_nonspill_reuse` instead
+The L2 local hit rate and L2 rescue percentage have different denominators and
+must not be compared as though they were the same metric.
 
-There is no time window: a reload pairs with its store no matter how far
-apart they are. A store's entry survives until the next store to the same
-address, so repeated reloads of one spill slot are all counted in
-`roi_spill_reloads` (and tagged for cache stats), while `roi_spills`
-counts unique store→reload pairs (first reload per store).
+## Classification modes
 
-ROI markers gate which spills are counted:
-- `m5_work_begin` (`.long 0xb400007b`) → `enterROI()`: clears `store_map`, resets ROI counters
-- `m5_work_end`   (`.long 0xb600007b`) → `exitROI()`: writes summary to `riscv_spill_stats.txt`
+The default output is explicitly labelled:
 
----
+```text
+classification : heuristic_stack_store_reload_match
+```
 
-## Building gem5
+It detects same-address, same-size, stack-resident STORE -> LOAD pairs whose
+effective-address base operands are `sp` or `s0/fp`. This is a measurable
+heuristic, not proof of a compiler register-allocation spill. Callee-save
+traffic can therefore be a heuristic positive.
 
-Only needed after changing source files under `src/cpu/simple/`.
+For compiler-ground-truth experiments, supply a PC map:
+
+```text
+# spill_pc_map.txt
+store 0x10120
+load  0x10154
+```
 
 ```bash
-GEM5ENV=/cta/users/bkaya/miniconda3/envs/gem5_env
+gem5.opt ... --param "system.cpu[0].spill_pc_map='/path/spill_pc_map.txt'"
+```
 
-PATH=$GEM5ENV/bin:$PATH \
-scons build/RISCV/gem5.opt -j$(nproc) \
-    CC=$GEM5ENV/bin/x86_64-conda-linux-gnu-gcc \
-    CXX=$GEM5ENV/bin/x86_64-conda-linux-gnu-g++ \
-    PYTHON_CONFIG=$GEM5ENV/bin/python3-config
+Only mapped store/load PCs can form a pair in this mode, and the report is
+labelled `compiler_pc_map_store_reload_match`. Addresses are runtime virtual
+PCs; for position-independent binaries the map generator must apply the load
+bias. `tc14_exact_pc_map` builds its map from ELF symbols and verifies that an
+unmapped heuristic-looking pair is excluded.
+
+## Coverage
+
+- `tc1`-`tc3`: callee-save-shaped traffic, register pressure, loop reuse.
+- `tc4a`-`tc4h`: all eight spill/non-spill load/store eviction-attribution
+  boxes using a deterministic one-line L1D.
+- `tc5`: repeated reloads of one store generation.
+- `tc6`: unmatched candidate store.
+- `tc7`: overwrite and two store generations at one slot.
+- `tc8`: RISC-V address-base operand correctness (`sd s0, 0(a3)`).
+- `tc9`: pre-ROI, in-ROI, and post-ROI separation plus global totals.
+- `tc10`: load-before-store and width-mismatch negative cases.
+- `tc11`: one cross-line store/load pair, two requests per instruction.
+- `tc12`: multiple ROIs and per-ROI reset/append behavior.
+- `tc13`: whole-run counters when no ROI exists.
+- `tc14`: compiler PC-map exact mode.
+
+For schema-v4 benchmark results, use:
+
+```bash
+python3 benchmarks/analyze_spill_metrics.py benchmarks/mcf/m5out_new_train
 ```

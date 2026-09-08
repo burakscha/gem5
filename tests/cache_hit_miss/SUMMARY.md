@@ -1,5 +1,12 @@
 # Spill Load/Store Cache Validation — SUMMARY
 
+> **Historical document:** This file describes the original cache-tag tests.
+> In schema v4, `spillStoreHits/Misses` is explicitly the candidate-store
+> population, confirmed store outcomes live in the ROI summary, and
+> `MAX_SPILL_WINDOW` no longer exists. See
+> [`../spill_test/README.md`](../spill_test/README.md) for current semantics,
+> formulas, exact-PC mode, and the comprehensive automated suite.
+
 ## 1. Neden bu altyapı gerekli?
 
 gem5'e eklediğimiz `SPILL_LOAD` ve `SPILL_STORE` request flag'leri ile

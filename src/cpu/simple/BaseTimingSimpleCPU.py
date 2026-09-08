@@ -43,6 +43,11 @@ class BaseTimingSimpleCPU(BaseSimpleCPU):
         False,
         "Log every individual spill event (True) or summary only (False).",
     )
+    spill_pc_map = Param.String(
+        "",
+        "Optional compiler-ground-truth PC map: one 'store ADDRESS' or "
+        "'load ADDRESS' entry per line. Empty selects the heuristic mode.",
+    )
 
     @classmethod
     def memory_mode(cls):

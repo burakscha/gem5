@@ -20,6 +20,7 @@
  */
 
 #include "cpu/simple/spill_detector.hh"
+#include "base/logging.hh"
 #include "base/output.hh"
 #include "base/trace.hh"
 #include "cpu/thread_context.hh"
@@ -30,6 +31,7 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <vector>
 
 // ========================================================================
@@ -62,19 +64,34 @@
 namespace gem5 {
 
 SpillDetector::SpillDetector()
-    : total_instructions(0), total_stores(0), total_loads(0),
-      total_spills_detected(0), static_store_count(0), static_load_count(0),
-      dynamic_store_count(0), dynamic_load_count(0), roi_active(false),
-      inside_roi(false), current_roi_id(0), roi_spills_detected(0),
-      roi_stores(0), roi_loads(0), roi_instructions(0),
-      roi_nonspill_reuse(0), roi_spill_reloads(0), roi_start_tick(0),
-      roi_entry_total_insts(0), roi_entry_total_spills(0),
-      evicted_stores(0), store_map_high_water(0), verbose(false) {
+    : next_store_event_id(1),
+      classification_mode(ClassificationMode::Heuristic),
+      total_instructions(0), total_store_insts(0),
+      total_load_insts(0), total_spill_events(0), roi_active(false),
+      inside_roi(false), roi_start_pending(false), current_roi_id(0),
+      roi_sequence(0), log_initialized(false), roi_spill_events(0),
+      roi_store_insts(0), roi_load_insts(0), roi_instructions(0),
+      roi_nonspill_reuse(0), roi_spill_load_insts(0),
+      roi_spill_store_insts(0), roi_candidate_stack_store_insts(0),
+      roi_repeated_spill_load_insts(0), roi_spill_load_l1_accesses(0),
+      roi_spill_store_l1_accesses(0), roi_candidate_store_l1_accesses(0),
+      roi_spill_load_split_insts(0), roi_spill_store_split_insts(0),
+      roi_spill_load_extra_fragments(0),
+      roi_spill_store_extra_fragments(0), roi_spill_load_l1_hits(0),
+      roi_spill_load_l1_misses(0), roi_spill_load_l2_hits(0),
+      roi_spill_load_l2_misses(0), roi_spill_store_l1_hits(0),
+      roi_spill_store_l1_misses(0), roi_spill_store_l2_hits(0),
+      roi_spill_store_l2_misses(0), roi_candidate_store_l1_hits(0),
+      roi_candidate_store_l1_misses(0), roi_candidate_store_l2_hits(0),
+      roi_candidate_store_l2_misses(0), roi_start_tick(0),
+      roi_entry_total_insts(0), roi_entry_total_spill_events(0),
+      verbose(false), evicted_stores(0), store_map_high_water(0),
+      global_summary_written(false) {
   std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
   store_map.reserve(1000);
 }
 
-SpillDetector::~SpillDetector() {}
+SpillDetector::~SpillDetector() { finalize(); }
 
 // -------------------------------------------------------------------------
 // setVerbose — called by TimingSimpleCPU constructor from params
@@ -84,7 +101,61 @@ void SpillDetector::setVerbose(bool v) {
   if (verbose) {
     // Write the full SPILL-format header so the file is self-documenting
     writeLogHeader();
+    log_initialized = true;
   }
+}
+
+void SpillDetector::configurePcMap(const std::string &path) {
+  exact_store_pcs.clear();
+  exact_load_pcs.clear();
+  classification_mode = ClassificationMode::Heuristic;
+  if (path.empty())
+    return;
+
+  std::ifstream input(path);
+  fatal_if(!input.is_open(), "Cannot open spill PC map: %s", path);
+
+  std::string line;
+  unsigned line_number = 0;
+  while (std::getline(input, line)) {
+    line_number++;
+    const size_t comment = line.find('#');
+    if (comment != std::string::npos)
+      line.erase(comment);
+    std::istringstream fields(line);
+    std::string kind;
+    std::string address_text;
+    if (!(fields >> kind))
+      continue;
+    fatal_if(!(fields >> address_text),
+             "Missing address in spill PC map %s:%u", path, line_number);
+
+    Addr pc = 0;
+    try {
+      size_t consumed = 0;
+      pc = std::stoull(address_text, &consumed, 0);
+      fatal_if(consumed != address_text.size(),
+               "Invalid address in spill PC map %s:%u: %s", path,
+               line_number, address_text);
+    } catch (const std::exception &) {
+      fatal("Invalid address in spill PC map %s:%u: %s", path, line_number,
+            address_text);
+    }
+
+    if (kind == "store" || kind == "S") {
+      exact_store_pcs.insert(pc);
+    } else if (kind == "load" || kind == "L") {
+      exact_load_pcs.insert(pc);
+    } else {
+      fatal("Invalid record type in spill PC map %s:%u: %s", path,
+            line_number, kind);
+    }
+  }
+
+  fatal_if(exact_store_pcs.empty() || exact_load_pcs.empty(),
+           "Spill PC map %s must contain at least one store and one load PC",
+           path);
+  classification_mode = ClassificationMode::ExactPcMap;
 }
 
 // -------------------------------------------------------------------------
@@ -93,104 +164,224 @@ void SpillDetector::setVerbose(bool v) {
 bool SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
                                        unsigned size, Addr current_stack_ptr,
                                        bool sp_fp_relative,
+                                       unsigned l1_fragments,
                                        ThreadContext *tc) {
-  total_stores++;
-  dynamic_store_count++;
+  pending_access.clear();
+  pending_access.type = PendingType::Store;
+  pending_access.address = address;
+  pending_access.pc = pc;
+  pending_access.issue_tick = tick;
+  pending_access.size = size;
+  pending_access.stack_ptr = current_stack_ptr;
+  pending_access.sp_relative = sp_fp_relative;
+  pending_access.stack_address = isStackAddress(address, tc);
+  pending_access.l1_fragments = l1_fragments;
 
-  if (inside_roi) {
-    roi_stores++;
-  }
-
-  StoreInfo store_info(address, pc, tick, size, total_instructions,
-                       current_stack_ptr, sp_fp_relative);
-  store_map[address] = store_info;
-
-  if (store_map.size() > MAX_STORE_ENTRIES) {
-    evictOldStores();
-  }
-  if (store_map.size() > store_map_high_water) {
-    store_map_high_water = store_map.size();
-  }
-
-  // Tag SP/FP-relative stack stores inside ROI as spill-write candidates.
-  // Still an over-approximation (a pairing load is not required — it is
-  // unknown at store time), but computed-pointer stack traffic is excluded.
-  return inside_roi && sp_fp_relative && isStackAddress(address, tc);
+  // This is deliberately a candidate tag. The store cannot be confirmed by
+  // the dynamic matcher until a later load reloads the value. Cache stat names
+  // retain the legacy SPILL_STORE spelling for compatibility, but the summary
+  // labels this population as candidate stack-store traffic.
+  const bool selected = classification_mode == ClassificationMode::ExactPcMap
+      ? exact_store_pcs.count(pc) != 0
+      : sp_fp_relative;
+  return inside_roi && pending_access.stack_address && selected;
 }
 
 bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
                                       unsigned size, Addr current_stack_ptr,
                                       bool sp_fp_relative,
+                                      unsigned l1_fragments,
                                       ThreadContext *tc) {
-  total_loads++;
-  dynamic_load_count++;
+  pending_access.clear();
+  pending_access.type = PendingType::Load;
+  pending_access.address = address;
+  pending_access.pc = pc;
+  pending_access.issue_tick = tick;
+  pending_access.size = size;
+  pending_access.stack_ptr = current_stack_ptr;
+  pending_access.sp_relative = sp_fp_relative;
+  pending_access.stack_address = isStackAddress(address, tc);
+  pending_access.l1_fragments = l1_fragments;
 
-  if (inside_roi) {
-    roi_loads++;
-  }
+  if (!inside_roi || !pending_access.stack_address)
+    return false;
 
   auto store_it = store_map.find(address);
   if (store_it != store_map.end()) {
-    StoreInfo &store_info = store_it->second;
+    const StoreInfo &store_info = store_it->second;
 
     if (isLikelySpill(store_info, pc, address, tick, size, tc)) {
-      // A genuine spill pair requires spill-style addressing on BOTH
-      // sides: store and reload each SP/FP-relative. Pairs that fail
-      // only this filter are stack data reuse (arrays, structs, buffers
-      // reached through computed pointers) and are counted separately.
-      if (store_info.sp_relative && sp_fp_relative) {
-        // The entry is intentionally NOT erased: a spilled value can be
-        // reloaded many times before the slot is overwritten by the next
-        // store to this address. The pair is counted once; every reload
-        // is counted in roi_spill_reloads and tagged for cache stats.
-        bool first_reload = !store_info.reloaded;
-        store_info.reloaded = true;
-
-        if (first_reload) {
-          total_spills_detected++;
-        }
-
-        if (inside_roi) {
-          if (first_reload) {
-            roi_spills_detected++;
-          }
-          roi_spill_reloads++;
-
-          // Reuse-distance histogram: log2 of the instruction distance
-          // between the store and this reload (one entry per reload).
-          uint64_t dist = total_instructions - store_info.instruction_count;
-          int bucket = dist ? (63 - __builtin_clzll(dist)) : 0;
-          reuse_dist_hist[bucket]++;
-
-          // Verbose mode: write one CSV line per reload immediately
-          if (verbose) {
-            SpillEvent spill(store_info.pc, pc, address, store_info.tick,
-                             tick, store_info.instruction_count,
-                             total_instructions);
-            writeSpillToLog(spill);
-          }
-
-          // Signal the caller that this load is a spill reload inside the
-          // ROI so it can tag the Request with Request::SPILL_LOAD.
-          return true;
-        }
-      } else if (inside_roi) {
-        roi_nonspill_reuse++;
+      const bool selected =
+          classification_mode == ClassificationMode::ExactPcMap
+              ? exact_load_pcs.count(pc) != 0
+              : store_info.sp_relative && sp_fp_relative;
+      if (selected) {
+        pending_access.predicted_spill_load = true;
+        pending_access.matched_store_id = store_info.event_id;
+      } else if (classification_mode == ClassificationMode::Heuristic) {
+        pending_access.predicted_nonspill_reuse = true;
+        pending_access.matched_store_id = store_info.event_id;
       }
     }
-    // The entry survives failed matches too (e.g. a narrower load into
-    // the middle of a spilled value must not destroy the pending store);
-    // it is replaced by the next store to this address or evicted.
   }
-  return false;
+  return pending_access.predicted_spill_load;
 }
 
-void SpillDetector::onInstructionExecute(Addr pc, Tick tick) {
+void SpillDetector::onInstructionCommit(bool is_load, bool is_store,
+                                        Addr pc, Tick tick) {
   total_instructions++;
+  if (is_load)
+    total_load_insts++;
+  if (is_store)
+    total_store_insts++;
+
+  // m5_work_begin invokes enterROI() before its own instruction commits.
+  // Count the marker globally, activate the ROI afterwards, and exclude the
+  // marker from every ROI counter.
+  if (roi_start_pending) {
+    roi_start_pending = false;
+    inside_roi = true;
+    roi_start_tick = tick;
+    pending_access.clear();
+    return;
+  }
 
   if (inside_roi) {
     roi_instructions++;
+    if (is_load)
+      roi_load_insts++;
+    if (is_store)
+      roi_store_insts++;
   }
+
+  if (!inside_roi) {
+    pending_access.clear();
+    return;
+  }
+
+  if (pending_access.type == PendingType::Store && is_store) {
+    // Only stack stores are relevant to stack reuse/spill matching. This keeps
+    // heap and global traffic out of the bounded detector map.
+    const bool selected =
+        classification_mode == ClassificationMode::ExactPcMap
+            ? exact_store_pcs.count(pending_access.pc) != 0
+            : true;
+    if (pending_access.stack_address && selected) {
+      const uint64_t event_id = next_store_event_id++;
+      StoreInfo store_info(event_id, pending_access.address,
+                           pending_access.pc, pending_access.issue_tick,
+                           pending_access.size, total_instructions,
+                           pending_access.stack_ptr,
+                           pending_access.sp_relative,
+                           pending_access.l1_fragments,
+                           pending_access.l1_hits,
+                           pending_access.l1_misses,
+                           pending_access.l2_hits,
+                           pending_access.l2_misses);
+      store_map[pending_access.address] = store_info;
+
+      const bool candidate =
+          classification_mode == ClassificationMode::ExactPcMap
+              ? selected
+              : pending_access.sp_relative;
+      if (candidate) {
+        roi_candidate_stack_store_insts++;
+        roi_candidate_store_l1_accesses += pending_access.l1_fragments;
+        roi_candidate_store_l1_hits += pending_access.l1_hits;
+        roi_candidate_store_l1_misses += pending_access.l1_misses;
+        roi_candidate_store_l2_hits += pending_access.l2_hits;
+        roi_candidate_store_l2_misses += pending_access.l2_misses;
+      }
+
+      if (store_map.size() > MAX_STORE_ENTRIES)
+        evictOldStores();
+      if (store_map.size() > store_map_high_water)
+        store_map_high_water = store_map.size();
+    }
+  } else if (pending_access.type == PendingType::Load && is_load) {
+    auto store_it = store_map.find(pending_access.address);
+    if (store_it != store_map.end() &&
+        store_it->second.event_id == pending_access.matched_store_id) {
+      StoreInfo &store_info = store_it->second;
+      if (pending_access.predicted_spill_load) {
+        const bool first_reload = !store_info.reloaded;
+        store_info.reloaded = true;
+
+        roi_spill_load_insts++;
+        roi_spill_load_l1_accesses += pending_access.l1_fragments;
+        roi_spill_load_l1_hits += pending_access.l1_hits;
+        roi_spill_load_l1_misses += pending_access.l1_misses;
+        roi_spill_load_l2_hits += pending_access.l2_hits;
+        roi_spill_load_l2_misses += pending_access.l2_misses;
+        if (pending_access.l1_fragments > 1) {
+          roi_spill_load_split_insts++;
+          roi_spill_load_extra_fragments +=
+              pending_access.l1_fragments - 1;
+        }
+
+        if (first_reload) {
+          total_spill_events++;
+          roi_spill_events++;
+          roi_spill_store_insts++;
+          roi_spill_store_l1_accesses += store_info.l1_fragments;
+          roi_spill_store_l1_hits += store_info.l1_hits;
+          roi_spill_store_l1_misses += store_info.l1_misses;
+          roi_spill_store_l2_hits += store_info.l2_hits;
+          roi_spill_store_l2_misses += store_info.l2_misses;
+          if (store_info.l1_fragments > 1) {
+            roi_spill_store_split_insts++;
+            roi_spill_store_extra_fragments +=
+                store_info.l1_fragments - 1;
+          }
+        } else {
+          roi_repeated_spill_load_insts++;
+        }
+
+        const uint64_t dist = total_instructions -
+                              store_info.instruction_count;
+        const int bucket = dist ? (63 - __builtin_clzll(dist)) : 0;
+        reuse_dist_hist[bucket]++;
+
+        if (verbose) {
+          SpillEvent spill(store_info.pc, pc, pending_access.address,
+                           store_info.tick, tick,
+                           store_info.instruction_count,
+                           total_instructions);
+          writeSpillToLog(spill);
+        }
+      } else if (pending_access.predicted_nonspill_reuse) {
+        roi_nonspill_reuse++;
+      }
+    }
+  }
+
+  pending_access.clear();
+}
+
+void SpillDetector::recordPendingCacheOutcome(unsigned level, bool hit) {
+  if (pending_access.type == PendingType::None)
+    return;
+
+  unsigned *hits = nullptr;
+  unsigned *misses = nullptr;
+  if (level == 0) {
+    hits = &pending_access.l1_hits;
+    misses = &pending_access.l1_misses;
+  } else if (level == 1) {
+    hits = &pending_access.l2_hits;
+    misses = &pending_access.l2_misses;
+  } else {
+    return;
+  }
+
+  if (hit)
+    (*hits)++;
+  else
+    (*misses)++;
+}
+
+void SpillDetector::discardPendingInstruction() {
+  pending_access.clear();
 }
 
 // -------------------------------------------------------------------------
@@ -311,30 +502,103 @@ void SpillDetector::writeROISummary(uint64_t workid) {
   std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::app);
   if (!log_file.is_open()) return;
 
-  double spill_rate = (roi_instructions > 0)
-      ? (double)roi_spills_detected / roi_instructions * 100.0
+  const uint64_t spill_mem_insts =
+      roi_spill_load_insts + roi_spill_store_insts;
+  const uint64_t unconfirmed_candidates =
+      roi_candidate_stack_store_insts >= roi_spill_store_insts
+          ? roi_candidate_stack_store_insts - roi_spill_store_insts
+          : 0;
+  const double spill_event_rate = roi_instructions > 0
+      ? static_cast<double>(roi_spill_events) / roi_instructions * 100.0
+      : 0.0;
+  const double spill_inst_rate = roi_instructions > 0
+      ? static_cast<double>(spill_mem_insts) / roi_instructions * 100.0
       : 0.0;
 
   log_file << "# ================================================\n";
   log_file << "# ROI SUMMARY  ISA=" << ISA_NAME_STR
-           << "  workid=" << workid << "\n";
+           << "  workid=" << workid
+           << "  sequence=" << roi_sequence << "\n";
   if (verbose) {
     log_file << "# (verbose mode - individual SPILL lines logged above)\n";
   } else {
     log_file << "# (summary mode - set spill_verbose=True for per-spill lines)\n";
   }
   log_file << "# ------------------------------------------------\n";
-  log_file << "# entry_total_insts  : " << roi_entry_total_insts  << "\n";
-  log_file << "# entry_total_spills : " << roi_entry_total_spills << "\n";
-  log_file << "# roi_instructions   : " << roi_instructions       << "\n";
-  log_file << "# roi_stores         : " << roi_stores             << "\n";
-  log_file << "# roi_loads          : " << roi_loads              << "\n";
-  log_file << "# roi_spills         : " << roi_spills_detected    << "\n";
-  log_file << "# spill_rate         : " << std::fixed
-           << std::setprecision(4) << spill_rate << "%\n";
-  log_file << "# roi_spill_reloads  : " << roi_spill_reloads
-           << "   (total reload accesses incl. repeats;\n"
-           << "#                       == dcache spillLoadHits+Misses)\n";
+  log_file << "# metric_schema      : 4\n";
+  log_file << "# classification     : "
+           << (classification_mode == ClassificationMode::ExactPcMap
+                   ? "compiler_pc_map_store_reload_match"
+                   : "heuristic_stack_store_reload_match")
+           << "\n";
+  if (classification_mode == ClassificationMode::ExactPcMap) {
+    log_file << "# exact_store_pc_count : " << exact_store_pcs.size() << "\n";
+    log_file << "# exact_load_pc_count : " << exact_load_pcs.size() << "\n";
+  }
+  log_file << "# entry_total_insts  : " << roi_entry_total_insts << "\n";
+  log_file << "# entry_total_spill_events : "
+           << roi_entry_total_spill_events << "\n";
+  log_file << "# roi_instructions   : " << roi_instructions << "\n";
+  log_file << "# roi_load_insts     : " << roi_load_insts << "\n";
+  log_file << "# roi_store_insts    : " << roi_store_insts << "\n";
+  log_file << "# roi_spill_events   : " << roi_spill_events << "\n";
+  log_file << "# roi_spill_load_insts : " << roi_spill_load_insts << "\n";
+  log_file << "# roi_spill_store_insts : " << roi_spill_store_insts << "\n";
+  log_file << "# roi_spill_mem_insts : " << spill_mem_insts << "\n";
+  log_file << "# roi_candidate_stack_store_insts : "
+           << roi_candidate_stack_store_insts << "\n";
+  log_file << "# roi_unconfirmed_candidate_store_insts : "
+           << unconfirmed_candidates << "\n";
+  log_file << "# roi_repeated_spill_load_insts : "
+           << roi_repeated_spill_load_insts << "\n";
+  log_file << "# spill_event_rate   : " << std::fixed
+           << std::setprecision(4) << spill_event_rate << "%\n";
+  log_file << "# spill_inst_rate    : " << std::fixed
+           << std::setprecision(4) << spill_inst_rate << "%\n";
+  log_file << "# roi_spill_load_l1_accesses : "
+           << roi_spill_load_l1_accesses << "\n";
+  log_file << "# roi_spill_store_l1_accesses : "
+           << roi_spill_store_l1_accesses << "\n";
+  log_file << "# roi_candidate_store_l1_accesses : "
+           << roi_candidate_store_l1_accesses << "\n";
+  log_file << "# roi_spill_load_split_insts : "
+           << roi_spill_load_split_insts << "\n";
+  log_file << "# roi_spill_store_split_insts : "
+           << roi_spill_store_split_insts << "\n";
+  log_file << "# roi_spill_load_extra_fragments : "
+           << roi_spill_load_extra_fragments << "\n";
+  log_file << "# roi_spill_store_extra_fragments : "
+           << roi_spill_store_extra_fragments << "\n";
+  log_file << "# roi_spill_load_l1_hits : "
+           << roi_spill_load_l1_hits << "\n";
+  log_file << "# roi_spill_load_l1_misses : "
+           << roi_spill_load_l1_misses << "\n";
+  log_file << "# roi_spill_load_l2_hits : "
+           << roi_spill_load_l2_hits << "\n";
+  log_file << "# roi_spill_load_l2_misses : "
+           << roi_spill_load_l2_misses << "\n";
+  log_file << "# roi_spill_store_l1_hits : "
+           << roi_spill_store_l1_hits << "\n";
+  log_file << "# roi_spill_store_l1_misses : "
+           << roi_spill_store_l1_misses << "\n";
+  log_file << "# roi_spill_store_l2_hits : "
+           << roi_spill_store_l2_hits << "\n";
+  log_file << "# roi_spill_store_l2_misses : "
+           << roi_spill_store_l2_misses << "\n";
+  log_file << "# roi_candidate_store_l1_hits : "
+           << roi_candidate_store_l1_hits << "\n";
+  log_file << "# roi_candidate_store_l1_misses : "
+           << roi_candidate_store_l1_misses << "\n";
+  log_file << "# roi_candidate_store_l2_hits : "
+           << roi_candidate_store_l2_hits << "\n";
+  log_file << "# roi_candidate_store_l2_misses : "
+           << roi_candidate_store_l2_misses << "\n";
+  // Backward-compatible aliases. They retain their historical semantics and
+  // must not be interpreted as a dynamic spill-instruction total.
+  log_file << "# roi_spills         : " << roi_spill_events
+           << "   (deprecated alias of roi_spill_events)\n";
+  log_file << "# roi_spill_reloads  : " << roi_spill_load_insts
+           << "   (deprecated alias of roi_spill_load_insts)\n";
   log_file << "# roi_nonspill_reuse : " << roi_nonspill_reuse
            << "   (stack reuse pairs rejected by SP/FP filter;\n"
            << "#                       roi_spills + this ~= old broad "
@@ -355,40 +619,92 @@ void SpillDetector::writeROISummary(uint64_t workid) {
   log_file << "# ================================================\n\n";
 }
 
+void SpillDetector::writeGlobalSummary() {
+  if (global_summary_written || total_instructions == 0)
+    return;
+  global_summary_written = true;
+
+  std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::app);
+  if (!log_file.is_open())
+    return;
+
+  log_file << "# ================================================\n";
+  log_file << "# GLOBAL SUMMARY  ISA=" << ISA_NAME_STR << "\n";
+  log_file << "# metric_schema      : 4\n";
+  log_file << "# total_instructions : " << total_instructions << "\n";
+  log_file << "# total_load_insts   : " << total_load_insts << "\n";
+  log_file << "# total_store_insts  : " << total_store_insts << "\n";
+  log_file << "# total_roi_spill_events : " << total_spill_events << "\n";
+  log_file << "# ================================================\n\n";
+}
+
 // -------------------------------------------------------------------------
 // ROI entry / exit
 // -------------------------------------------------------------------------
 void SpillDetector::enterROI(uint64_t workid) {
-  // Truncate the log file so stale data from previous runs is never mixed in.
-  // This ensures exactly one ROI summary per simulation output file.
-  // In verbose mode re-write the format header, since the truncation would
-  // otherwise erase the one written by setVerbose() at construction.
-  if (verbose) {
-    writeLogHeader();
-  } else {
-    std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::trunc);
+  // Initialize the file once per simulation. Later ROIs append independent
+  // summary blocks instead of silently erasing earlier workids.
+  if (!log_initialized) {
+    if (verbose) {
+      writeLogHeader();
+    } else {
+      std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME),
+                             std::ios::trunc);
+    }
+    log_initialized = true;
   }
 
-  roi_active     = true;
-  inside_roi     = true;
-  current_roi_id = workid;
+  if (roi_active || inside_roi || roi_start_pending) {
+    DPRINTF(SpillDetector,
+            "Ignoring nested ROI begin (current workid=%d, new workid=%d)\n",
+            current_roi_id, workid);
+    return;
+  }
 
-  roi_entry_total_insts  = total_instructions;
-  roi_entry_total_spills = total_spills_detected;
+  roi_active        = true;
+  inside_roi        = false;
+  roi_start_pending = true;
+  current_roi_id    = workid;
+  roi_sequence++;
 
-  roi_spills_detected = 0;
-  roi_stores          = 0;
-  roi_loads           = 0;
-  roi_instructions    = 0;
-  roi_nonspill_reuse  = 0;
-  roi_spill_reloads   = 0;
-  roi_start_tick      = 0;
+  roi_entry_total_insts = total_instructions;
+  roi_entry_total_spill_events = total_spill_events;
 
-  evicted_stores       = 0;
+  roi_spill_events = 0;
+  roi_store_insts = 0;
+  roi_load_insts = 0;
+  roi_instructions = 0;
+  roi_nonspill_reuse = 0;
+  roi_spill_load_insts = 0;
+  roi_spill_store_insts = 0;
+  roi_candidate_stack_store_insts = 0;
+  roi_repeated_spill_load_insts = 0;
+  roi_spill_load_l1_accesses = 0;
+  roi_spill_store_l1_accesses = 0;
+  roi_candidate_store_l1_accesses = 0;
+  roi_spill_load_split_insts = 0;
+  roi_spill_store_split_insts = 0;
+  roi_spill_load_extra_fragments = 0;
+  roi_spill_store_extra_fragments = 0;
+  roi_spill_load_l1_hits = 0;
+  roi_spill_load_l1_misses = 0;
+  roi_spill_load_l2_hits = 0;
+  roi_spill_load_l2_misses = 0;
+  roi_spill_store_l1_hits = 0;
+  roi_spill_store_l1_misses = 0;
+  roi_spill_store_l2_hits = 0;
+  roi_spill_store_l2_misses = 0;
+  roi_candidate_store_l1_hits = 0;
+  roi_candidate_store_l1_misses = 0;
+  roi_candidate_store_l2_hits = 0;
+  roi_candidate_store_l2_misses = 0;
+  roi_start_tick = 0;
+
+  evicted_stores = 0;
   store_map_high_water = 0;
   std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
-
   store_map.clear();
+  pending_access.clear();
 
   if (verbose) {
     std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::app);
@@ -396,7 +712,8 @@ void SpillDetector::enterROI(uint64_t workid) {
       log_file << "# ========================================\n";
       log_file << "# ROI_BEGIN  workid=" << workid
                << "  entry_total_insts=" << roi_entry_total_insts
-               << "  entry_total_spills=" << roi_entry_total_spills << "\n";
+               << "  entry_total_spill_events="
+               << roi_entry_total_spill_events << "\n";
       log_file << "# ========================================\n";
     }
   }
@@ -405,13 +722,22 @@ void SpillDetector::enterROI(uint64_t workid) {
 }
 
 void SpillDetector::exitROI(uint64_t workid) {
+  if (!roi_active && !inside_roi) {
+    DPRINTF(SpillDetector, "Ignoring ROI end without an active ROI\n");
+    return;
+  }
+
+  // exitROI() runs while m5_work_end itself is executing. Deactivate before
+  // that marker commits so it is excluded from ROI instruction counters.
   inside_roi = false;
+  roi_active = false;
+  roi_start_pending = false;
 
   // Always write the compact summary (both modes)
   writeROISummary(workid);
 
   DPRINTF(SpillDetector, "Exited ROI (workid=%d), ROI spills=%d\n", workid,
-          roi_spills_detected);
+          roi_spill_events);
 }
 
 // -------------------------------------------------------------------------
@@ -423,26 +749,58 @@ void SpillDetector::printSpillReport() const {
 
 void SpillDetector::reset() {
   store_map.clear();
-  total_instructions    = 0;
-  total_stores          = 0;
-  total_loads           = 0;
-  total_spills_detected = 0;
-  roi_active            = false;
-  inside_roi            = false;
-  current_roi_id        = 0;
-  roi_spills_detected   = 0;
-  roi_stores            = 0;
-  roi_loads             = 0;
-  roi_instructions      = 0;
-  roi_nonspill_reuse    = 0;
-  roi_spill_reloads     = 0;
-  roi_start_tick        = 0;
-  roi_entry_total_insts  = 0;
-  roi_entry_total_spills = 0;
-  evicted_stores         = 0;
-  store_map_high_water   = 0;
+  pending_access.clear();
+  next_store_event_id = 1;
+  total_instructions = 0;
+  total_store_insts = 0;
+  total_load_insts = 0;
+  total_spill_events = 0;
+  roi_active = false;
+  inside_roi = false;
+  roi_start_pending = false;
+  current_roi_id = 0;
+  roi_sequence = 0;
+  roi_spill_events = 0;
+  roi_store_insts = 0;
+  roi_load_insts = 0;
+  roi_instructions = 0;
+  roi_nonspill_reuse = 0;
+  roi_spill_load_insts = 0;
+  roi_spill_store_insts = 0;
+  roi_candidate_stack_store_insts = 0;
+  roi_repeated_spill_load_insts = 0;
+  roi_spill_load_l1_accesses = 0;
+  roi_spill_store_l1_accesses = 0;
+  roi_candidate_store_l1_accesses = 0;
+  roi_spill_load_split_insts = 0;
+  roi_spill_store_split_insts = 0;
+  roi_spill_load_extra_fragments = 0;
+  roi_spill_store_extra_fragments = 0;
+  roi_spill_load_l1_hits = 0;
+  roi_spill_load_l1_misses = 0;
+  roi_spill_load_l2_hits = 0;
+  roi_spill_load_l2_misses = 0;
+  roi_spill_store_l1_hits = 0;
+  roi_spill_store_l1_misses = 0;
+  roi_spill_store_l2_hits = 0;
+  roi_spill_store_l2_misses = 0;
+  roi_candidate_store_l1_hits = 0;
+  roi_candidate_store_l1_misses = 0;
+  roi_candidate_store_l2_hits = 0;
+  roi_candidate_store_l2_misses = 0;
+  roi_start_tick = 0;
+  roi_entry_total_insts = 0;
+  roi_entry_total_spill_events = 0;
+  evicted_stores = 0;
+  store_map_high_water = 0;
+  log_initialized = false;
+  global_summary_written = false;
   std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
   // verbose is intentionally NOT reset — it is set once at init.
+}
+
+void SpillDetector::finalize() {
+  writeGlobalSummary();
 }
 
 } // namespace gem5

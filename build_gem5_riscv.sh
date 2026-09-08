@@ -64,4 +64,9 @@ PATH="$SHIM:$GEM5ENV/bin:$PATH" scons build/RISCV/gem5.opt -j12 \
     CXX="$SHIM/g++" \
     PYTHON_CONFIG="$GEM5ENV/bin/python3-config"
 
+if [[ ! -s build/RISCV/gem5.opt || ! -x build/RISCV/gem5.opt ]]; then
+    echo "❌ Build hedefi eksik, boş veya çalıştırılabilir değil" >&2
+    exit 1
+fi
+
 echo "✅ Build tamam: build/RISCV/gem5.opt"

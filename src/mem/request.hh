@@ -49,6 +49,7 @@
 #define __MEM_REQUEST_HH__
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -268,9 +269,9 @@ class Request : public Extensible<Request>
          *  reloads a value previously spilled to the stack. */
         SPILL_LOAD                 = 0x0002000000000000,
 
-        /** The request is the store side of a register spill pair.
-         *  Set by TimingSimpleCPU when SpillDetector confirms the store
-         *  writes a register value to the stack (spill write). */
+        /** The request is a candidate store side of a register spill pair.
+         *  A later matching load is required before SpillDetector reports it
+         *  as a confirmed spill store instruction. */
         SPILL_STORE                = 0x0004000000000000,
         // clang-format on
     };
@@ -489,6 +490,15 @@ class Request : public Extensible<Request>
 
     bool _isGPUFuncAccess;
 
+    // Cache outcomes observed by a spill-tagged data request, in traversal
+    // order (L1 first, L2 second).  This lets TimingSimpleCPU retain the
+    // original store's outcome until a future reload confirms that the store
+    // really belongs to a dynamic spill pair.  It also avoids treating every
+    // SP/FP-relative store as a confirmed spill store in the final report.
+    static constexpr unsigned MaxSpillCacheLevels = 8;
+    std::array<uint8_t, MaxSpillCacheLevels> _spillCacheOutcomes{};
+    uint8_t _spillCacheOutcomeCount = 0;
+
   public:
 
     /**
@@ -535,6 +545,8 @@ class Request : public Extensible<Request>
           _extraData(other._extraData), _contextId(other._contextId),
           _pc(other._pc), _reqInstSeqNum(other._reqInstSeqNum),
           _localAccessor(other._localAccessor),
+          _spillCacheOutcomes(other._spillCacheOutcomes),
+          _spillCacheOutcomeCount(other._spillCacheOutcomeCount),
           translateDelta(other.translateDelta),
           accessDelta(other.accessDelta), depth(other.depth)
     {
@@ -606,6 +618,8 @@ class Request : public Extensible<Request>
         depth = 0;
         accessDelta = 0;
         translateDelta = 0;
+        _spillCacheOutcomes.fill(0);
+        _spillCacheOutcomeCount = 0;
         atomicOpFunctor = std::move(amo_op);
         _localAccessor = nullptr;
     }
@@ -1037,6 +1051,22 @@ class Request : public Extensible<Request>
     bool hasNoAddr() const { return _flags.isSet(HAS_NO_ADDR); }
     bool isSpillLoad()  const { return _flags.isSet(SPILL_LOAD);  }
     bool isSpillStore() const { return _flags.isSet(SPILL_STORE); }
+    void
+    recordSpillCacheOutcome(bool hit)
+    {
+        if (_spillCacheOutcomeCount < MaxSpillCacheLevels) {
+            _spillCacheOutcomes[_spillCacheOutcomeCount++] = hit ? 1 : 2;
+        }
+    }
+    unsigned spillCacheOutcomeCount() const
+    {
+        return _spillCacheOutcomeCount;
+    }
+    bool spillCacheOutcomeWasHit(unsigned level) const
+    {
+        assert(level < _spillCacheOutcomeCount);
+        return _spillCacheOutcomes[level] == 1;
+    }
     bool
     isPrefetch() const
     {

@@ -2424,9 +2424,9 @@ BaseCache::CacheStats::CacheStats(BaseCache &c)
     ADD_STAT(spillLoadMisses, statistics::units::Count::get(),
              "number of demand misses for register-spill reload requests"),
     ADD_STAT(spillStoreHits, statistics::units::Count::get(),
-             "number of demand hits for register-spill write requests"),
+             "number of demand hits for candidate spill-store requests"),
     ADD_STAT(spillStoreMisses, statistics::units::Count::get(),
-             "number of demand misses for register-spill write requests"),
+             "number of demand misses for candidate spill-store requests"),
     ADD_STAT(spillLoadEvictedBySpill, statistics::units::Count::get(),
              "demand misses on a spill reload whose address was evicted "
              "by another spill access"),

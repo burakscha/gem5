@@ -1,5 +1,14 @@
 # Spill Load/Store Cache Hit/Miss Validation Suite
 
+> **Schema-v4 note (2026-09-08):** The legacy gem5 stat names
+> `spillStoreHits/Misses` count SP/FP-relative **candidate stores**, because a
+> future reload is not known when the store request reaches the cache. Use
+> `roi_spill_store_l{1,2}_{hits,misses}` from `riscv_spill_stats.txt` for the
+> retrospectively confirmed store population. The time-based spill window was
+> removed; the legacy `negative/window_expired` path now verifies that a
+> long-distance pair survives. The authoritative counter definitions and the
+> 21-case suite are in [`../spill_test/README.md`](../spill_test/README.md).
+
 ## Ne bu?
 
 Bu dizin, gem5'e eklediğimiz register spill izleme altyapısının doğru çalıştığını
@@ -50,7 +59,7 @@ Bu testlerde ise her şey deterministik:
 | L1 dcache | 1 kB, 4-way, 64 B line | 4 set × 4 way = **16 satır toplam** |
 | L2 cache | 8 kB, 4-way, 64 B line | 32 set × 4 way = **128 satır toplam** |
 | Bellek | SimpleMemory (30 ns) | Deterministic latency |
-| MAX_SPILL_WINDOW | 50.000.000 tick (50 µs) | 160 flush satırı ~26M tick sürer, pencere içinde kalır |
+| Spill matching window | none | Long-distance pairs are retained; bounded-map eviction is reported explicitly |
 
 L1'i boşaltmak için **32 satır**, hem L1 hem L2'yi boşaltmak için **160 satır** erişmek yeterli:
 
@@ -209,7 +218,7 @@ bash check.sh
 `run_all.sh` çıktısı:
 
 ```
-Passed : 6
+Passed : 10
 Failed : 0
 All tests PASSED.
 ```
@@ -238,7 +247,7 @@ Her alt dizinde: `test.c` · `Makefile` · `run.sh` · `check.sh` · `README.md`
 
 ---
 
-## Sıradaki adım: Phase 3 — Negative testler
+## Ek guard testleri
 
 Spill **sayılmaması** gereken durumları doğrulayacak 4 test:
 
@@ -247,4 +256,4 @@ Spill **sayılmaması** gereken durumları doğrulayacak 4 test:
 | 1 | `negative/non_stack` | `isStackAddress()` → false | Tüm sayaçlar 0 |
 | 2 | `negative/roi_outside` | `inside_roi = false` at load | spillLoad sayaçları 0 |
 | 3 | `negative/size_mismatch` | size mismatch in `isLikelySpill()` | spillLoad sayaçları 0 |
-| 4 | `negative/window_expired` | `cleanupOldStores()` evicts entry | spillLoad sayaçları 0 |
+| 4 | `negative/window_expired` (legacy path) | Long distance does not expire entry | exactly one spill load |

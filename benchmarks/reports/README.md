@@ -1,5 +1,12 @@
 # Register Spilling — Rapor ve Log Klasörü
 
+> **Compatibility warning (2026-09-08):** The checked-in SPEC logs and the
+> generated report use the pre-schema-v4 counters. They must not be presented
+> as corrected confirmed-store results. Re-run the benchmarks with the current
+> gem5 binary, verify `metric_schema : 4`, then analyze them with
+> `benchmarks/analyze_spill_metrics.py`. Old report artifacts are retained only
+> as historical experiment output.
+
 Son güncelleme: 2026-08-03
 
 ## İçindekiler

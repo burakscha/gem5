@@ -1,6 +1,6 @@
 #!/bin/bash
-# Guard: cleanupOldStores() — entry evicted after MAX_SPILL_WINDOW (50M ticks)
-# Expected: spillLoad counters = 0
+# Regression: the removed time window must not censor long-distance reloads.
+# The legacy directory name is retained to avoid breaking existing scripts.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATS="$SCRIPT_DIR/m5out/stats.txt"
@@ -13,15 +13,14 @@ LM=$(extract "system.cpu.dcache.spillLoadMisses")
 L2LH=$(extract "system.l2.spillLoadHits")
 L2LM=$(extract "system.l2.spillLoadMisses")
 
-echo "system.cpu.dcache.spillLoadHits   = $LH  (expect 0 — entry expired)"
-echo "system.cpu.dcache.spillLoadMisses = $LM  (expect 0 — entry expired)"
-echo "system.l2.spillLoadHits           = $L2LH (expect 0)"
-echo "system.l2.spillLoadMisses         = $L2LM (expect 0)"
+echo "system.cpu.dcache.spillLoadHits   = $LH"
+echo "system.cpu.dcache.spillLoadMisses = $LM  (L1 total must be 1)"
+echo "system.l2.spillLoadHits           = $L2LH"
+echo "system.l2.spillLoadMisses         = $L2LM (L2 total must equal L1 misses)"
 
 fail=0
-for v in $LH $LM $L2LH $L2LM; do
-    [ "$v" -ne 0 ] && fail=1
-done
+[ "$((LH + LM))" -ne 1 ] && fail=1
+[ "$((L2LH + L2LM))" -ne "$LM" ] && fail=1
 
-if [ "$fail" -eq 0 ]; then echo "PASS: negative/window_expired"; exit 0
-else echo "FAIL: spillLoad counter != 0 — entry not expired (window too short?)"; exit 1; fi
+if [ "$fail" -eq 0 ]; then echo "PASS: long-distance reload survives"; exit 0
+else echo "FAIL: long-distance spill pair was lost or cache levels disagree"; exit 1; fi
