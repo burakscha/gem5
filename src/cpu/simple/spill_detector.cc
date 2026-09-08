@@ -26,8 +26,11 @@
 #include "debug/SpillDetector.hh"
 #include "sim/mem_state.hh"
 #include "sim/process.hh"
+#include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <vector>
 
 // ========================================================================
 // ISA-specific log file names (determined at compile time)
@@ -63,8 +66,11 @@ SpillDetector::SpillDetector()
       total_spills_detected(0), static_store_count(0), static_load_count(0),
       dynamic_store_count(0), dynamic_load_count(0), roi_active(false),
       inside_roi(false), current_roi_id(0), roi_spills_detected(0),
-      roi_stores(0), roi_loads(0), roi_instructions(0), roi_start_tick(0),
-      roi_entry_total_insts(0), roi_entry_total_spills(0), verbose(false) {
+      roi_stores(0), roi_loads(0), roi_instructions(0),
+      roi_nonspill_reuse(0), roi_spill_reloads(0), roi_start_tick(0),
+      roi_entry_total_insts(0), roi_entry_total_spills(0),
+      evicted_stores(0), store_map_high_water(0), verbose(false) {
+  std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
   store_map.reserve(1000);
 }
 
@@ -86,6 +92,7 @@ void SpillDetector::setVerbose(bool v) {
 // -------------------------------------------------------------------------
 bool SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
                                        unsigned size, Addr current_stack_ptr,
+                                       bool sp_fp_relative,
                                        ThreadContext *tc) {
   total_stores++;
   dynamic_store_count++;
@@ -95,19 +102,25 @@ bool SpillDetector::onStoreInstruction(Addr address, Addr pc, Tick tick,
   }
 
   StoreInfo store_info(address, pc, tick, size, total_instructions,
-                       current_stack_ptr);
+                       current_stack_ptr, sp_fp_relative);
   store_map[address] = store_info;
 
   if (store_map.size() > MAX_STORE_ENTRIES) {
-    cleanupOldStores(tick);
+    evictOldStores();
+  }
+  if (store_map.size() > store_map_high_water) {
+    store_map_high_water = store_map.size();
   }
 
-  // Over-approximation: tag all stack stores inside ROI as spill writes.
-  return inside_roi && isStackAddress(address, tc);
+  // Tag SP/FP-relative stack stores inside ROI as spill-write candidates.
+  // Still an over-approximation (a pairing load is not required — it is
+  // unknown at store time), but computed-pointer stack traffic is excluded.
+  return inside_roi && sp_fp_relative && isStackAddress(address, tc);
 }
 
 bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
                                       unsigned size, Addr current_stack_ptr,
+                                      bool sp_fp_relative,
                                       ThreadContext *tc) {
   total_loads++;
   dynamic_load_count++;
@@ -116,32 +129,58 @@ bool SpillDetector::onLoadInstruction(Addr address, Addr pc, Tick tick,
     roi_loads++;
   }
 
-  cleanupOldStores(tick);
-
   auto store_it = store_map.find(address);
   if (store_it != store_map.end()) {
-    const StoreInfo &store_info = store_it->second;
+    StoreInfo &store_info = store_it->second;
 
     if (isLikelySpill(store_info, pc, address, tick, size, tc)) {
-      total_spills_detected++;
+      // A genuine spill pair requires spill-style addressing on BOTH
+      // sides: store and reload each SP/FP-relative. Pairs that fail
+      // only this filter are stack data reuse (arrays, structs, buffers
+      // reached through computed pointers) and are counted separately.
+      if (store_info.sp_relative && sp_fp_relative) {
+        // The entry is intentionally NOT erased: a spilled value can be
+        // reloaded many times before the slot is overwritten by the next
+        // store to this address. The pair is counted once; every reload
+        // is counted in roi_spill_reloads and tagged for cache stats.
+        bool first_reload = !store_info.reloaded;
+        store_info.reloaded = true;
 
-      if (inside_roi) {
-        roi_spills_detected++;
-
-        // Verbose mode: write one CSV line per spill immediately
-        if (verbose) {
-          SpillEvent spill(store_info.pc, pc, address, store_info.tick, tick,
-                           store_info.instruction_count, total_instructions);
-          writeSpillToLog(spill);
+        if (first_reload) {
+          total_spills_detected++;
         }
 
-        store_map.erase(store_it);
-        // Signal the caller that this load is a spill reload inside the ROI
-        // so it can tag the Request with Request::SPILL_LOAD.
-        return true;
+        if (inside_roi) {
+          if (first_reload) {
+            roi_spills_detected++;
+          }
+          roi_spill_reloads++;
+
+          // Reuse-distance histogram: log2 of the instruction distance
+          // between the store and this reload (one entry per reload).
+          uint64_t dist = total_instructions - store_info.instruction_count;
+          int bucket = dist ? (63 - __builtin_clzll(dist)) : 0;
+          reuse_dist_hist[bucket]++;
+
+          // Verbose mode: write one CSV line per reload immediately
+          if (verbose) {
+            SpillEvent spill(store_info.pc, pc, address, store_info.tick,
+                             tick, store_info.instruction_count,
+                             total_instructions);
+            writeSpillToLog(spill);
+          }
+
+          // Signal the caller that this load is a spill reload inside the
+          // ROI so it can tag the Request with Request::SPILL_LOAD.
+          return true;
+        }
+      } else if (inside_roi) {
+        roi_nonspill_reuse++;
       }
     }
-    store_map.erase(store_it);
+    // The entry survives failed matches too (e.g. a narrower load into
+    // the middle of a spilled value must not destroy the pending store);
+    // it is replaced by the next store to this address or evicted.
   }
   return false;
 }
@@ -189,10 +228,25 @@ bool SpillDetector::isStackAddress(Addr address, ThreadContext *tc) {
 // -------------------------------------------------------------------------
 // Store map maintenance
 // -------------------------------------------------------------------------
-void SpillDetector::cleanupOldStores(Tick current_tick) {
+// Emergency eviction, only runs when MAX_STORE_ENTRIES is exceeded.
+// Drops the oldest half of the map (by instruction count) so the cost is
+// amortized O(1) per store. Every dropped entry is a potential censored
+// spill pair, so the count is surfaced in the ROI summary.
+void SpillDetector::evictOldStores() {
+  std::vector<uint64_t> inst_counts;
+  inst_counts.reserve(store_map.size());
+  for (const auto &kv : store_map) {
+    inst_counts.push_back(kv.second.instruction_count);
+  }
+
+  auto mid = inst_counts.begin() + inst_counts.size() / 2;
+  std::nth_element(inst_counts.begin(), mid, inst_counts.end());
+  const uint64_t threshold = *mid;
+
   for (auto it = store_map.begin(); it != store_map.end();) {
-    if (current_tick - it->second.tick > MAX_SPILL_WINDOW) {
+    if (it->second.instruction_count <= threshold) {
       it = store_map.erase(it);
+      evicted_stores++;
     } else {
       ++it;
     }
@@ -278,6 +332,26 @@ void SpillDetector::writeROISummary(uint64_t workid) {
   log_file << "# roi_spills         : " << roi_spills_detected    << "\n";
   log_file << "# spill_rate         : " << std::fixed
            << std::setprecision(4) << spill_rate << "%\n";
+  log_file << "# roi_spill_reloads  : " << roi_spill_reloads
+           << "   (total reload accesses incl. repeats;\n"
+           << "#                       == dcache spillLoadHits+Misses)\n";
+  log_file << "# roi_nonspill_reuse : " << roi_nonspill_reuse
+           << "   (stack reuse pairs rejected by SP/FP filter;\n"
+           << "#                       roi_spills + this ~= old broad "
+              "definition)\n";
+  log_file << "# ------------------------------------------------\n";
+  log_file << "# store_map_live     : " << store_map.size()       << "\n";
+  log_file << "# store_map_peak     : " << store_map_high_water   << "\n";
+  log_file << "# store_map_evicted  : " << evicted_stores         << "\n";
+  log_file << "# reuse distance histogram (spills, log2 of instruction\n";
+  log_file << "# distance between store and reload):\n";
+  for (int i = 0; i < 64; i++) {
+    if (reuse_dist_hist[i] == 0)
+      continue;
+    uint64_t lo = (i == 0) ? 0 : (1ULL << i);
+    log_file << "# reuse_log2[" << std::setw(2) << i << "]     : "
+             << reuse_dist_hist[i] << "   (dist >= " << lo << " insts)\n";
+  }
   log_file << "# ================================================\n\n";
 }
 
@@ -287,7 +361,11 @@ void SpillDetector::writeROISummary(uint64_t workid) {
 void SpillDetector::enterROI(uint64_t workid) {
   // Truncate the log file so stale data from previous runs is never mixed in.
   // This ensures exactly one ROI summary per simulation output file.
-  {
+  // In verbose mode re-write the format header, since the truncation would
+  // otherwise erase the one written by setVerbose() at construction.
+  if (verbose) {
+    writeLogHeader();
+  } else {
     std::ofstream log_file(simout.resolve(SPILL_LOG_FILENAME), std::ios::trunc);
   }
 
@@ -302,7 +380,13 @@ void SpillDetector::enterROI(uint64_t workid) {
   roi_stores          = 0;
   roi_loads           = 0;
   roi_instructions    = 0;
+  roi_nonspill_reuse  = 0;
+  roi_spill_reloads   = 0;
   roi_start_tick      = 0;
+
+  evicted_stores       = 0;
+  store_map_high_water = 0;
+  std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
 
   store_map.clear();
 
@@ -350,9 +434,14 @@ void SpillDetector::reset() {
   roi_stores            = 0;
   roi_loads             = 0;
   roi_instructions      = 0;
+  roi_nonspill_reuse    = 0;
+  roi_spill_reloads     = 0;
   roi_start_tick        = 0;
   roi_entry_total_insts  = 0;
   roi_entry_total_spills = 0;
+  evicted_stores         = 0;
+  store_map_high_water   = 0;
+  std::memset(reuse_dist_hist, 0, sizeof(reuse_dist_hist));
   // verbose is intentionally NOT reset — it is set once at init.
 }
 

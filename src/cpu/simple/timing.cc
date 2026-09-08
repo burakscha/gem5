@@ -108,7 +108,37 @@ using namespace gem5::MipsISA;
 #warning "Stack pointer register not defined for this architecture"
 #endif
 
+// Frame pointer register per ISA. Spill/reload code emitted by compilers
+// addresses the stack either SP-relative or FP-relative, so both must be
+// recognized. ISAs without a well-known FP alias fall back to SP (the
+// filter then only matches SP-relative accesses).
+#if defined(USE_RISCV_ISA)
+#define ARCH_FRAME_PTR_REG gem5::RiscvISA::int_reg::S0
+#elif defined(USE_X86_ISA)
+#define ARCH_FRAME_PTR_REG gem5::X86ISA::int_reg::Rbp
+#else
+#define ARCH_FRAME_PTR_REG ARCH_STACK_PTR_REG
+#endif
+
 namespace gem5 {
+
+// Returns true when the memory instruction addresses memory relative to
+// the stack or frame pointer (any integer source register is SP or FP).
+// This is how compiler-generated spill/reload code addresses spill slots.
+// Note: a scalar local variable accessed via sp-offset looks identical to
+// a register spill at this level — that ambiguity is inherent without
+// compiler metadata. What this filter removes are stack accesses through
+// computed pointers (arrays/structs/buffers on the stack).
+static inline bool isSpFpRelativeMemInst(const StaticInst *si) {
+  if (!si)
+    return false;
+  for (int i = 0; i < si->numSrcRegs(); i++) {
+    const RegId &r = si->srcRegIdx(i);
+    if (r == ARCH_STACK_PTR_REG || r == ARCH_FRAME_PTR_REG)
+      return true;
+  }
+  return false;
+}
 
 // Helper function to get stack pointer in an architecture-aware way
 // This is compiled separately for each ISA build
@@ -497,8 +527,10 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   // REGISTER SPILL DETECTION: Track this load instruction
   // Get architecture-specific stack pointer for spill analysis
   Addr current_sp = getStackPointer(thread);
+  bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
   bool is_spill_load = spillDetector.onLoadInstruction(addr, pc, curTick(),
-                                  size, current_sp, thread->getTC());
+                                  size, current_sp, sp_fp_rel,
+                                  thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
@@ -583,8 +615,9 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   // REGISTER SPILL DETECTION: Track this store instruction
   // Get architecture-specific stack pointer for spill analysis
   Addr current_sp = getStackPointer(thread);
+  bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
   bool is_spill_store = spillDetector.onStoreInstruction(
-      addr, pc, curTick(), size, current_sp, thread->getTC());
+      addr, pc, curTick(), size, current_sp, sp_fp_rel, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());

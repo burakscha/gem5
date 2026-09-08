@@ -169,6 +169,20 @@ class BaseCache(ClockedObject):
     # data cache.
     write_allocator = Param.WriteAllocator(NULL, "Write allocator")
 
+    # Research experiment (register-spill study): when true, demand misses
+    # tagged Request::SPILL_LOAD/SPILL_STORE never allocate a line in this
+    # cache -- they behave as if bypassing it (data still comes from/goes to
+    # the next level, but no other line is evicted to make room). Comparing
+    # non-spill hit/miss counts with this flag on vs off isolates how much
+    # of the miss rate on the REST of the working set is caused by spill
+    # traffic evicting other lines, versus being inherent to that data's
+    # own reuse pattern. Default false: no behavior change from baseline.
+    spill_bypass_alloc = Param.Bool(
+        False,
+        "Do not allocate cache lines on spill-tagged demand misses "
+        "(research experiment to isolate spill-induced cache interference)",
+    )
+
 
 class Cache(BaseCache):
     type = "Cache"

@@ -86,10 +86,10 @@ ROI:
 are available, so the compiler spills 3 values per iteration.
 5 iterations × 3 spills/iteration = 15 ROI spills.
 
-**Key property**: Each iteration's load erases the `store_map` entry for that
-slot, so the next iteration's store re-enters cleanly → every iteration produces
-exactly 3 fresh spills. Slot addresses are reused across iterations, which
-correctly models how loop bodies share the same stack slots each time around.
+**Key property**: Each iteration's store overwrites the `store_map` entry for
+that slot, so every iteration produces exactly 3 fresh spill pairs. Slot
+addresses are reused across iterations, which correctly models how loop bodies
+share the same stack slots each time around.
 
 ```
 ROI:
@@ -170,12 +170,21 @@ $GEM5 --outdir=$BASE/tc1_callee_save/out_v $CFG \
 
 1. **Store tracking** — every `sd`/`sw` writes the address into `store_map`
 2. **Load check** — every `ld`/`lw` looks up that address in `store_map`
-3. **Spill detected** — if the load finds a recent store at the same stack address
+3. **Spill detected** — if the load finds a pending store at the same stack address
 
 Filters that must all pass:
 - Load tick > store tick (temporal order)
 - Load width == store width (same access size)
 - Address is inside the stack region (`stackBase` / `stackMin`)
+- Both store and load address memory SP/FP-relative (base register is
+  `sp` or `s0/fp`) — stack accesses through computed pointers count as
+  `roi_nonspill_reuse` instead
+
+There is no time window: a reload pairs with its store no matter how far
+apart they are. A store's entry survives until the next store to the same
+address, so repeated reloads of one spill slot are all counted in
+`roi_spill_reloads` (and tagged for cache stats), while `roi_spills`
+counts unique store→reload pairs (first reload per store).
 
 ROI markers gate which spills are counted:
 - `m5_work_begin` (`.long 0xb400007b`) → `enterROI()`: clears `store_map`, resets ROI counters

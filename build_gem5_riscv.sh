@@ -1,33 +1,67 @@
 #!/bin/bash
 # gem5 RISC-V Simulator Build Script
 # gem5 itself runs on x86-64, simulates RISC-V
+#
+# Kullanım:
+#   bash build_gem5_riscv.sh           # artımlı build (değişen dosyalar)
+#   bash build_gem5_riscv.sh --clean   # build/RISCV silinir, sıfırdan build
+#
+# Bu makinede sistem gcc'si YOK (/usr/bin/gcc kaldırılmış); derleyici olarak
+# gem5_env conda ortamındaki x86_64-conda-linux-gnu-gcc/g++ kullanılır.
+# scons'un config testleri "gcc" adında bir binary ve zlib yollarını
+# bulabilsin diye toolchain-shim/ altında wrapper scriptler oluşturulur:
+#   - girdi dosyalı çağrılara -I$ENV/include ve -L$ENV/lib -rpath eklerler
+#   - --version/--verbose gibi girdisiz çağrılara flag eklemezler
+#     (yoksa gcc "no input files" hatasıyla çıkar ve scons config bozulur)
 
-set -e
+set -euo pipefail
+cd "$(dirname "$0")"
 
-echo "🧹 Cleaning environment..."
-unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH
+GEM5ENV=/cta/users/bkaya/miniconda3/envs/gem5_env
+SHIM="$(pwd)/toolchain-shim"
 
-echo "🐍 Setting Python paths..."
-export CPATH="$CONDA_PREFIX/include:$CONDA_PREFIX/include/python3.10"
-export C_INCLUDE_PATH="$CPATH"
-export CPLUS_INCLUDE_PATH="$CPATH"
-export LIBRARY_PATH="$CONDA_PREFIX/lib"
-export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+# ── 1. Wrapper'ları (yeniden) oluştur ────────────────────────────────────
+mkdir -p "$SHIM"
+for pair in gcc:x86_64-conda-linux-gnu-gcc g++:x86_64-conda-linux-gnu-g++; do
+    name=${pair%%:*}; real=${pair#*:}
+    # ÖNCE sil: mevcut dosya bir symlink ise üzerine yazmak linkin
+    # hedefini (conda'daki gerçek derleyiciyi!) bozar.
+    rm -f "$SHIM/$name"
+    cat > "$SHIM/$name" <<WRAP
+#!/bin/sh
+E=$GEM5ENV
+link=0
+for a in "\$@"; do
+  case "\$a" in
+    -*) ;;
+    *) link=1; break;;
+  esac
+done
+if [ \$link -eq 1 ]; then
+  exec \$E/bin/$real -I\$E/include "\$@" -L\$E/lib -Wl,-rpath,\$E/lib
+else
+  exec \$E/bin/$real "\$@"
+fi
+WRAP
+    chmod +x "$SHIM/$name"
+done
+rm -f "$SHIM/cc" "$SHIM/c++"
+cp "$SHIM/gcc" "$SHIM/cc"
+cp "$SHIM/g++" "$SHIM/c++"
 
-echo "🔧 Removing RISC-V cross-compiler from PATH..."
-export PATH=$(echo $PATH | tr ':' '\n' | grep -v '/cta/research/level0/RISCV' | tr '\n' ':' | sed 's/:$//')
-export PATH="$CONDA_PREFIX/bin:$PATH"
+echo "✅ Derleyici: $("$SHIM/gcc" --version | head -1)"
 
-echo "✅ Using compiler:"
-/usr/bin/gcc --version | head -1
+# ── 2. Temiz build istendiyse build dizinini sil ─────────────────────────
+if [[ "${1:-}" == "--clean" ]]; then
+    echo "🧹 build/RISCV siliniyor (temiz build)..."
+    rm -rf build/RISCV
+fi
 
-echo "🔨 Building gem5..."
-rm -rf build/RISCV
+# ── 3. Build ─────────────────────────────────────────────────────────────
+echo "🔨 gem5 derleniyor..."
+PATH="$SHIM:$GEM5ENV/bin:$PATH" scons build/RISCV/gem5.opt -j12 \
+    CC="$SHIM/gcc" \
+    CXX="$SHIM/g++" \
+    PYTHON_CONFIG="$GEM5ENV/bin/python3-config"
 
-scons build/RISCV/gem5.opt -j12 \
-    CC=/usr/bin/gcc \
-    CXX=/usr/bin/g++ \
-    PYTHON_CONFIG=$CONDA_PREFIX/bin/python3-config
-
-echo "✅ Build complete!"
-echo "gem5 executable: build/RISCV/gem5.opt"
+echo "✅ Build tamam: build/RISCV/gem5.opt"

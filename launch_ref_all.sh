@@ -5,7 +5,7 @@
 
 GEM5=./build/RISCV/gem5.opt
 CFG=configs/deprecated/example/se.py
-OPTS="--cpu-type=TimingSimpleCPU --caches --mem-size=4GB"
+OPTS="--cpu-type=TimingSimpleCPU --caches --l2cache --mem-size=4GB"
 
 cd /cta/users/bkaya/riscv-spec-register-spilling/gem5/ || exit 1
 

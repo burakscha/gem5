@@ -46,16 +46,25 @@ public:
     unsigned size;
     uint64_t instruction_count;
     Addr stack_ptr_at_store;
+    // True when the store addressed memory SP/FP-relative — the addressing
+    // mode compiler spill code uses. Only such stores can form spill pairs.
+    bool sp_relative;
+    // Set on the first matching reload. A spilled value can be reloaded
+    // many times (e.g. inside a loop); the pair is counted once but every
+    // reload is counted in roi_spill_reloads and tagged for cache stats.
+    bool reloaded;
 
     StoreInfo()
         : address(0), pc(0), tick(0), size(0), instruction_count(0),
-          stack_ptr_at_store(0) {}
+          stack_ptr_at_store(0), sp_relative(false), reloaded(false) {}
 
     StoreInfo(Addr addr, Addr program_counter, Tick simulation_tick,
-              unsigned data_size, uint64_t inst_count, Addr current_stack_ptr)
+              unsigned data_size, uint64_t inst_count, Addr current_stack_ptr,
+              bool sp_rel)
         : address(addr), pc(program_counter), tick(simulation_tick),
           size(data_size), instruction_count(inst_count),
-          stack_ptr_at_store(current_stack_ptr) {}
+          stack_ptr_at_store(current_stack_ptr), sp_relative(sp_rel),
+          reloaded(false) {}
   };
 
   // -------------------------------------------------------
@@ -105,6 +114,17 @@ private:
   uint64_t roi_stores;
   uint64_t roi_loads;
   uint64_t roi_instructions;
+  // Store→load stack reuse pairs that pass the address/order/size/stack
+  // checks but where store and/or load is NOT SP/FP-relative (stack
+  // arrays, structs, buffers accessed through computed pointers).
+  // roi_spills + roi_nonspill_reuse ≈ the old, broader spill definition,
+  // so both definitions are measurable from a single run.
+  uint64_t roi_nonspill_reuse;
+  // Total spill reload accesses, counting repeated reloads of the same
+  // spill slot. This is the spill-induced load traffic the cache sees:
+  // dcache.spillLoadHits + dcache.spillLoadMisses == roi_spill_reloads.
+  // roi_spills counts pairs (first reload per store) instead.
+  uint64_t roi_spill_reloads;
   Tick     roi_start_tick;
   uint64_t roi_entry_total_insts;
   uint64_t roi_entry_total_spills;
@@ -114,14 +134,32 @@ private:
   // =========================================
   bool verbose; // set by TimingSimpleCPU from params.spill_verbose
 
-  // Detection window / map limits
-  static const Tick     MAX_SPILL_WINDOW  = 50000000;   // 50 µs — wide enough for micro-tests
-  static const unsigned MAX_STORE_ENTRIES = 10000;
+  // =========================================
+  // Debug / calibration counters (ROI-scoped, reported in ROI summary)
+  // =========================================
+  uint64_t evicted_stores;        // entries dropped by emergency eviction
+  uint64_t store_map_high_water;  // max live entries seen inside the ROI
+  // log2 histogram of reuse distance (instructions between the store and
+  // its reload) for every spill detected inside the ROI. Answers directly
+  // whether long-distance spill pairs exist and how many.
+  uint64_t reuse_dist_hist[64];
+
+  // Store-map safety cap. There is intentionally NO time window anymore:
+  // a spill reload is valid no matter how far it is from its store.
+  // (The old 50 µs tick window censored exactly the long-reuse-distance
+  // pairs that are the most likely cache misses.) The map is bounded by
+  // the distinct stack addresses with a pending store, so it stays small
+  // in practice; if it ever exceeds this cap, the oldest half is evicted
+  // and the eviction count appears in the ROI summary so any censoring
+  // is visible in the data instead of silent.
+  static const size_t MAX_STORE_ENTRIES = 1 << 20; // ~1M entries
 
   // -------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------
-  void cleanupOldStores(Tick current_tick);
+  // Emergency eviction: drops the oldest half of store_map (by
+  // instruction count). Called only when MAX_STORE_ENTRIES is exceeded.
+  void evictOldStores();
 
   // Writes the SPILL-format header (verbose mode only, called once)
   void writeLogHeader();
@@ -150,15 +188,18 @@ public:
   // -------------------------------------------------------
   // Hot-path callbacks (called per instruction)
   // -------------------------------------------------------
-  // Returns true when the store is a spill write (stack store inside ROI).
+  // Returns true when the store is a spill write candidate
+  // (SP/FP-relative stack store inside ROI).
   // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_STORE.
   bool onStoreInstruction(Addr address, Addr pc, Tick tick, unsigned size,
-                          Addr current_stack_ptr, ThreadContext *tc = nullptr);
+                          Addr current_stack_ptr, bool sp_fp_relative,
+                          ThreadContext *tc = nullptr);
 
   // Returns true when the load is confirmed as a spill reload inside the ROI.
   // The caller (TimingSimpleCPU) uses this to tag the Request with SPILL_LOAD.
   bool onLoadInstruction(Addr address, Addr pc, Tick tick, unsigned size,
-                         Addr current_stack_ptr, ThreadContext *tc = nullptr);
+                         Addr current_stack_ptr, bool sp_fp_relative,
+                         ThreadContext *tc = nullptr);
 
   void onInstructionExecute(Addr pc, Tick tick);
 
