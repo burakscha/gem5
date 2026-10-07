@@ -114,3 +114,19 @@ __pycache__/
 build/
 util/m5/build/
 toolchain-shim/
+
+# ── spill experiment housekeeping ────────────────────────────────────────────
+# Batch launcher logs (the *.log rule above already covers these, kept for
+# clarity now that they have a home).
+logs/
+# Installer leftovers that used to sit in the repository root.
+Miniconda3-*.sh
+get-pip.py
+# LaTeX intermediates. The .tex sources and the compiled PDFs are both kept:
+# the PDFs are the deliverables handed over for review.
+general_reports/**/*.aux
+general_reports/**/*.out
+general_reports/**/*.synctex.gz
+
+# Scratch directories blender creates in the working directory at run time.
+blender_*/

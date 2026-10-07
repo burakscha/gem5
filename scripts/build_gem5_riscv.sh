@@ -15,7 +15,8 @@
 #     (yoksa gcc "no input files" hatasıyla çıkar ve scons config bozulur)
 
 set -euo pipefail
-cd "$(dirname "$0")"
+# Build from the repository root, one level above scripts/.
+cd "$(dirname "$0")/.."
 
 GEM5ENV=/cta/users/bkaya/miniconda3/envs/gem5_env
 SHIM="$(pwd)/toolchain-shim"

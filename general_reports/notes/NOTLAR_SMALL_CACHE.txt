@@ -1,0 +1,97 @@
+================================================================================
+  SMALL CACHE DENEYİ — NOTLAR
+  Tarih: 2026-05-15
+================================================================================
+
+NEDEN YAPTİK?
+-------------
+Normal cache boyutlarıyla (L1D=64kB, L2=2MB) tüm benchmarklarda spill miss
+oranı neredeyse sıfır çıkıyordu — yani spill'lerin neredeyse tamamı L1'de
+bulunuyordu. Bu beklenenden düşük bir miss oranıydı.
+
+Hipotez: Cache'i çok küçültürsek spill working set L1'e sığmaz, miss oranları
+artar ve spill'lerin gerçekten cache baskısı yaratıp yaratmadığını görebiliriz.
+
+NE DEĞİŞTİRDİK?
+---------------
+  Normal config (önceki runlar):
+    L1D : 64 KiB   (gem5 default)
+    L1I : 32 KiB
+    L2  : 2  MiB   (gem5 default)
+
+  Yeni config (small cache):
+    L1D :  4 KiB   ← 16× küçüldü
+    L1I : 32 KiB   ← değişmedi
+    L2  : 32 KiB   ← 64× küçüldü
+
+  gem5 komut satırına eklenen flaglar:
+    --l1d_size=4kB --l1i_size=32kB --l2_size=32kB
+
+ÇALIŞAN/ÇALIŞMIŞ RUNLAR
+------------------------
+  1) TEST input + small cache
+     Script  : gem5/launch_test_smallcache.sh
+     Çıktılar: benchmarks/<bench>/m5out_test_sc/
+     Input   : Her benchmark için en küçük (test) input
+
+  2) TRAIN input + small cache
+     Script  : gem5/launch_train_smallcache.sh
+     Çıktılar: benchmarks/<bench>/m5out_train_sc/
+              benchmarks/perlbench/m5out_train_sc_scrabbl/
+              benchmarks/perlbench/m5out_train_sc_suns/
+     Input   : Orta büyüklükte (train) input
+
+SONUÇLARI NASIL GÖRECEĞİM?
+---------------------------
+  Terminalde gem5/benchmarks/ dizinine gir:
+
+    cd /cta/users/bkaya/riscv-spec-register-spilling/gem5/benchmarks
+
+  Test sonuçları (small cache):
+    ./analyze_spill_cache.sh --sc
+
+  Train sonuçları (small cache):
+    ./analyze_spill_cache.sh --train-sc
+
+  Karşılaştırma için eski normal-cache test sonuçları:
+    ./analyze_spill_cache.sh --test
+
+  Hepsi bitti mi kontrolü:
+    ps aux | grep gem5 | grep -v grep | wc -l
+    (0 çıkarsa hepsi bitmiş demektir)
+
+SONUÇLARIN NERESİNE BAKILMALI?
+-------------------------------
+  Her benchmark dizininin altında stats.txt ve riscv_spill_stats.txt oluşur.
+  analyze_spill_cache.sh bunları okuyup tablo halinde gösterir.
+
+  Tablodaki kritik sütunlar:
+    L1mis%  → spill load'ların kaçta kaçı L1'i kaçırıyor
+    L2hit%  → L1'i kaçıranların kaçta kaçı L2'de bulunuyor
+    DRAM%   → kaçta kaçı DRAM'e kadar iniyor
+
+  Beklenti: small cache ile L1mis% artmalı, DRAM% da görünür hale gelmeli.
+
+ÖNCEKİ (NORMAL CACHE) SONUÇLARIN ÖZETİ
+----------------------------------------
+  Normal cache ile test inputunda tüm benchmarklarda:
+    L1hit% ≈ 99.9–100%  (neredeyse her spill L1'de bulundu)
+    DRAM%  ≈ 0.00%       (DRAM'e inen neredeyse yoktu)
+
+  Small cache ile test inputunda ilk biten 4 benchmark:
+    omnetpp  : L1hit% = 96.62%  (L1mis% = 3.38%  ← en yüksek)
+    perlbench: store L1hit% = 95.59%  (L1mis% = 4.41%)
+    gcc      : L1hit% = 98.97%  (L1mis% = 1.03%)
+    imagick  : L1hit% = 99.88%  (L1mis% = 0.12%)
+  → Küçük cache ile miss oranları arttı ama DRAM'e inen hâlâ çok az.
+    Çoğu L1 miss 32kB L2'de yakalanıyor.
+
+DİZİN ADLANDIRMA KURALI
+------------------------
+  m5out_test_l2   → test input,  normal cache  (önceki runlar)
+  m5out_train_l2  → train input, normal cache  (önceki runlar)
+  m5out_ref_l2    → ref input,   normal cache  (önceki runlar)
+  m5out_test_sc   → test input,  small cache   (bu deney)
+  m5out_train_sc  → train input, small cache   (bu deney)
+
+================================================================================

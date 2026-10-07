@@ -1,5 +1,14 @@
 # 508.namd_r — gem5 Spill Detection
 
+> **Superseded — metric schema 4 and older.** The counters named here
+> (`roi_spills`, `roi_candidate_*`, `roi_spill_load/store_insts`, …) were
+> retired when the spill definition was reworked on 2026-09-16. Current runs
+> emit `spill_store`, `spill_load`, `spill_event` and `total_spill_insts`
+> under metric schema 7, so **the numbers below cannot be compared with
+> current results.** See `general_reports/definitions/spill_definition.pdf`
+> for the definitions in force and `scripts/README.md` for the current
+> layout. Kept as a historical record.
+
 NAMD is a molecular dynamics simulation benchmark. It simulates the ApoA1
 lipid-protein system. The ROI wraps the main iteration loop in `spec_namd.C`.
 

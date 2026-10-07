@@ -1,0 +1,331 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{pdflscape}
+\usepackage{array}
+\usepackage[T1]{fontenc}
+
+\newcommand{\LongDate}{\number\day\space
+  \ifcase\month\or January\or February\or March\or April\or May\or June%
+  \or July\or August\or September\or October\or November\or December\fi
+  \space\number\year}
+
+
+\begin{document}
+\title{\textbf{Spill Cache Hit/Miss Analysis}\\
+  \normalsize SPEC CPU2017 on RISC-V via gem5 --- Test Input Dataset}
+\author{
+  \IEEEauthorblockN{L\"utfullah Burak Kaya}
+  \IEEEauthorblockA{Ozyegin University \\ burak.kaya.50711@ozu.edu.tr}
+  \and
+  \IEEEauthorblockN{Ismail Akturk}
+  \IEEEauthorblockA{Ozyegin University \\ ismail.akturk@ozyegin.edu.tr}
+}
+\twocolumn[\begin{@twocolumnfalse}\maketitle
+\begin{center}{\small \LongDate}\end{center}\vspace{1em}
+\end{@twocolumnfalse}]
+
+\begin{abstract}
+We characterise register spill behaviour and its interaction with the
+memory hierarchy for 15 SPEC CPU2017 C/C++ benchmarks on RISC-V
+(RV64GC) using gem5 TimingSimpleCPU.  All measurements use SPEC
+\emph{test} inputs, which are intended for pipeline validation and
+may not represent full workload behaviour; results should be read
+as preliminary characterisation.
+Spill fractions range from
+\textbf{1.05\%} (\texttt{namd}) to \textbf{8.03\%} (\texttt{povray})
+of ROI instructions, and from 4\% to 38\% of ROI loads.
+Spill-load DRAM traffic (DRAML\%) is 0.00\% for all 15~benchmarks
+at two-decimal precision, suggesting that most spilled values are
+reloaded before their cache lines are evicted from L1.
+Non-zero DRAM traffic ($<$0.1\%) is observed only on the
+spill-store/RFO side (DRAMS\%), specifically for
+\texttt{imagick} and \texttt{omnetpp}.
+\end{abstract}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Methodology}
+
+\subsection{gem5 Configuration}
+\begin{itemize}
+    \item CPU: TimingSimpleCPU, RISC-V RV64GC
+    \item Caches: 32\,kB L1-D (8-way, 64\,B lines),
+                  256\,kB unified L2 (\texttt{--caches --l2cache})
+    \item Memory: 4\,GB SimpleMemory
+    \item Input tier: SPEC \texttt{test} (short, suitable for pipeline validation)
+\end{itemize}
+
+\subsection{SpillDetector Module}
+
+The SpillDetector is a custom gem5 module integrated into the
+TimingSimpleCPU execute path.  It identifies spill store/reload pairs
+using five guards designed to reduce false positives from unrelated
+stack accesses:
+
+\begin{enumerate}
+  \item \textbf{Stack-address filter.}  Only instructions whose
+    effective address falls within the current stack pointer
+    $\pm$\,\texttt{MAX\_SPILL\_SIZE} bytes are considered candidates.
+    Heap and global accesses are excluded by definition.
+  \item \textbf{ROI-only counting.}  The detector is active only
+    between \texttt{m5\_work\_begin()} and \texttt{m5\_work\_end()},
+    so library initialisation, teardown, and non-kernel code are
+    excluded from all counts.
+  \item \textbf{Store-before-load ordering.}  A stack address is
+    entered in the spill map on a \emph{store}; only a subsequent
+    \emph{load} to the same address is counted as a spill reload.
+    A load that arrives before any matching store is not counted.
+  \item \textbf{Compatible access size.}  The load and its matching
+    store must access the same number of bytes.  Mismatched-width
+    accesses are rejected.
+  \item \textbf{Spill-detection window.}  Store-map entries older
+    than \texttt{MAX\_SPILL\_WINDOW} (50\,million ticks
+    $\approx$\,50\,\textmu s) are purged before each load check.
+    This prevents long-lived stack-frame data from being
+    misidentified as spill targets across distantly separated
+    call sites.
+\end{enumerate}
+
+The detector writes \texttt{riscv\_spill\_stats.txt} containing
+\texttt{roi\_instructions}, \texttt{roi\_loads}, \texttt{roi\_stores},
+and \texttt{roi\_spills}.
+
+\subsection{Spill-Tagged Cache Counters}
+
+Two \texttt{Request} flags---\texttt{SPILL\_LOAD} and
+\texttt{SPILL\_STORE}---are set on memory requests that the
+SpillDetector identifies as spill operations.
+The L1-D cache and L2 each independently accumulate hit and miss
+counters for spill-tagged requests:
+\texttt{spillLoadHits}, \texttt{spillLoadMisses},
+\texttt{spillStoreHits}, \texttt{spillStoreMisses} per level.
+
+\subsection{Metrics}
+
+\textbf{Spill-fraction metrics:}
+\begin{align*}
+\text{SP/inst\%} &= \frac{\text{roi\_spills}}{\text{roi\_instructions}} \times 100 \\[2pt]
+\text{SP/load\%} &= \frac{\text{roi\_spills}}{\text{roi\_loads}} \times 100
+\end{align*}
+
+Let $N_L = \textit{dcache.spillLoadHits}+\textit{dcache.spillLoadMisses}$ and
+$N_S = \textit{dcache.spillStoreHits}+\textit{dcache.spillStoreMisses}$.
+All cache-level percentages use the same denominator so that:
+\[
+  \text{L1H\%} + \text{L2H\%} + \text{DRAML\%} = 100\%
+\]
+(the same identity holds for stores).
+
+\textbf{Spill-load cache metrics (all divided by $N_L$):}
+\begin{align*}
+\text{L1H\%}   &= \frac{\textit{dcache.spillLoadHits}}{N_L} \times 100 \\[2pt]
+\text{L2H\%}   &= \frac{\textit{l2.spillLoadHits}}{N_L} \times 100 \\[2pt]
+\text{DRAML\%} &= \frac{\textit{l2.spillLoadMisses}}{N_L} \times 100
+\end{align*}
+
+\textbf{Spill-store/RFO cache metrics (all divided by $N_S$):}
+\begin{align*}
+\text{L1HS\%}  &= \frac{\textit{dcache.spillStoreHits}}{N_S} \times 100 \\[2pt]
+\text{L2HS\%}  &= \frac{\textit{l2.spillStoreHits}}{N_S} \times 100 \\[2pt]
+\text{DRAMS\%} &= \frac{\textit{l2.spillStoreMisses}}{N_S} \times 100
+\end{align*}
+
+\noindent
+\textbf{Note:} L2H\% and L2HS\% measure the fraction of \emph{all} spill
+loads (stores) rescued by L2, not a conditional rate conditioned on L1 misses.
+Near-zero DRAML\% (DRAMS\%) is the key indicator that spilling does not
+generate off-chip memory traffic.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Results}
+
+Tables~\ref{tab:spill} and~\ref{tab:cache} present all 15 benchmarks.
+Instructions are in billions~(B); Loads, Stores, and Spills are in millions~(M).
+
+
+\begin{landscape}
+\begin{table*}[p]
+\centering\caption{ROI Spill Statistics --- Test Input}\label{tab:spill}\small
+\begin{tabular}{lrrrrrrrr}
+\toprule
+\textbf{Benchmark} & \textbf{Insts (B)} & \textbf{Loads (M)} & \textbf{Stores (M)}
+  & \textbf{Spills (M)} & \textbf{SP/inst\%} & \textbf{SP/load\%}
+  & \textbf{Sim\,t\,(s)} & \textbf{CPI} \\
+\midrule
+
+\texttt{531.deepsjeng\_r} & 46.20 & 7,989.1 & 3,395.2 & 1,975.8 & 4.28 & 24.73 & 74.08 & 3.21 \\
+
+\texttt{541.leela\_r} & 26.06 & 5,110.6 & 1,756.7 & 1,179.4 & 4.52 & 23.08 & 43.33 & 3.33 \\
+
+\texttt{508.namd\_r} & 31.91 & 8,380.5 & 1,945.5 & 335.7 & 1.05 & 4.01 & 60.30 & 3.78 \\
+
+\texttt{519.lbm\_r} & 6.51 & 1,276.8 & 775.7 & 274.1 & 4.21 & 21.47 & 35.84 & 11.01 \\
+
+\texttt{544.nab\_r} & 6.69 & 1,523.1 & 321.6 & 153.7 & 2.30 & 10.09 & 10.84 & 3.24 \\
+
+\texttt{557.xz\_r} & 2.01 & 367.7 & 183.5 & 39.2 & 1.95 & 10.65 & 4.80 & 4.77 \\
+
+\texttt{538.imagick\_r} & 0.12 & 20.6 & 9.0 & 2.4 & 2.06 & 11.77 & 0.21 & 3.49 \\
+
+\texttt{526.blender\_r} & 0.99 & 233.6 & 116.5 & 64.8 & 6.52 & 27.75 & 2.08 & 4.18 \\
+
+\texttt{511.povray\_r} & 2.24 & 716.2 & 288.0 & 180.0 & 8.03 & 25.14 & 3.98 & 3.55 \\
+
+\texttt{520.omnetpp\_r} & 0.01 & 1.6 & 0.7 & 0.4 & 4.26 & 26.65 & 0.02 & 4.37 \\
+
+\texttt{523.xalancbmk\_r} & 0.40 & 106.0 & 39.0 & 19.4 & 4.89 & 18.25 & 0.72 & 3.63 \\
+
+\texttt{525.x264\_r} & 18.19 & 3,573.8 & 1,995.7 & 664.8 & 3.65 & 18.60 & 34.57 & 3.80 \\
+
+\texttt{502.gcc\_r} & 0.02 & 3.0 & 2.0 & 1.1 & 6.97 & 37.78 & 0.04 & 4.93 \\
+
+\texttt{505.mcf\_r} & 24.43 & 8,113.0 & 1,300.6 & 509.4 & 2.09 & 6.28 & 93.46 & 7.65 \\
+
+\texttt{500.perlbench\_r} & 0.01 & 3.5 & 2.0 & 1.1 & 7.36 & 30.95 & 0.03 & 4.34 \\
+
+\bottomrule\end{tabular}\end{table*}
+
+\begin{table*}[p]
+\centering\caption{Spill Cache Hit/Miss Rates --- Test Input (all \% of total spills)}\label{tab:cache}\small
+\begin{tabular}{lrrrrrrrrrrr}
+\toprule
+\multirow{2}{*}{\textbf{Benchmark}}
+  & \multicolumn{5}{c}{\textbf{Spill Loads}} & \phantom{a}
+  & \multicolumn{5}{c}{\textbf{Spill Stores / RFO}} \\
+\cmidrule{2-6}\cmidrule{8-12}
+  & \textbf{Tot.(M)} & \textbf{L1H\%} & \textbf{L1M\%} & \textbf{L2H\%} & \textbf{DRAM\%}
+  && \textbf{Tot.(M)} & \textbf{L1H\%} & \textbf{L1M\%} & \textbf{L2H\%} & \textbf{DRAM\%} \\
+\midrule
+
+\texttt{531.deepsjeng\_r} & 1,975.8 & 99.97 & 0.03 & 0.03 & 0.00 && 2,462.9 & 99.68 & 0.32 & 0.32 & 0.00 \\
+
+\texttt{541.leela\_r} & 1,179.4 & 100.00 & 0.00 & 0.00 & 0.00 && 1,430.8 & 99.81 & 0.19 & 0.19 & 0.00 \\
+
+\texttt{508.namd\_r} & 335.7 & 99.93 & 0.07 & 0.07 & 0.00 && 345.7 & 99.82 & 0.18 & 0.18 & 0.00 \\
+
+\texttt{519.lbm\_r} & 274.1 & 100.00 & 0.00 & 0.00 & 0.00 && 274.1 & 99.92 & 0.08 & 0.08 & 0.00 \\
+
+\texttt{544.nab\_r} & 153.7 & 100.00 & 0.00 & 0.00 & 0.00 && 159.2 & 99.99 & 0.01 & 0.01 & 0.00 \\
+
+\texttt{557.xz\_r} & 39.2 & 100.00 & 0.00 & 0.00 & 0.00 && 42.6 & 99.90 & 0.10 & 0.10 & 0.00 \\
+
+\texttt{538.imagick\_r} & 2.4 & 100.00 & 0.00 & 0.00 & 0.00 && 2.5 & 99.74 & 0.26 & 0.22 & 0.04 \\
+
+\texttt{526.blender\_r} & 64.8 & 100.00 & 0.00 & 0.00 & 0.00 && 81.9 & 99.93 & 0.07 & 0.07 & 0.00 \\
+
+\texttt{511.povray\_r} & 180.0 & 99.90 & 0.10 & 0.10 & 0.00 && 200.3 & 99.65 & 0.35 & 0.35 & 0.00 \\
+
+\texttt{520.omnetpp\_r} & 0.4 & 99.94 & 0.06 & 0.06 & 0.00 && 0.5 & 99.84 & 0.16 & 0.07 & 0.09 \\
+
+\texttt{523.xalancbmk\_r} & 19.4 & 99.90 & 0.10 & 0.10 & 0.00 && 20.1 & 99.68 & 0.32 & 0.32 & 0.00 \\
+
+\texttt{525.x264\_r} & 664.8 & 99.99 & 0.01 & 0.01 & 0.00 && 789.6 & 99.97 & 0.03 & 0.02 & 0.00 \\
+
+\texttt{502.gcc\_r} & 1.1 & 99.99 & 0.01 & 0.01 & 0.00 && 1.2 & 99.94 & 0.06 & 0.05 & 0.01 \\
+
+\texttt{505.mcf\_r} & 509.4 & 99.88 & 0.12 & 0.12 & 0.00 && 705.2 & 99.54 & 0.46 & 0.46 & 0.01 \\
+
+\texttt{500.perlbench\_r} & 1.1 & 100.00 & 0.00 & 0.00 & 0.00 && 1.2 & 99.86 & 0.14 & 0.14 & 0.01 \\
+
+\bottomrule\end{tabular}\end{table*}
+\end{landscape}
+
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Key Observations}
+
+\subsection{Spill Rate Range}
+
+SP/inst\% spans approximately an $8\times$ range across the suite
+(1.05\% for \texttt{namd} to 8.03\% for \texttt{povray}).
+\texttt{povray}, \texttt{perlbench}, \texttt{gcc}, and \texttt{blender}
+all exceed 6.5\%.  High spill rates may indicate elevated register
+pressure, large stack frames, frequent function calls, or many
+simultaneously live temporaries; exact attribution requires further
+static and dynamic analysis.
+
+\texttt{gcc}'s SP/load\% of 37.78\% is the highest in the suite,
+meaning that on the \emph{test} input 38\% of load operations are
+spill reloads.  If this pattern holds at larger inputs, eliminating
+spilling would reduce load traffic substantially.
+
+\subsection{L1-D Cache Effectiveness for Spill Loads}
+
+L1H\% is $\geq$99.88\% for all 15 benchmarks.
+This indicates that most spilled values are reloaded before
+their cache lines are evicted from L1 for the test inputs.
+\texttt{lbm} has no L1 spill-load misses at all (L2H\%$=$0.00\%,
+DRAML\%$=$0.00\%).
+
+\subsection{Spill-Load L2 Rescue and DRAM Traffic}
+
+DRAML\% is 0.00\% for all 15 benchmarks at the reported precision,
+meaning no spill-load misses propagate to DRAM.
+Where L1 misses do occur, they are entirely absorbed by L2
+(DRAML\% $=$ 0.00\% while L2H\% $\approx$ L1M\%).
+Together, these results suggest that spill reloads exercise
+the on-chip cache hierarchy and do not materially increase
+off-chip memory traffic in the test-input regime.
+
+\subsection{Spill-Store/RFO Behaviour}
+
+L1HS\% exceeds 99.5\% for 13 of 15 benchmarks.
+A near-zero DRAMS\% is the key indicator of off-chip traffic;
+L2HS\% measures the fraction of all spill stores rescued by L2,
+which is meaningful only when DRAMS\% $>$ 0.
+
+\texttt{imagick} and \texttt{omnetpp} show non-zero DRAMS\%
+(0.04\% and 0.09\%, respectively), indicating a small number of
+spill stores that reach DRAM.  \texttt{omnetpp}'s L2HS\% of 0.07\%
+captures the fraction of total stores rescued by L2; the remaining
+0.09\% (DRAMS\%) reach DRAM.  Both absolute values remain low.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations and Next Steps}
+
+SPEC test inputs are intentionally short and are well-suited for
+rapid pipeline validation, but several limitations apply:
+
+\begin{itemize}
+  \item \textbf{Working-set size.}
+    Small test inputs produce small working sets.
+    These may fit entirely in L1/L2, understating cache pressure
+    and overestimating L1 residency compared to production-size runs.
+  \item \textbf{Code-path coverage.}
+    Some benchmarks execute fundamentally different code paths
+    under larger inputs (e.g.\ \texttt{imagick} switches filter
+    pipelines), so test-input spill rates may not scale linearly
+    to train or ref.
+  \item \textbf{Instruction count.}
+    Several benchmarks execute fewer than 100\,M ROI instructions
+    under test input (\texttt{omnetpp}, \texttt{gcc},
+    \texttt{perlbench}, \texttt{imagick}).  Measurement noise is
+    relatively higher for these runs.
+\end{itemize}
+
+\noindent
+\textbf{Next steps:}
+Train-input simulations are in progress for all 15 benchmarks.
+Selected ref-input runs (\texttt{gcc}, \texttt{x264}, \texttt{mcf},
+\texttt{imagick}) are also complete.
+A cross-tier comparison of SP/inst\%, SP/load\%,
+L1H\%, L2H\%, DRAML\%, L1HS\%, L2HS\%, and DRAMS\% will be reported
+to assess whether the test-input characterisation generalises.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+
+All 15 SPEC CPU2017 C/C++ benchmarks exhibit measurable register
+spilling on RISC-V RV64GC under test inputs, with spill densities
+ranging 1--8\% of instructions and 4--38\% of loads.
+For these test-input runs, spill-load DRAM traffic is 0.00\%
+across the suite, and every L1 spill-load miss is rescued by L2.
+The results suggest that spill reloads mostly exercise the
+on-chip cache hierarchy rather than off-chip memory bandwidth
+for this input tier.
+Stronger performance-cost claims require train/ref inputs
+and correlation with stall cycles or cache-access latency,
+which are the subject of ongoing simulation.
+\end{document}

@@ -1,0 +1,237 @@
+% Executive summary of how a register spill is defined and measured.
+% Build:  tectonic --outdir benchmarks benchmarks/spill_definition.tex
+% (or:    pdflatex -output-directory benchmarks benchmarks/spill_definition.tex)
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,top=16mm,bottom=16mm,left=20mm,right=20mm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{microtype}
+\usepackage{titlesec}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\linespread{1.06}\selectfont
+\raggedbottom
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.6em}{}
+\titlespacing*{\section}{0pt}{12pt plus 2pt minus 2pt}{5pt}
+
+% Author-block markup kept in the IEEEtran spelling the paper uses, so the same
+% block can be moved between documents unchanged. This report stays
+% single-column: the rule tables need the full text width to stay legible.
+% The affiliation block contains its own \\ line breaks. article's \author
+% puts each author in a tabular, where a brace group cannot span a row break,
+% so the affiliation goes into a nested tabular instead.
+\newcommand{\IEEEauthorblockN}[1]{{\normalsize #1}}
+\newcommand{\IEEEauthorblockA}[1]{%
+  \\[2pt]{\small\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January%
+    \or February%
+    \or March%
+    \or April%
+    \or May%
+    \or June%
+    \or July%
+    \or August%
+    \or September%
+    \or October%
+    \or November%
+    \or December%
+    \fi
+    \space \number\year
+}
+
+% X columns whose share of the width can be tuned, so "Test" gets the room it
+% needs and "Rationale" is never squeezed.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\hsize=#1\hsize}X}
+\newcolumntype{R}{>{\ttfamily}l}
+
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.28}
+
+\newcommand{\tablehead}[2]{%
+  \nobreak{\small\textbf{Table #1.} #2}\par\nobreak\vspace{2pt}}
+
+\title{
+    \Large Improving CPU Efficiency for Data-Intensive Applications \\
+    \Large through Cache-Aware Spill Optimization \\[6pt]
+    \large Executive Summary: How a Spill Is Defined and Measured \\[5pt]
+    \normalsize gem5 TimingSimpleCPU $\cdot$ RISC-V (RV64GC)
+    $\cdot$ SPEC CPU2017 $\cdot$ metric schema 7
+}
+
+\author{
+    \IEEEauthorblockN{L\"utfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\date{\small \LongDate}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\vspace{-9mm}
+
+\section{What is measured}
+
+A spill is detected \emph{dynamically}, from the memory behaviour of the
+running program, not from compiler metadata. The detector watches every
+committed load and store and looks for the signature of compiler spill code: a
+value written to a stack slot through the stack or frame pointer, and later
+read back from that slot.
+
+All counting is confined to the region of interest (ROI), marked by
+\texttt{m5\_work\_begin} and \texttt{m5\_work\_end} in the benchmark sources.
+State is cleared at ROI entry, so no pair straddles the boundary.
+
+\section{Store side}
+
+Three tests decide whether a committed store is recorded as a spill write.
+
+\tablehead{1}{Store-side rules, applied when the store commits.}
+
+\begin{tabularx}{\textwidth}{@{}l L{1.32} L{0.68}@{}}
+\toprule
+& \textbf{Test} & \textbf{Rationale} \\
+\midrule
+S1 & The store executes inside the ROI
+   & Measurement window \\
+S2 & The target address lies in the stack region,
+     $\texttt{stackMin} \le \text{addr} < \texttt{stackBase}$
+   & Spill slots live on the stack \\
+S3 & The address base register is \texttt{sp}~(\texttt{x2})
+     or \texttt{s0}/\texttt{fp}~(\texttt{x8})
+   & How spill code addresses the stack \\
+\bottomrule
+\end{tabularx}
+
+A passing store is counted in \texttt{spill\_store}, tagged for the cache
+statistics, and remembered in a map keyed by its address. A later store to that
+address replaces the entry, beginning a new \emph{generation}.
+
+\section{Load side}
+
+Six tests decide whether a committed load reads back a recorded spill.
+
+\tablehead{2}{Load-side rules, applied when the load commits.}
+
+\begin{tabularx}{\textwidth}{@{}l L{1.32} L{0.68}@{}}
+\toprule
+& \textbf{Test} & \textbf{Rationale} \\
+\midrule
+L1 & The load executes inside the ROI
+   & Measurement window \\
+L2 & The source address lies in the stack region
+   & As S2 \\
+L3 & A recorded store exists at exactly this address
+   & There is a value to read back \\
+L4 & The load is later in time than that store
+   & A spill is written before it is read \\
+L5 & Load and store use the same access width
+   & The same value, not an overlapping one \\
+L6 & Load and matched store are both base-register relative, per S3
+   & Both halves must look like spill code \\
+\bottomrule
+\end{tabularx}
+
+A load passing all six is counted in \texttt{spill\_load}; the first one for a
+generation also completes a \texttt{spill\_event}. Pairs that satisfy L1--L5
+but fail L6 are ordinary stack data reuse, counted separately.
+
+\section{Counters}
+
+\tablehead{3}{Reported counters and how each is derived.}
+
+\begin{tabularx}{\textwidth}{@{}R X@{}}
+\toprule
+\normalfont\textbf{Counter} & \textbf{Definition} \\
+\midrule
+spill\_store
+  & Write side: every store passing S1--S3, read back later or not. \\
+spill\_load
+  & Read-back side: every load passing L1--L6, repeats included. \\
+spill\_event
+  & One (\texttt{spill\_store}, first \texttt{spill\_load}) pair: one
+    \emph{potential spill}. \\
+total\_spill\_insts
+  & \texttt{spill\_store} $+$ \texttt{spill\_load}. \\
+spill\_store\_unpaired
+  & \texttt{spill\_store} $-$ \texttt{spill\_event}: written, never read back
+    inside the ROI. \\
+repeat\_spill\_load
+  & \texttt{spill\_load} $-$ \texttt{spill\_event}: read-backs after the
+    first. \\
+\bottomrule
+\end{tabularx}
+
+The two sides are decided at different moments, so two inequalities always
+hold: $\texttt{spill\_event} \le \texttt{spill\_store}$, since a value may be
+written and never read back; and
+$\texttt{spill\_load} \ge \texttt{spill\_event}$, since a value may be read
+back many times.
+
+\section{What this does and does not prove}
+
+The rules establish that a stack slot was written through the stack or frame
+pointer and, for a \texttt{spill\_event}, read back at the same width.
+
+They do \emph{not} establish that the register allocator ran out of registers.
+Three other populations pass exactly the same tests and cannot be told apart
+at the microarchitectural level:
+
+\begin{itemize}
+\setlength{\itemsep}{1pt}\setlength{\topsep}{2pt}
+\item ABI-mandated callee-save save and restore in prologues and epilogues;
+\item ordinary scalar locals the compiler kept in memory;
+\item incoming arguments written to their stack home.
+\end{itemize}
+
+The figures are therefore an \textbf{upper bound} on true register-allocator
+spilling, and should be read as \emph{potential} spills. The write side is the
+looser of the two: at store time a later read-back is unknowable, so
+\texttt{spill\_store} need only pass S1--S3.
+
+For an exact classification the detector also accepts a compiler-generated PC
+map (\texttt{spill\_pc\_map}), replacing tests S3 and L6 with the addresses
+the compiler emitted as spill and reload code.
+
+\section{Implementation}
+
+\begin{tabularx}{\textwidth}{@{}X l@{}}
+\toprule
+\textbf{Component} & \textbf{Source} \\
+\midrule
+Rules and counters
+  & \texttt{src/cpu/simple/spill\_detector.\{hh,cc\}} \\
+Base-register test, commit hook
+  & \texttt{src/cpu/simple/timing.cc} \\
+ROI markers, statistics boundaries
+  & \texttt{src/sim/pseudo\_inst.cc} \\
+Per-population cache counters
+  & \texttt{src/mem/cache/base.\{hh,cc\}} \\
+\bottomrule
+\end{tabularx}
+
+The rule set is covered by 21 hand-verified RISC-V assembly test cases in
+\texttt{tests/spill\_test/}, which also assert that the gem5 cache statistics
+and the detector counters agree at both cache levels.
+
+\end{document}

@@ -1,0 +1,369 @@
+==================================================
+ SPEC CPU2017 RISC-V — Spill Cache Hit/Miss
+ Input: TEST (en küçük)
+ gem5: TimingSimpleCPU --caches --l2cache
+ Tarih: Sal 05 May 2026 12:55:09 +03
+==================================================
+
+Benchmark       Status  roi_spills  SP/inst%  SP/load%  │    L1L%   L2L% DRAML%  │    L1S%   L2S% DRAMS%
+───────────────────────────────────────────────────────────────────────────────────────────────────────
+deepsjeng       DONE    1975804388      4.28     24.73  │   99.97 100.00   0.00  │   99.68  99.51   0.00
+leela           DONE    1179370892      4.52     23.08  │  100.00 100.00   0.00  │   99.81  98.19   0.00
+namd            DONE     335693695      1.05      4.01  │   99.93 100.00   0.00  │   99.82  99.95   0.00
+lbm             DONE     274130440      4.21     21.47  │  100.00    N/A   0.00  │   99.92  99.96   0.00
+nab             DONE     153736211      2.30     10.09  │  100.00 100.00   0.00  │   99.99 100.00   0.00
+xz              DONE      39181468      1.95     10.65  │  100.00 100.00   0.00  │   99.90  97.45   0.00
+imagick         DONE       2426438      2.06     11.77  │  100.00 100.00   0.00  │   99.74  83.36   0.04
+blender         DONE      64831836      6.52     27.75  │  100.00 100.00   0.00  │   99.93  99.13   0.00
+povray          DONE     180043488      8.03     25.14  │   99.90 100.00   0.00  │   99.65  99.94   0.00
+omnetpp         DONE        437793      4.26     26.65  │   99.94 100.00   0.00  │   99.84  42.04   0.09
+xalancbmk       DONE      19354339      4.89     18.25  │   99.90 100.00   0.00  │   99.68  99.51   0.00
+x264            DONE     664763019      3.65     18.60  │   99.99 100.00   0.00  │   99.97  97.05   0.00
+gcc             DONE       1117205      6.97     37.78  │   99.99 100.00   0.00  │   99.94  84.89   0.01
+mcf             DONE     509449025      2.09      6.28  │   99.88 100.00   0.00  │   99.54  98.43   0.01
+perlbench       DONE       1080784      7.36     30.95  │  100.00 100.00   0.00  │   99.86  96.46   0.01
+───────────────────────────────────────────────────────────────────────────────────────────────
+
+Sütun açıklamaları:
+  SP/inst% = roi_spills / roi_instructions   (program genelinde spill yoğunluğu)
+  SP/load% = roi_spills / roi_loads          (load trafiğinin yüzde kaçı spill reload)
+  L1L%     = dcache.spillLoadHits / total    (spill load'ların L1 hit oranı)
+  L2L%     = l2.spillLoadHits / L1_misses    (L1 miss'lerden L2'de kurtarılan)
+  DRAML%   = l2.spillLoadMisses / total      (DRAM'e inen spill load oranı)
+  L1S%     = dcache.spillStoreHits / total   (spill store'ların L1 hit oranı)
+  L2S%     = l2.spillStoreHits / L1_misses   (RFO'lardan L2'de çözülen)
+  DRAMS%   = l2.spillStoreMisses / total     (DRAM'e inen spill store/RFO oranı)
+
+
+══════════ DETAYLI ══════════
+
+════════════════════════════════════════════════
+ deepsjeng  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=46202686170  loads=7989081366  spills=1975804388
+  SP/inst% =   4.28%   SP/load% =  24.73%
+
+  LOAD  (spill reload):
+    Total spill loads : 1975804388
+    L1 hit            : 1975206259  ( 99.97%)
+    L1 miss           : 598129
+    └─ L2 hit         : 598129  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 2462917704
+    L1 hit            : 2455101069  ( 99.68%)
+    L1 miss (RFO)     : 7816635
+    └─ L2 hit         : 7778340  (L2 rescue:  99.51%)
+    └─ DRAM           : 38295  (  0.00% of total)
+
+  Simulation: simTicks=74082103772500  cycles=148164207545
+
+════════════════════════════════════════════════
+ leela  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=26063891645  loads=5110627713  spills=1179370892
+  SP/inst% =   4.52%   SP/load% =  23.08%
+
+  LOAD  (spill reload):
+    Total spill loads : 1179370892
+    L1 hit            : 1179338000  (100.00%)
+    L1 miss           : 32892
+    └─ L2 hit         : 32892  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 1430809896
+    L1 hit            : 1428053676  ( 99.81%)
+    L1 miss (RFO)     : 2756220
+    └─ L2 hit         : 2706325  (L2 rescue:  98.19%)
+    └─ DRAM           : 49895  (  0.00% of total)
+
+  Simulation: simTicks=43332088560500  cycles=86664177121
+
+════════════════════════════════════════════════
+ namd  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=31914751100  loads=8380476926  spills=335693695
+  SP/inst% =   1.05%   SP/load% =   4.01%
+
+  LOAD  (spill reload):
+    Total spill loads : 335693695
+    L1 hit            : 335462867  ( 99.93%)
+    L1 miss           : 230828
+    └─ L2 hit         : 230828  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 345692704
+    L1 hit            : 345078743  ( 99.82%)
+    L1 miss (RFO)     : 613961
+    └─ L2 hit         : 613681  (L2 rescue:  99.95%)
+    └─ DRAM           : 280  (  0.00% of total)
+
+  Simulation: simTicks=60296764703500  cycles=120593529407
+
+════════════════════════════════════════════════
+ lbm  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=6506800041  loads=1276836306  spills=274130440
+  SP/inst% =   4.21%   SP/load% =  21.47%
+
+  LOAD  (spill reload):
+    Total spill loads : 274130440
+    L1 hit            : 274130440  (100.00%)
+    L1 miss           : 0
+    └─ L2 hit         : 0  (L2 rescue:   N/A%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 274131144
+    L1 hit            : 273901743  ( 99.92%)
+    L1 miss (RFO)     : 229401
+    └─ L2 hit         : 229320  (L2 rescue:  99.96%)
+    └─ DRAM           : 81  (  0.00% of total)
+
+  Simulation: simTicks=35835443156500  cycles=71670886313
+
+════════════════════════════════════════════════
+ nab  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=6691483052  loads=1523059851  spills=153736211
+  SP/inst% =   2.30%   SP/load% =  10.09%
+
+  LOAD  (spill reload):
+    Total spill loads : 153736211
+    L1 hit            : 153736011  (100.00%)
+    L1 miss           : 200
+    └─ L2 hit         : 200  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 159243564
+    L1 hit            : 159220629  ( 99.99%)
+    L1 miss (RFO)     : 22935
+    └─ L2 hit         : 22935  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  Simulation: simTicks=10840214870500  cycles=21680429741
+
+════════════════════════════════════════════════
+ xz  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=2014351522  loads=367733280  spills=39181468
+  SP/inst% =   1.95%   SP/load% =  10.65%
+
+  LOAD  (spill reload):
+    Total spill loads : 39181468
+    L1 hit            : 39179916  (100.00%)
+    L1 miss           : 1552
+    └─ L2 hit         : 1552  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 42583318
+    L1 hit            : 42539357  ( 99.90%)
+    L1 miss (RFO)     : 43961
+    └─ L2 hit         : 42842  (L2 rescue:  97.45%)
+    └─ DRAM           : 1119  (  0.00% of total)
+
+  Simulation: simTicks=4801927007500  cycles=9603854015
+
+════════════════════════════════════════════════
+ imagick  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=117707681  loads=20608164  spills=2426438
+  SP/inst% =   2.06%   SP/load% =  11.77%
+
+  LOAD  (spill reload):
+    Total spill loads : 2426438
+    L1 hit            : 2426377  (100.00%)
+    L1 miss           : 61
+    └─ L2 hit         : 61  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 2472515
+    L1 hit            : 2466095  ( 99.74%)
+    L1 miss (RFO)     : 6420
+    └─ L2 hit         : 5352  (L2 rescue:  83.36%)
+    └─ DRAM           : 1068  (  0.04% of total)
+
+  Simulation: simTicks=205333064500  cycles=410666129
+
+════════════════════════════════════════════════
+ blender  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=994414403  loads=233612260  spills=64831836
+  SP/inst% =   6.52%   SP/load% =  27.75%
+
+  LOAD  (spill reload):
+    Total spill loads : 64831836
+    L1 hit            : 64831309  (100.00%)
+    L1 miss           : 527
+    └─ L2 hit         : 527  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 81913378
+    L1 hit            : 81859169  ( 99.93%)
+    L1 miss (RFO)     : 54209
+    └─ L2 hit         : 53739  (L2 rescue:  99.13%)
+    └─ DRAM           : 470  (  0.00% of total)
+
+  Simulation: simTicks=2076426456500  cycles=4152852913
+
+════════════════════════════════════════════════
+ povray  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=2240825558  loads=716248306  spills=180043488
+  SP/inst% =   8.03%   SP/load% =  25.14%
+
+  LOAD  (spill reload):
+    Total spill loads : 180043488
+    L1 hit            : 179869310  ( 99.90%)
+    L1 miss           : 174178
+    └─ L2 hit         : 174178  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 200275285
+    L1 hit            : 199565793  ( 99.65%)
+    L1 miss (RFO)     : 709492
+    └─ L2 hit         : 709099  (L2 rescue:  99.94%)
+    └─ DRAM           : 393  (  0.00% of total)
+
+  Simulation: simTicks=3977653452500  cycles=7955306905
+
+════════════════════════════════════════════════
+ omnetpp  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=10286636  loads=1642711  spills=437793
+  SP/inst% =   4.26%   SP/load% =  26.65%
+
+  LOAD  (spill reload):
+    Total spill loads : 437793
+    L1 hit            : 437527  ( 99.94%)
+    L1 miss           : 266
+    └─ L2 hit         : 266  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 474883
+    L1 hit            : 474129  ( 99.84%)
+    L1 miss (RFO)     : 754
+    └─ L2 hit         : 317  (L2 rescue:  42.04%)
+    └─ DRAM           : 437  (  0.09% of total)
+
+  Simulation: simTicks=22494827500  cycles=44989655
+
+════════════════════════════════════════════════
+ xalancbmk  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=395919950  loads=106032294  spills=19354339
+  SP/inst% =   4.89%   SP/load% =  18.25%
+
+  LOAD  (spill reload):
+    Total spill loads : 19354339
+    L1 hit            : 19334727  ( 99.90%)
+    L1 miss           : 19612
+    └─ L2 hit         : 19612  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 20084408
+    L1 hit            : 20019872  ( 99.68%)
+    L1 miss (RFO)     : 64536
+    └─ L2 hit         : 64217  (L2 rescue:  99.51%)
+    └─ DRAM           : 319  (  0.00% of total)
+
+  Simulation: simTicks=719403816500  cycles=1438807633
+
+════════════════════════════════════════════════
+ x264  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=18192367319  loads=3573842627  spills=664763019
+  SP/inst% =   3.65%   SP/load% =  18.60%
+
+  LOAD  (spill reload):
+    Total spill loads : 664763019
+    L1 hit            : 664697121  ( 99.99%)
+    L1 miss           : 65898
+    └─ L2 hit         : 65898  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 789583483
+    L1 hit            : 789380541  ( 99.97%)
+    L1 miss (RFO)     : 202942
+    └─ L2 hit         : 196961  (L2 rescue:  97.05%)
+    └─ DRAM           : 5981  (  0.00% of total)
+
+  Simulation: simTicks=34565659817500  cycles=69131319635
+
+════════════════════════════════════════════════
+ gcc  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=16027045  loads=2957463  spills=1117205
+  SP/inst% =   6.97%   SP/load% =  37.78%
+
+  LOAD  (spill reload):
+    Total spill loads : 1117205
+    L1 hit            : 1117139  ( 99.99%)
+    L1 miss           : 66
+    └─ L2 hit         : 66  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 1201719
+    L1 hit            : 1201024  ( 99.94%)
+    L1 miss (RFO)     : 695
+    └─ L2 hit         : 590  (L2 rescue:  84.89%)
+    └─ DRAM           : 105  (  0.01% of total)
+
+  Simulation: simTicks=39525470500  cycles=79050941
+
+════════════════════════════════════════════════
+ mcf  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=24426982048  loads=8113038194  spills=509449025
+  SP/inst% =   2.09%   SP/load% =   6.28%
+
+  LOAD  (spill reload):
+    Total spill loads : 509449025
+    L1 hit            : 508855015  ( 99.88%)
+    L1 miss           : 594010
+    └─ L2 hit         : 594010  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 705182270
+    L1 hit            : 701921199  ( 99.54%)
+    L1 miss (RFO)     : 3261071
+    └─ L2 hit         : 3209877  (L2 rescue:  98.43%)
+    └─ DRAM           : 51194  (  0.01% of total)
+
+  Simulation: simTicks=93458864180500  cycles=186917728361
+
+════════════════════════════════════════════════
+ perlbench  (DONE)
+════════════════════════════════════════════════
+  ROI: instructions=14690864  loads=3491473  spills=1080784
+  SP/inst% =   7.36%   SP/load% =  30.95%
+
+  LOAD  (spill reload):
+    Total spill loads : 1080784
+    L1 hit            : 1080738  (100.00%)
+    L1 miss           : 46
+    └─ L2 hit         : 46  (L2 rescue: 100.00%)
+    └─ DRAM           : 0  (  0.00% of total)
+
+  STORE (spill write / RFO):
+    Total spill stores: 1154168
+    L1 hit            : 1152530  ( 99.86%)
+    L1 miss (RFO)     : 1638
+    └─ L2 hit         : 1580  (L2 rescue:  96.46%)
+    └─ DRAM           : 58  (  0.01% of total)
+
+  Simulation: simTicks=31902819500  cycles=63805639
+

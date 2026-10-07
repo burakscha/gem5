@@ -1,0 +1,351 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\newcommand{\inputpart}[2]{%
+    \vspace{1em}
+    \noindent\rule{\linewidth}{0.4pt}
+    \section{#1}
+    \textit{#2}
+    \vspace{0.2em}
+}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 519.lbm\_r} \\
+    \normalsize Register Spill Analysis on RISC-V via gem5 \\
+    \normalsize Test \textbar{} Train Inputs
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+\begin{abstract}
+This report presents the register spill characterisation of
+\texttt{519.lbm\_r} across two SPEC CPU2017 input sizes (test, train)
+executed on RISC-V (RV64GC) using the gem5 TimingSimpleCPU simulator
+with a custom SpillDetector.
+Spill rates are \textbf{4.2130\%} (test, 20 time-steps) and
+\textbf{4.2229\%} (train, $\sim$300 time-steps).
+\texttt{lbm\_r} is the most \emph{stable} benchmark in the study:
+the spill rate changes by less than 0.01 percentage points between
+input sizes, confirming that the Lattice Boltzmann kernel executes
+an identical RISC-V instruction sequence on every time-step regardless
+of simulation length.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{519.lbm\_r} implements the Lattice Boltzmann Method (LBM) for
+3D fluid dynamics simulation.  Each time-step performs collision and
+propagation over a $100\!\times\!100\!\times\!130$ grid of fluid cells,
+where each cell stores 19 floating-point velocity components (D3Q19
+model).
+
+ROI markers surround the main time-step loop in \texttt{src/main.c}:
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before the time-step \texttt{for}-loop
+    \item \texttt{m5\_work\_end(0,0)}   --- after  the time-step \texttt{for}-loop
+\end{itemize}
+
+\subsection{Input Datasets}
+
+\begin{table}[H]
+\centering
+\caption{519.lbm\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{llr}
+\toprule
+\textbf{Dataset} & \textbf{Obstacle file} & \textbf{Time-steps} \\
+\midrule
+test  & \texttt{100\_100\_130\_cf\_a.of} (channel flow)   & 20 \\
+train & \texttt{reference.dat}                             & $\sim$300 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{gem5 Configuration (all inputs)}
+
+\begin{itemize}
+    \item \textbf{CPU:} TimingSimpleCPU, RISC-V RV64GC
+    \item \textbf{Caches:} enabled (default L1 I/D + L2)
+    \item \textbf{Memory:} 4\,GB simulated physical RAM
+    \item \textbf{Spill mode:} summary (\texttt{spill\_verbose=False})
+    \item \textbf{Host:} AMD EPYC 7763 (castEpyc), 128 threads, 251\,GB RAM
+\end{itemize}
+
+% ==========================================================
+\inputpart{TEST INPUT}{100\_100\_130\_cf\_a.of --- 20 time-steps}
+% ==========================================================
+
+\section{Test: Simulation Setup}
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/lbm/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/lbm/lbm_r.riscv
+  --options="20 benchmarks/lbm/lbm.in
+    0 1 benchmarks/lbm/100_100_130_cf_a.of"
+  --cpu-type=TimingSimpleCPU
+  --caches --mem-size=4GB
+\end{verbatim}
+
+\section{Test: Results}
+
+\subsection{ROI Statistics}
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- test}
+\label{tab:test_roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions    & 6,506,800,041 \\
+ROI stores          & 775,731,184 \\
+ROI loads           & 1,276,836,306 \\
+\midrule
+\textbf{ROI spills} & \textbf{274,130,440} \\
+\textbf{Spill rate} & \textbf{4.2130\%} \\
+Spill / loads       & 21.47\% \\
+Spill / stores      & 35.34\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Load/Store Breakdown}
+
+\begin{table}[H]
+\centering
+\caption{ROI Load/Store Breakdown --- test}
+\label{tab:test_lsbreakdown}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\multicolumn{3}{l}{\textit{Store instructions}} \\
+\quad Spill stores     & 274,130,440 & 35.34\% of stores \\
+\quad Non-spill stores & 501,600,744 & 64.66\% of stores \\
+\quad \textbf{Total stores} & \textbf{775,731,184} & 11.92\% of ROI \\
+\midrule
+\multicolumn{3}{l}{\textit{Load instructions}} \\
+\quad Spill reloads   & 274,130,440 & 21.47\% of loads \\
+\quad Non-spill loads & 1,002,705,866 & 78.53\% of loads \\
+\quad \textbf{Total loads} & \textbf{1,276,836,306} & 19.62\% of ROI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing --- test}
+\label{tab:test_timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 37.74\,s \\
+Host wall time           & 6,482\,s ($\approx$1.8\,h) \\
+Total simulated instr.   & 6,745,885,923 \\
+ROI coverage             & 96.5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Test: Analysis}
+
+The spill rate of \textbf{4.21\%} reflects the LBM kernel's
+moderate register pressure: each cell update reads 19 velocity
+components, computes collision terms, and writes back 19 updated
+values.  The RISC-V ABI's 32 integer and 32 floating-point registers
+are insufficient to hold all 19 velocity components plus loop indices
+and intermediate sums simultaneously, forcing the compiler to spill a
+subset on each cell iteration.
+
+The load-to-store ratio of 1.65:1 ($1{,}276\,\text{M} / 775\,\text{M}$)
+is consistent with a stencil computation that reads neighbouring cells
+(halo reads) before writing the updated cell.  With Sp/Ld of 21.5\%
+and Sp/St of 35.3\%, spill traffic constitutes a meaningful but
+sub-dominant fraction of memory operations.
+
+The 3.5\% pre-ROI phase (entry instructions: 239\,M) corresponds to
+reading and parsing the obstacle file; this is correctly excluded from
+the spill measurement.
+
+% ==========================================================
+\inputpart{TRAIN INPUT}{reference.dat --- $\sim$300 time-steps}
+% ==========================================================
+
+\section{Train: Simulation Setup}
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/lbm/m5out_train
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/lbm/lbm_r.riscv
+  --options="300 benchmarks/lbm/reference.dat
+    0 1 benchmarks/lbm/100_100_130_cf_a.of"
+  --cpu-type=TimingSimpleCPU
+  --caches --mem-size=4GB
+\end{verbatim}
+
+\section{Train: Results}
+
+\subsection{ROI Statistics}
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- train}
+\label{tab:train_roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions    & 100,160,472,569 \\
+ROI stores          & 11,753,652,015 \\
+ROI loads           & 19,574,976,720 \\
+\midrule
+\textbf{ROI spills} & \textbf{4,229,639,284} \\
+\textbf{Spill rate} & \textbf{4.2229\%} \\
+Spill / loads       & 21.61\% \\
+Spill / stores      & 35.99\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Load/Store Breakdown}
+
+\begin{table}[H]
+\centering
+\caption{ROI Load/Store Breakdown --- train}
+\label{tab:train_lsbreakdown}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Category} & \textbf{Count} & \textbf{Share} \\
+\midrule
+\multicolumn{3}{l}{\textit{Store instructions}} \\
+\quad Spill stores     & 4,229,639,284 & 35.99\% of stores \\
+\quad Non-spill stores & 7,524,012,731 & 64.01\% of stores \\
+\quad \textbf{Total stores} & \textbf{11,753,652,015} & 11.73\% of ROI \\
+\midrule
+\multicolumn{3}{l}{\textit{Load instructions}} \\
+\quad Spill reloads   & 4,229,639,284 & 21.61\% of loads \\
+\quad Non-spill loads & 15,345,337,436 & 78.39\% of loads \\
+\quad \textbf{Total loads} & \textbf{19,574,976,720} & 19.54\% of ROI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing --- train}
+\label{tab:train_timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 551.01\,s \\
+Host wall time           & 164,226\,s ($\approx$45.6\,h) \\
+Total simulated instr.   & 100,400,367,313 \\
+ROI coverage             & 99.8\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Train: Analysis}
+
+The train spill rate of \textbf{4.22\%} is virtually identical to the
+test result (difference: $+0.01$ pp).  This confirms that the LBM
+kernel is \emph{perfectly regular}: each of the $\sim$300 time-steps
+executes the same RISC-V instruction sequence over the same grid,
+producing the same register pressure.  No warm-up, branch
+misprediction, or data-dependent code-path variation affects the
+spill count.
+
+The train ROI covers 99.8\% of total simulated instructions, indicating
+that virtually all computation is within the timed region.  The
+load-to-store ratio remains 1.66:1 and the Sp/Ld/Sp/St ratios shift
+by less than 1 pp compared to test, further confirming the kernel's
+computational regularity.
+
+% ==========================================================
+\section*{Cross-Input Summary}
+
+The following metrics are used:
+\begin{itemize}
+    \item \textbf{Rate} $= \text{ROI spills} / \text{ROI instructions}$
+    \item \textbf{Sp/Ld} $= \text{ROI spills} / \text{ROI loads}$
+    \item \textbf{Sp/St} $= \text{ROI spills} / \text{ROI stores}$
+\end{itemize}
+Spill counts are abbreviated: B\,=\,$10^9$, M\,=\,$10^6$.
+
+\begin{table}[H]
+\centering
+\caption{519.lbm\_r --- All Runs Across Input Sizes}
+\label{tab:summary}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Input / Steps} & \textbf{Spills}
+    & \textbf{Rate} & \textbf{Sp/Ld} & \textbf{Sp/St} \\
+\midrule
+\multicolumn{5}{l}{\textit{Test}} \\
+\quad 20 steps (cf\_a.of) & 274\,M & 4.2130\% & 21.47\% & 35.34\% \\
+\midrule
+\multicolumn{5}{l}{\textit{Train}} \\
+\quad $\sim$300 steps (ref.dat) & 4.23\,B & 4.2229\% & 21.61\% & 35.99\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\texttt{lbm\_r} is unique among all 17 SPEC CPU2017 benchmarks evaluated:
+the spill rate is \emph{input-invariant} to four significant figures.
+The $\Delta\text{Rate} = +0.0099$ pp between test and train is within
+measurement noise, confirming that LBM register pressure is determined
+solely by the kernel's register allocation, not by the number of
+time-steps or obstacle configuration.  The reference input (3000
+time-steps) is expected to produce an identical rate when completed.
+
+\end{document}

@@ -1,0 +1,64 @@
+\documentclass[9pt,landscape,a4paper]{article}
+\usepackage[landscape,a4paper,margin=10mm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\pagestyle{empty}
+\setlength{\tabcolsep}{2.6pt}
+\renewcommand{\arraystretch}{1.08}
+
+\begin{document}
+\begin{center}
+{\large\bfseries Improving CPU Efficiency for Data-Intensive Applications}\\[1pt]
+{\large\bfseries through Cache-Aware Spill Optimization}\\[5pt]
+{\normalsize Register Spill Behaviour and Cache Hit/Miss Rates on RISC-V SPEC CPU2017}\\[7pt]
+\begin{tabular}{@{}c@{\hspace{3em}}c@{}}
+L\"utfullah Burak Kaya & Ismail Akturk \\[2pt]
+{\small Ozyegin University} & {\small Ozyegin University} \\
+{\small burak.kaya.50711@ozu.edu.tr} & {\small ismail.akturk@ozyegin.edu.tr} \\
+\end{tabular}\\[6pt]
+{\small 16 September 2026}\\[3pt]
+{\small gem5 TimingSimpleCPU $\cdot$ workload profile \texttt{test} $\cdot$ L1I/L1D 32\,KiB, L2 256\,KiB $\cdot$ gem5 \texttt{62d20b39c4+dirty}}
+\end{center}
+
+\vspace{-2mm}
+\noindent\footnotesize
+\textbf{Definitions.} A \texttt{spill\_store} is a stack store issued
+SP/FP-relative inside the region of interest; a \texttt{spill\_load} is a
+load that reads a value back from the same address at the same access width,
+repeats counted. A \texttt{spill\_event} is one (store, first read-back)
+pair, i.e.\ one \emph{potential} spill. Hence
+$\texttt{spill\_event} \leq \texttt{spill\_store}$ (a value may be written
+and never read back again inside the region) and
+$\texttt{spill\_load} \geq \texttt{spill\_event}$ (a value may be read back
+many times), while
+$\texttt{total\_spill\_insts} = \texttt{spill\_store} +
+\texttt{spill\_load}$. The classification is microarchitectural and cannot
+separate compiler register spills from ABI-mandated callee-save traffic or
+ordinary scalar stack locals, so these are upper bounds on true
+register-allocator spilling; the store side is the looser of the two, because
+at store time a later read-back is unknowable. All counters cover only the
+region delimited by \texttt{m5\_work\_begin}/\texttt{m5\_work\_end}: the
+gem5 statistics are dumped and reset at those boundaries, so the cache columns
+span exactly the same window, and the ROI instruction, load and store columns
+were cross-checked against gem5's own \texttt{simOps} and
+\texttt{commitStats0} counters. \emph{Spill\,\%} is
+$\texttt{total\_spill\_insts}/\texttt{ROI\_total\_insts}$.
+
+\vspace{2mm}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrrrrrrrr}
+\toprule
+Benchmark & ROI\_total\_insts & ROI\_load & ROI\_store & spill\_store & spill\_load & total\_spill & \textbf{spill\_event} & Spill\,\% & L1D hits & L1D miss & L1D m\,\% & L2 hits & L2 miss & L2 m\,\% & sp\_load m\,\% & sp\_store m\,\% \\
+\midrule
+gcc & 16\,026\,850 & 2\,957\,472 & 1\,955\,133 & 1\,103\,563 & 1\,041\,215 & 2\,144\,778 & 1\,020\,580 & 13.38 & 4\,826\,290 & 86\,315 & 1.757 & 111\,297 & 57\,599 & 34.10 & 0.012 & 0.055 \\
+\midrule
+\textbf{Total} & 16\,026\,850 & 2\,957\,472 & 1\,955\,133 & 1\,103\,563 & 1\,041\,215 & 2\,144\,778 & \textbf{1\,020\,580} & 13.38 & 4\,826\,290 & 86\,315 & 1.757 & 111\,297 & 57\,599 & \textemdash & \textemdash & \textemdash \\
+\bottomrule
+\end{tabular}%
+}
+
+\end{document}

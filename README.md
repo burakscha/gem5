@@ -2,6 +2,11 @@
 
 This guide provides step-by-step instructions to set up a development environment for **gem5** on macOS (Apple Silicon) and simulate RISC-V binaries.
 
+> **Register spill study:** the experiment layered on top of this gem5 tree
+> — how a spill is defined, how to run the SPEC workloads and how to report
+> on them — is documented in [`SPILL_STUDY.md`](SPILL_STUDY.md).
+
+
 ---
 
 ## Table of Contents
