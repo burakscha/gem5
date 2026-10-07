@@ -463,6 +463,15 @@ void workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid) {
     SpillDetector *spillDetector = timingCpu->getSpillDetectorPtr();
     if (spillDetector) {
       spillDetector->enterROI(workid);
+      // Dump and reset every gem5 statistic at the ROI boundary. The
+      // SpillDetector counters are ROI-scoped by construction, but the cache
+      // stats in stats.txt are not: without this they would also contain the
+      // program's startup traffic. Dumping here and again at workend leaves
+      // the ROI as its own "Begin/End Simulation Statistics" block, so cache
+      // hit/miss can be compared with the spill counters on equal terms.
+      // Equivalent to an m5_dump_reset_stats() call, without having to
+      // re-instrument every benchmark source.
+      statistics::schedStatEvent(true, true, curTick(), 0);
     }
   }
   // =========================================
@@ -536,6 +545,9 @@ void workend(ThreadContext *tc, uint64_t workid, uint64_t threadid) {
     SpillDetector *spillDetector = timingCpu->getSpillDetectorPtr();
     if (spillDetector) {
       spillDetector->exitROI(workid);
+      // Closes the ROI statistics block opened in workbegin(). Whatever the
+      // program does after this point lands in the final block instead.
+      statistics::schedStatEvent(true, true, curTick(), 0);
     }
   }
   // =========================================

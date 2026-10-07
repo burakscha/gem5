@@ -172,41 +172,46 @@ private:
   uint64_t roi_store_insts;
   uint64_t roi_load_insts;
   uint64_t roi_instructions;
-  // Store→load stack reuse pairs that pass the address/order/size/stack
-  // checks but where store and/or load is NOT SP/FP-relative (stack
-  // arrays, structs, buffers accessed through computed pointers).
-  // roi_spill_events + roi_nonspill_reuse approximates the old, broader
-  // reuse definition,
-  // so both definitions are measurable from a single run.
+  // Diagnostic: store→load stack reuse pairs that pass the address/order/
+  // size/stack checks but where store and/or load is NOT SP/FP-relative
+  // (stack arrays, structs, buffers reached through computed pointers).
   uint64_t roi_nonspill_reuse;
-  // Dynamic spill instructions. A confirmed store is counted once, on the
-  // first matching reload. Every matching reload, including repeats, is a
-  // spill-load instruction.
+  // Dynamic fill (reload) instructions belonging to a spill event. Every
+  // matching reload is counted, repeats included; roi_repeat_spill_load_insts holds
+  // the reloads beyond the first for one event.
+  // The spill (store) side needs no separate counter: exactly one store
+  // instruction belongs to each event, so spills == roi_spill_events.
   uint64_t roi_spill_load_insts;
+  uint64_t roi_repeat_spill_load_insts;
+  // The spill write side: every SP/FP-relative stack store inside the ROI,
+  // whether or not it is ever read back. This is exactly the population the
+  // SPILL_STORE request flag tags, so the gem5 cache stats agree with it.
+  // A store whose value is never reloaded inside the ROI is still counted
+  // here; the reloaded subset is roi_spill_events.
   uint64_t roi_spill_store_insts;
-  uint64_t roi_candidate_stack_store_insts;
-  uint64_t roi_repeated_spill_load_insts;
 
   // Instruction/cache-transaction reconciliation counters.
   uint64_t roi_spill_load_l1_accesses;
+  uint64_t roi_paired_store_l1_accesses;
   uint64_t roi_spill_store_l1_accesses;
-  uint64_t roi_candidate_store_l1_accesses;
   uint64_t roi_spill_load_split_insts;
-  uint64_t roi_spill_store_split_insts;
+  uint64_t roi_paired_store_split_insts;
   uint64_t roi_spill_load_extra_fragments;
-  uint64_t roi_spill_store_extra_fragments;
+  uint64_t roi_paired_store_extra_fragments;
   uint64_t roi_spill_load_l1_hits;
   uint64_t roi_spill_load_l1_misses;
   uint64_t roi_spill_load_l2_hits;
   uint64_t roi_spill_load_l2_misses;
+  uint64_t roi_paired_store_l1_hits;
+  uint64_t roi_paired_store_l1_misses;
+  uint64_t roi_paired_store_l2_hits;
+  uint64_t roi_paired_store_l2_misses;
   uint64_t roi_spill_store_l1_hits;
   uint64_t roi_spill_store_l1_misses;
   uint64_t roi_spill_store_l2_hits;
   uint64_t roi_spill_store_l2_misses;
-  uint64_t roi_candidate_store_l1_hits;
-  uint64_t roi_candidate_store_l1_misses;
-  uint64_t roi_candidate_store_l2_hits;
-  uint64_t roi_candidate_store_l2_misses;
+  uint64_t roi_spill_store_split_insts;
+  uint64_t roi_spill_store_extra_fragments;
   Tick     roi_start_tick;
   uint64_t roi_entry_total_insts;
   uint64_t roi_entry_total_spill_events;

@@ -37,65 +37,67 @@ class Case:
 
 
 BASE_ZERO = {
-    "roi_spill_events": 0,
-    "roi_spill_load_insts": 0,
-    "roi_spill_store_insts": 0,
-    "roi_spill_mem_insts": 0,
-    "roi_repeated_spill_load_insts": 0,
+    "spill_load": 0,
+    "spill_event": 0,
+    "repeat_spill_load": 0,
 }
 
 
-def roi(loads: int, stores: int, candidates: int, **overrides: int) -> dict[str, int]:
+def roi(loads: int, stores: int, spill_stores: int, **overrides: int) -> dict[str, int]:
+    """Expected ROI counters.
+
+    `spill_stores` is the write side: every SP/FP-relative stack store in the
+    ROI, reloaded or not. `spill_event` counts only the ones read back again,
+    so it is supplied per case and is never larger than `spill_stores`.
+    """
     result = {
         **BASE_ZERO,
-        "roi_load_insts": loads,
-        "roi_store_insts": stores,
-        "roi_candidate_stack_store_insts": candidates,
-        "roi_nonspill_reuse": 0,
+        "roi_load": loads,
+        "roi_store": stores,
+        "spill_store": spill_stores,
+        "diag_nonspill_reuse": 0,
     }
     result.update(overrides)
+    result["spill_event"] = result["spill_load"] - result["repeat_spill_load"]
+    result["total_spill_insts"] = result["spill_store"] + result["spill_load"]
+    result["spill_store_unpaired"] = result["spill_store"] - result["spill_event"]
     return result
 
 
 CASES = (
     Case(
         "tc1_callee_save",
-        (roi(6, 6, 6, roi_spill_events=6, roi_spill_load_insts=6,
-             roi_spill_store_insts=6, roi_spill_mem_insts=12),),
+        (roi(6, 6, 6, spill_load=6),),
         6, 6,
     ),
     Case(
         "tc2_reg_pressure",
-        (roi(8, 8, 8, roi_spill_events=8, roi_spill_load_insts=8,
-             roi_spill_store_insts=8, roi_spill_mem_insts=16),),
+        (roi(8, 8, 8, spill_load=8),),
         8, 8,
     ),
     Case(
         "tc3_loop_spill",
-        (roi(15, 15, 15, roi_spill_events=15, roi_spill_load_insts=15,
-             roi_spill_store_insts=15, roi_spill_mem_insts=30),),
+        (roi(15, 15, 15, spill_load=15),),
         15, 15,
     ),
     Case(
         "tc4a_spill_evicted_by_nonspill",
-        (roi(1, 2, 1, roi_spill_events=1, roi_spill_load_insts=1,
-             roi_spill_store_insts=1, roi_spill_mem_insts=2),),
+        (roi(1, 2, 1, spill_load=1),),
         1, 2, True, {"spillLoadEvictedByNonSpill": 1},
     ),
     Case(
         "tc4b_nonspill_evicted_by_spill",
-        (roi(1, 2, 1, roi_nonspill_reuse=1),),
+        (roi(1, 2, 1, diag_nonspill_reuse=1),),
         1, 2, True, {"nonSpillLoadEvictedBySpill": 1},
     ),
     Case(
         "tc4c_nonspill_evicted_by_nonspill",
-        (roi(1, 2, 0, roi_nonspill_reuse=1),),
+        (roi(1, 2, 0, diag_nonspill_reuse=1),),
         1, 2, True, {"nonSpillLoadEvictedByNonSpill": 1},
     ),
     Case(
         "tc4d_spill_evicted_by_spill",
-        (roi(1, 2, 2, roi_spill_events=1, roi_spill_load_insts=1,
-             roi_spill_store_insts=1, roi_spill_mem_insts=2),),
+        (roi(1, 2, 2, spill_load=1),),
         1, 2, True, {"spillLoadEvictedBySpill": 1},
     ),
     Case(
@@ -120,57 +122,52 @@ CASES = (
     ),
     Case(
         "tc5_repeated_reload",
-        (roi(3, 1, 1, roi_spill_events=1, roi_spill_load_insts=3,
-             roi_spill_store_insts=1, roi_spill_mem_insts=4,
-             roi_repeated_spill_load_insts=2),),
+        (roi(3, 1, 1, spill_load=3,
+             repeat_spill_load=2),),
         3, 1,
     ),
     Case("tc6_unmatched_store", (roi(0, 1, 1),), 0, 1),
     Case(
         "tc7_store_generations",
-        (roi(2, 2, 2, roi_spill_events=2, roi_spill_load_insts=2,
-             roi_spill_store_insts=2, roi_spill_mem_insts=4),),
+        (roi(2, 2, 2, spill_load=2),),
         2, 2,
     ),
     Case(
-        "tc8_address_base", (roi(1, 1, 0, roi_nonspill_reuse=1),), 1, 1,
+        "tc8_address_base", (roi(1, 1, 0, diag_nonspill_reuse=1),), 1, 1,
     ),
     Case(
         "tc9_roi_scope",
-        (roi(1, 1, 1, roi_spill_events=1, roi_spill_load_insts=1,
-             roi_spill_store_insts=1, roi_spill_mem_insts=2),),
+        (roi(1, 1, 1, spill_load=1),),
         3, 3,
     ),
     Case("tc10_negative_pairs", (roi(2, 2, 2),), 2, 2),
     Case(
         "tc11_split_line",
-        (roi(1, 1, 1, roi_spill_events=1, roi_spill_load_insts=1,
-             roi_spill_store_insts=1, roi_spill_mem_insts=2,
-             roi_spill_load_l1_accesses=2,
-             roi_spill_store_l1_accesses=2,
-             roi_candidate_store_l1_accesses=2,
-             roi_spill_load_split_insts=1,
-             roi_spill_store_split_insts=1,
-             roi_spill_load_extra_fragments=1,
-             roi_spill_store_extra_fragments=1),),
+        (roi(1, 1, 1, spill_load=1,
+             spill_load_l1_accesses=2,
+             spill_store_l1_accesses=2,
+             spill_load_split_insts=1,
+             spill_store_split_insts=1,
+             spill_load_extra_fragments=1,
+             spill_store_extra_fragments=1,
+             diag_paired_store_l1_accesses=2,
+             diag_paired_store_split_insts=1,
+             diag_paired_store_extra_fragments=1),),
         1, 1,
     ),
     Case(
         "tc12_multiple_roi",
         (
-            roi(1, 1, 1, roi_spill_events=1, roi_spill_load_insts=1,
-                roi_spill_store_insts=1, roi_spill_mem_insts=2),
-            roi(2, 1, 1, roi_spill_events=1, roi_spill_load_insts=2,
-                roi_spill_store_insts=1, roi_spill_mem_insts=3,
-                roi_repeated_spill_load_insts=1),
+            roi(1, 1, 1, spill_load=1),
+            roi(2, 1, 1, spill_load=2,
+                repeat_spill_load=1),
         ),
         3, 2,
     ),
     Case("tc13_no_roi", (), 1, 1),
     Case(
         "tc14_exact_pc_map",
-        (roi(2, 2, 1, roi_spill_events=1, roi_spill_load_insts=1,
-             roi_spill_store_insts=1, roi_spill_mem_insts=2),),
+        (roi(2, 2, 1, spill_load=1),),
         2, 2, False, {}, (("store", "exact_store"), ("load", "exact_load")),
     ),
 )
@@ -234,12 +231,19 @@ def parse_spill_log(path: Path) -> tuple[list[dict[str, int]], dict[str, int]]:
 
 
 def parse_stats(path: Path) -> dict[str, float]:
+    """Sum every statistics block in stats.txt.
+
+    workbegin/workend dump AND reset the gem5 statistics, so stats.txt holds
+    pre-ROI, per-ROI and post-ROI blocks instead of one cumulative block.
+    Summing them reproduces the whole-simulation totals these tests assert on.
+    """
     result: dict[str, float] = {}
     for line in path.read_text().splitlines():
         match = STAT_LINE.match(line)
         if match:
             try:
-                result[match.group(1)] = float(match.group(2))
+                result[match.group(1)] = (result.get(match.group(1), 0.0) +
+                                          float(match.group(2)))
             except ValueError:
                 pass
     return result
@@ -264,64 +268,69 @@ def validate_case(case: Case, rois: list[dict[str, int]],
                   global_values: dict[str, int], stats: dict[str, float]) -> None:
     check_equal(len(rois), len(case.rois), f"{case.name} ROI count")
     for index, (actual, expected) in enumerate(zip(rois, case.rois), start=1):
-        check_equal(actual.get("metric_schema", -1), 4,
+        check_equal(actual.get("metric_schema", -1), 7,
                     f"{case.name} ROI {index} schema")
         for key, value in expected.items():
             check_equal(actual.get(key, -1), value,
                         f"{case.name} ROI {index} {key}")
 
-        candidates = actual["roi_candidate_stack_store_insts"]
-        confirmed = actual["roi_spill_store_insts"]
-        check_equal(actual["roi_unconfirmed_candidate_store_insts"],
-                    candidates - confirmed,
-                    f"{case.name} ROI {index} unconfirmed candidates")
-        check_equal(actual["roi_spill_mem_insts"],
-                    actual["roi_spill_load_insts"] + confirmed,
+        spill_store = actual["spill_store"]
+        spill_load = actual["spill_load"]
+        spill_event = actual["spill_event"]
+        # spill_event is the paired subset of the write side, and every
+        # reload past the first is a repeat, so both identities must hold.
+        check_equal(spill_event, spill_load - actual["repeat_spill_load"],
+                    f"{case.name} ROI {index} spill_event == spill_load - repeats")
+        check_equal(actual["spill_store_unpaired"], spill_store - spill_event,
+                    f"{case.name} ROI {index} spill_store_unpaired")
+        if spill_event > spill_store:
+            raise AssertionError(
+                f"{case.name} ROI {index}: spill_event {spill_event} exceeds "
+                f"spill_store {spill_store}")
+        check_equal(actual["total_spill_insts"], spill_load + spill_store,
                     f"{case.name} ROI {index} spill memory identity")
-        for population in ("spill_load", "spill_store", "candidate_store"):
-            accesses = actual[f"roi_{population}_l1_accesses"]
-            outcomes = (actual[f"roi_{population}_l1_hits"] +
-                        actual[f"roi_{population}_l1_misses"])
+        for population in ("spill_load", "spill_store", "diag_paired_store"):
+            accesses = actual[f"{population}_l1_accesses"]
+            outcomes = (actual[f"{population}_l1_hits"] +
+                        actual[f"{population}_l1_misses"])
             check_equal(outcomes, accesses,
                         f"{case.name} ROI {index} {population} L1 outcomes")
-            check_equal(actual[f"roi_{population}_l2_hits"] +
-                        actual[f"roi_{population}_l2_misses"],
-                        actual[f"roi_{population}_l1_misses"],
+            check_equal(accesses,
+                        actual[f"{population}_l1_misses"] +
+                        actual[f"{population}_l1_hits"],
+                        f"{case.name} ROI {index} {population} L1 total")
+            check_equal(actual[f"{population}_l2_hits"] +
+                        actual[f"{population}_l2_misses"],
+                        actual[f"{population}_l1_misses"],
                         f"{case.name} ROI {index} {population} L2 accesses")
+        for population, insts in (("spill_load", spill_load),
+                                  ("spill_store", spill_store)):
+            check_equal(actual[f"{population}_l1_accesses"],
+                        insts + actual[f"{population}_extra_fragments"],
+                        f"{case.name} ROI {index} {population} fragment identity")
 
-    check_equal(global_values.get("metric_schema", -1), 4,
+    check_equal(global_values.get("metric_schema", -1), 7,
                 f"{case.name} global schema")
-    check_equal(global_values.get("total_load_insts", -1), case.global_loads,
+    check_equal(global_values.get("total_load", -1), case.global_loads,
                 f"{case.name} global loads")
-    check_equal(global_values.get("total_store_insts", -1), case.global_stores,
+    check_equal(global_values.get("total_store", -1), case.global_stores,
                 f"{case.name} global stores")
-    if global_values.get("total_instructions", 0) <= 0:
-        raise AssertionError(f"{case.name}: total_instructions was not emitted")
+    if global_values.get("total_insts", 0) <= 0:
+        raise AssertionError(f"{case.name}: total_insts was not emitted")
 
-    load_l1_hits = sum(item["roi_spill_load_l1_hits"] for item in rois)
-    load_l1_misses = sum(item["roi_spill_load_l1_misses"] for item in rois)
-    candidate_l1_hits = sum(item["roi_candidate_store_l1_hits"] for item in rois)
-    candidate_l1_misses = sum(item["roi_candidate_store_l1_misses"] for item in rois)
-    check_equal(stat(stats, "spillLoadHits"), load_l1_hits,
-                f"{case.name} dcache spill-load hits")
-    check_equal(stat(stats, "spillLoadMisses"), load_l1_misses,
-                f"{case.name} dcache spill-load misses")
-    check_equal(stat(stats, "spillStoreHits"), candidate_l1_hits,
-                f"{case.name} dcache candidate-store hits")
-    check_equal(stat(stats, "spillStoreMisses"), candidate_l1_misses,
-                f"{case.name} dcache candidate-store misses")
-    load_l2_hits = sum(item["roi_spill_load_l2_hits"] for item in rois)
-    load_l2_misses = sum(item["roi_spill_load_l2_misses"] for item in rois)
-    candidate_l2_hits = sum(item["roi_candidate_store_l2_hits"] for item in rois)
-    candidate_l2_misses = sum(item["roi_candidate_store_l2_misses"] for item in rois)
-    check_equal(stat(stats, "spillLoadHits", "system.l2"), load_l2_hits,
-                f"{case.name} L2 spill-load hits")
-    check_equal(stat(stats, "spillLoadMisses", "system.l2"), load_l2_misses,
-                f"{case.name} L2 spill-load misses")
-    check_equal(stat(stats, "spillStoreHits", "system.l2"), candidate_l2_hits,
-                f"{case.name} L2 candidate-store hits")
-    check_equal(stat(stats, "spillStoreMisses", "system.l2"), candidate_l2_misses,
-                f"{case.name} L2 candidate-store misses")
+    # Both gem5 request tags now line up with a headline counter: SPILL_LOAD
+    # marks exactly the spill_load population and SPILL_STORE exactly the
+    # spill_store one. That equality is the point of defining spill_store as
+    # the whole write side, so assert it at both cache levels.
+    for level, cache in (("L1", "system.cpu.dcache"), ("L2", "system.l2")):
+        suffix = "l1" if level == "L1" else "l2"
+        for tag, population in (("spillLoad", "spill_load"),
+                                ("spillStore", "spill_store")):
+            for outcome in ("Hits", "Misses"):
+                expected = sum(item[f"{population}_{suffix}_{outcome.lower()}"]
+                               for item in rois)
+                check_equal(stat(stats, f"{tag}{outcome}", cache), expected,
+                            f"{case.name} {cache} {tag}{outcome}")
 
     for suffix, expected in case.eviction.items():
         check_equal(stat(stats, suffix), expected,

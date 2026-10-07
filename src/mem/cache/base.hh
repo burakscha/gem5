@@ -49,6 +49,7 @@
 #include <cassert>
 #include <cstdint>
 #include <deque>
+#include <list>
 #include <string>
 #include <unordered_map>
 
@@ -418,11 +419,22 @@ class BaseCache : public ClockedObject
      *
      * Bounded like SpillDetector::store_map: if it ever exceeds
      * MAX_EVICTION_LEDGER_ENTRIES, the oldest half (by insertion order,
-     * approximated via evictionLedgerInsertOrder) is dropped so any
-     * censoring is visible in evictionLedgerDropped rather than silent.
+     * tracked in evictionLedgerInsertOrder) is dropped so any censoring is
+     * visible in evictionLedgerDropped rather than silent.
+     *
+     * Each map entry keeps an iterator into the insertion-order list so that
+     * an entry consumed by attributeMiss() is removed from BOTH structures in
+     * O(1). Keeping only the map bounded is not enough: the list would then
+     * accumulate one dead address per attributed miss and grow to several GB
+     * on a long small-cache run.
      */
-    std::unordered_map<Addr, bool> evictionLedger;
-    std::deque<Addr> evictionLedgerInsertOrder;
+    struct EvictionRecord
+    {
+        bool evictorIsSpill;
+        std::list<Addr>::iterator order;
+    };
+    std::unordered_map<Addr, EvictionRecord> evictionLedger;
+    std::list<Addr> evictionLedgerInsertOrder;
     static const size_t MAX_EVICTION_LEDGER_ENTRIES = 1 << 20; // ~1M entries
     uint64_t evictionLedgerDropped = 0;
 

@@ -1751,23 +1751,27 @@ BaseCache::recordEviction(Addr victimAddr, bool evictorIsSpill)
     // if we're full, drop the oldest half so any censoring is visible in
     // evictionLedgerDropped instead of silently growing forever.
     if (evictionLedger.size() >= MAX_EVICTION_LEDGER_ENTRIES) {
-        size_t to_drop = evictionLedgerInsertOrder.size() / 2;
-        for (size_t i = 0; i < to_drop; i++) {
-            Addr old_addr = evictionLedgerInsertOrder.front();
+        size_t to_drop = evictionLedger.size() / 2;
+        while (to_drop-- > 0 && !evictionLedgerInsertOrder.empty()) {
+            evictionLedger.erase(evictionLedgerInsertOrder.front());
             evictionLedgerInsertOrder.pop_front();
-            if (evictionLedger.erase(old_addr) > 0) {
-                evictionLedgerDropped++;
-            }
+            evictionLedgerDropped++;
         }
     }
 
     // A later eviction of the same (still-unresolved) address simply
     // overwrites the entry -- only the most recent evictor matters for
-    // explaining the next miss on that address.
-    if (evictionLedger.find(victimAddr) == evictionLedger.end()) {
-        evictionLedgerInsertOrder.push_back(victimAddr);
+    // explaining the next miss on that address. The insertion-order position
+    // is kept as-is so the address still ages out at its original place.
+    auto existing = evictionLedger.find(victimAddr);
+    if (existing != evictionLedger.end()) {
+        existing->second.evictorIsSpill = evictorIsSpill;
+        return;
     }
-    evictionLedger[victimAddr] = evictorIsSpill;
+
+    evictionLedgerInsertOrder.push_back(victimAddr);
+    auto order = std::prev(evictionLedgerInsertOrder.end());
+    evictionLedger.emplace(victimAddr, EvictionRecord{evictorIsSpill, order});
 }
 
 void
@@ -1779,13 +1783,11 @@ BaseCache::attributeMiss(Addr addr, bool accessIsSpill, bool accessIsLoad)
         // evicting event aged out of the bounded ledger.
         return;
     }
-    const bool evictorIsSpill = it->second;
+    const bool evictorIsSpill = it->second.evictorIsSpill;
+    // Erase from both structures so the insertion-order list stays exactly as
+    // long as the map. See the EvictionRecord comment in base.hh.
+    evictionLedgerInsertOrder.erase(it->second.order);
     evictionLedger.erase(it);
-    // Note: evictionLedgerInsertOrder is left with a stale entry for this
-    // address; it is a monotonically-drained FIFO used only to pick drop
-    // candidates under memory pressure, so a harmless no-op stale entry
-    // there is fine (it will simply be skipped by the erase()-count check
-    // in recordEviction() the one time it's dequeued).
 
     if (accessIsSpill && accessIsLoad && evictorIsSpill) {
         stats.spillLoadEvictedBySpill++;
