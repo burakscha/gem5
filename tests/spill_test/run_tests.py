@@ -34,6 +34,11 @@ class Case:
     tiny_l1: bool = False
     eviction: dict[str, int] = field(default_factory=dict)
     exact_symbols: tuple[tuple[str, str], ...] = ()
+    # Additional se.py options, e.g. cache geometry for the outcome tests.
+    extra_args: tuple[str, ...] = ()
+    # Also compare the detector ROI with gem5's own ROI statistics, under
+    # se.py and under the stdlib (see check_gem5_roi_crosscheck).
+    roi_crosscheck: bool = False
 
 
 BASE_ZERO = {
@@ -170,12 +175,41 @@ CASES = (
         (roi(2, 2, 1, spill_load=1),),
         2, 2, False, {}, (("store", "exact_store"), ("load", "exact_load")),
     ),
+    Case(
+        "tc15_gem5_roi_crosscheck",
+        (roi(4, 4, 4, spill_load=4, roi_total_insts=19),),
+        6, 8, roi_crosscheck=True,
+    ),
+    Case(
+        "tc16_non_stack",
+        (roi(1, 1, 0, roi_total_insts=7),),
+        1, 1,
+    ),
+    Case(
+        "tc17_cache_outcomes",
+        (roi(36, 3, 3, spill_load=3, roi_total_insts=145,
+             spill_store_l1_hits=1, spill_store_l1_misses=2,
+             spill_store_l2_hits=0, spill_store_l2_misses=2,
+             spill_load_l1_hits=1, spill_load_l1_misses=2,
+             spill_load_l2_hits=1, spill_load_l2_misses=1),),
+        36, 4,
+        extra_args=("--l1d_size=64B", "--l1d_assoc=1",
+                    "--l2_size=1kB", "--l2_assoc=1"),
+    ),
+    Case(
+        "tc18_long_distance",
+        (roi(1, 1, 1, spill_load=1, roi_total_insts=120007,
+             reuse_log2_16=1),),
+        1, 1,
+    ),
 )
 
 
 INT_FIELD = re.compile(r"^#\s+([A-Za-z0-9_]+)\s*:\s*([0-9]+)")
+REUSE_FIELD = re.compile(r"^#\s+reuse_log2\[\s*([0-9]+)\]\s*:\s*([0-9]+)")
 ROI_HEADER = re.compile(r"^# ROI SUMMARY.*workid=([0-9]+).*sequence=([0-9]+)")
 STAT_LINE = re.compile(r"^(\S+)\s+([-+0-9.eE]+)(?:\s|$)")
+ROI_TICKS = re.compile(r"^ROI_TICKS \[([0-9, ]*)\]", re.MULTILINE)
 
 
 def run(command: list[str], *, stdout: Path | None = None,
@@ -219,6 +253,11 @@ def parse_spill_log(path: Path) -> tuple[list[dict[str, int]], dict[str, int]]:
             current = None
             in_global = True
             continue
+        reuse_match = REUSE_FIELD.match(line)
+        if reuse_match and current is not None:
+            current[f"reuse_log2_{int(reuse_match.group(1))}"] = int(
+                reuse_match.group(2))
+            continue
         field_match = INT_FIELD.match(line)
         if not field_match:
             continue
@@ -259,9 +298,138 @@ def stat(stats: dict[str, float], suffix: str, cache: str = "system.cpu.dcache")
     return matches[0]
 
 
+def parse_stat_blocks(path: Path) -> list[dict[str, float]]:
+    """Split stats.txt into its dump blocks, in file order."""
+    blocks: list[dict[str, float]] = []
+    for line in path.read_text().splitlines():
+        if "Begin Simulation Statistics" in line:
+            blocks.append({})
+            continue
+        match = STAT_LINE.match(line)
+        if blocks and match:
+            try:
+                blocks[-1][match.group(1)] = float(match.group(2))
+            except ValueError:
+                pass
+    return blocks
+
+
+def block_stat(block: dict[str, float], suffix: str) -> int:
+    """Value of the one statistic named `suffix` or ending in `.suffix`.
+
+    se.py calls the core system.cpu and the stdlib
+    system.processor.cores.core, so the CPU statistics are matched by suffix.
+    """
+    matches = [value for key, value in block.items()
+               if key == suffix or key.endswith("." + suffix)]
+    if len(matches) != 1:
+        raise AssertionError(f"missing or ambiguous stat {suffix}: {matches}")
+    return int(matches[0])
+
+
 def check_equal(actual: int, expected: int, label: str) -> None:
     if actual != expected:
         raise AssertionError(f"{label}: expected {expected}, got {actual}")
+
+
+def check_gem5_roi_block(label: str, block: dict[str, float],
+                         detector_roi: dict[str, int]) -> None:
+    """gem5's ROI statistics block must cover the detector's ROI exactly.
+
+    The single, known offset: the work_end marker commits before the stats
+    dump scheduled for that tick runs, so gem5 counts the marker inside its
+    ROI block, while the detector excludes both markers.
+    """
+    check_equal(block_stat(block, "simInsts"),
+                detector_roi["roi_total_insts"] + 1,
+                f"{label}: gem5 ROI simInsts == detector roi_total_insts "
+                "+ work_end marker")
+    check_equal(block_stat(block, "commitStats0.numLoadInsts"),
+                detector_roi["roi_load"], f"{label}: gem5 ROI loads")
+    check_equal(block_stat(block, "commitStats0.numStoreInsts"),
+                detector_roi["roi_store"], f"{label}: gem5 ROI stores")
+
+
+def check_dump_reset_layout(label: str, blocks: list[dict[str, float]],
+                            detector_roi: dict[str, int],
+                            global_values: dict[str, int]) -> None:
+    """Checks the stats.txt layout produced by the dump+reset that
+    pseudo_inst.cc adds at work_begin and work_end: pre-ROI, ROI, post-ROI."""
+    check_equal(len(blocks), 3, f"{label}: stats.txt blocks (pre/ROI/post)")
+    check_gem5_roi_block(label, blocks[1], detector_roi)
+    # gem5's own work-item bookkeeping: one sample, as long as the ROI block.
+    work_item = f"work_item_type{detector_roi['workid']}"
+    check_equal(block_stat(blocks[1], f"{work_item}::samples"), 1,
+                f"{label}: gem5 {work_item} samples")
+    check_equal(block_stat(blocks[1], f"{work_item}::mean"),
+                block_stat(blocks[1], "simTicks"),
+                f"{label}: gem5 work-item ticks == ROI block simTicks")
+    check_equal(sum(block_stat(block, "simInsts") for block in blocks),
+                global_values["total_insts"],
+                f"{label}: gem5 simInsts over all blocks == detector "
+                "total_insts")
+
+
+def run_stdlib(args: argparse.Namespace, case: Case, build_dir: Path,
+               binary: Path, exit_on_work_items: bool) -> tuple[Path, str]:
+    tag = "default" if exit_on_work_items else "no_exit"
+    outdir = build_dir / f"m5out_stdlib_{tag}"
+    stdout = build_dir / f"stdout_stdlib_{tag}.txt"
+    run([str(args.gem5), f"--outdir={outdir}",
+         str(TEST_ROOT / case.name / "stdlib_se.py"), str(binary),
+         "1" if exit_on_work_items else "0"],
+        stdout=stdout, stderr=build_dir / f"stderr_stdlib_{tag}.txt")
+    return outdir, stdout.read_text()
+
+
+def check_gem5_roi_crosscheck(case: Case, args: argparse.Namespace,
+                              build_dir: Path, binary: Path,
+                              outdir: Path) -> None:
+    """Compares the SpillDetector ROI with gem5's own ROI in three setups."""
+    expected = case.rois[0]
+
+    # 1. se.py, the configuration every SPEC run uses.
+    rois, se_globals = parse_spill_log(outdir / "riscv_spill_stats.txt")
+    check_dump_reset_layout(f"{case.name} se.py",
+                            parse_stat_blocks(outdir / "stats.txt"),
+                            rois[0], se_globals)
+
+    # 2. stdlib with exit_on_work_items=False: the work items stay inside
+    #    C++, so the detector hook and the dump+reset run exactly as in se.py.
+    std_out, _ = run_stdlib(args, case, build_dir, binary, False)
+    rois, std_globals = parse_spill_log(std_out / "riscv_spill_stats.txt")
+    label = f"{case.name} stdlib exit_on_work_items=False"
+    check_equal(len(rois), 1, f"{label}: detector ROI count")
+    for key, value in expected.items():
+        check_equal(rois[0].get(key, -1), value, f"{label}: {key}")
+    check_dump_reset_layout(label, parse_stat_blocks(std_out / "stats.txt"),
+                            rois[0], std_globals)
+
+    # 3. stdlib default, exit_on_work_items=True: gem5's own ROI. Python
+    #    resets the stats at work begin and only dumps them at work end, so
+    #    block 0 is the ROI and the final block is ROI + post-ROI.
+    std_out, stdout = run_stdlib(args, case, build_dir, binary, True)
+    label = f"{case.name} stdlib default"
+    blocks = parse_stat_blocks(std_out / "stats.txt")
+    check_equal(len(blocks), 2, f"{label}: stats.txt blocks (ROI/final)")
+    check_gem5_roi_block(label, blocks[0], expected)
+    ticks = ROI_TICKS.search(stdout)
+    if not ticks:
+        raise AssertionError(f"{label}: stdlib_se.py printed no ROI_TICKS")
+    roi_ticks = [int(t) for t in ticks.group(1).split(",") if t.strip()]
+    check_equal(len(roi_ticks), 1, f"{label}: stdlib ROI count")
+    check_equal(roi_ticks[0], block_stat(blocks[0], "simTicks"),
+                f"{label}: Simulator.get_roi_ticks() == ROI block simTicks")
+    # Known limitation, asserted so it cannot change silently: in this mode
+    # pseudo_inst.cc workbegin()/workend() return before the SpillDetector
+    # hook, so the detector sees no ROI and only writes the global totals.
+    # Update this check if the hook is moved ahead of that early return.
+    rois, default_globals = parse_spill_log(std_out / "riscv_spill_stats.txt")
+    check_equal(len(rois), 0,
+                f"{label}: detector ROI count (hook is bypassed by design)")
+    check_equal(default_globals.get("total_insts", -1),
+                se_globals["total_insts"],
+                f"{label}: detector total_insts same as under se.py")
 
 
 def validate_case(case: Case, rois: list[dict[str, int]],
@@ -380,6 +548,7 @@ def execute_case(case: Case, args: argparse.Namespace, workspace: Path) -> None:
         command.extend(("--param", f"system.cpu[0].spill_pc_map='{pc_map}'"))
     if case.tiny_l1:
         command.extend(("--l1d_size=64B", "--l1d_assoc=1", "--cacheline_size=64"))
+    command.extend(case.extra_args)
     stdout = build_dir / "stdout.txt"
     stderr = build_dir / "stderr.txt"
     try:
@@ -400,6 +569,8 @@ def execute_case(case: Case, args: argparse.Namespace, workspace: Path) -> None:
                 raise AssertionError(
                     f"{case.name}: missing classification {expected_classification}"
                 )
+        if case.roi_crosscheck:
+            check_gem5_roi_crosscheck(case, args, build_dir, binary, outdir)
     except Exception:
         print(f"\nArtifacts for failed case: {build_dir}", file=sys.stderr)
         if stderr.exists():

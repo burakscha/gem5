@@ -220,6 +220,27 @@ unmapped heuristic-looking pair is excluded.
 - `tc12`: multiple ROIs and per-ROI reset/append behavior.
 - `tc13`: whole-run counters when no ROI exists.
 - `tc14`: compiler PC-map exact mode.
+- `tc15`: the detector ROI against gem5's own ROI. The same binary runs under
+  se.py, under the stdlib with `exit_on_work_items=False`, and under the
+  stdlib default. In the first two, gem5's ROI statistics block must equal
+  the detector ROI plus the `work_end` marker instruction, the work-item tick
+  histogram must equal the block's `simTicks`, and the blocks must add up to
+  the detector's `total_insts`. Under the stdlib default, gem5's ROI must be
+  exact and `Simulator.get_roi_ticks()` must match it; the detector sees no
+  ROI there, because `workbegin()` returns before the detector hook. That is
+  asserted, so the behavior cannot change unnoticed.
+- `tc16`: same-address store/load reuse on a non-stack (`.bss`) address is
+  not counted.
+- `tc17`: pinned cache outcomes with a one-line L1D and a 1 KiB direct-mapped
+  L2: a pair that hits L1, a reload that misses L1 and hits L2, and a reload
+  that misses both. `sp` is aligned first, because the initial stack pointer
+  moves with the binary path length.
+- `tc18`: a pair 120,003 instructions (about 120 us) apart is still paired,
+  guarding against the retired 50 us window.
+
+These four replaced the old `tests/cache_hit_miss` suite (removed
+2026-10-07). Its checks read `stats.txt` line by line and broke once the ROI
+dump+reset split the file into blocks.
 
 For benchmark results, use the single reporting command, which prints the
 hit/miss and spill/fill table and writes `results.csv`, `report.tex` and the
