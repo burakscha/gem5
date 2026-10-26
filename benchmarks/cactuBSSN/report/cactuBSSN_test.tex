@@ -1,0 +1,366 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 507.cactuBSSN\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{507.cactuBSSN\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{spec\_test.par}, grid size $42^3$, 10 time
+steps) was used as the input.
+Results show a spill rate of approximately \textbf{7.88\%} within the
+ROI --- the highest observed across all SPEC CPU2017 benchmarks
+evaluated in this study --- corresponding to 3.78 billion detected
+spill events across 48 billion ROI instructions.
+The benchmark's stencil-based numerical relativity kernel creates
+extreme register pressure due to the large number of simultaneously
+live floating-point variables required to evaluate the BSSN equations
+at each grid point.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{507.cactuBSSN\_r} is the SPEC CPU2017 rate variant of
+CactusBSSN, a numerical relativity application built on the
+Cactus computational framework. It solves the
+Baumgarte--Shapiro--Shibata--Nakamura (BSSN) formulation of the
+Einstein field equations on a 3-dimensional uniform Cartesian grid
+using a finite-difference stencil method. The benchmark is one of
+the most floating-point-intensive workloads in SPEC CPU2017,
+executing dense stencil sweeps over a 3D array with a large number
+of evolved tensor fields.
+
+The Cactus framework organises computation into \emph{thorns}
+(independent modules). For this benchmark the active thorns are:
+\texttt{PUGH} (uniform grid driver), \texttt{ML\_BSSN} (the McLachlan
+BSSN evolution kernel), \texttt{MoL} (method-of-lines time integrator),
+\texttt{ADMBase}, \texttt{CartGrid3D}, \texttt{GaugeWave}, and
+supporting I/O and reduction thorns.
+
+\subsection{ROI Instrumentation}
+
+The RISC-V binary (\texttt{cactuBSSN\_r.riscv}) was compiled with gem5
+ROI markers inserted in \texttt{src/Cactus/main/flesh.cc}, wrapping
+the \texttt{CCTK\_Evolve()} call --- the top-level time-evolution
+loop of the Cactus framework. The surrounding \texttt{CCTK\_Initialise()}
+and \texttt{CCTK\_Shutdown()} calls are \emph{excluded} from the ROI,
+so only the core numerical computation is measured:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{CCTK\_Evolve()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{CCTK\_Evolve()}
+\end{itemize}
+
+\texttt{CCTK\_Evolve()} drives all time steps of the simulation, calling
+the ML\_BSSN kernel repeatedly to advance the solution by one time step
+per iteration.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input Datasets}
+
+All three dataset sizes use the same grid topology ($42^3$ or $84^3$
+uniform Cartesian grid) and differ only in grid resolution and
+iteration count (Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{cactuBSSN\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Dataset} & \textbf{Grid size} & \textbf{Iterations} & \textbf{Parameter file} \\
+\midrule
+test    & $42^3$ & 10 & spec\_test.par \\
+train   & $42^3$ & 80 & spec\_train.par \\
+refrate & $84^3$ & 80 & spec\_ref.par \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this run: a $42^3$ grid
+evolved for 10 time steps. The grid contains $42 \times 42 \times 42 =
+74{,}088$ points; at each point the BSSN equations update 25 evolved
+fields (the conformal metric $\tilde{\gamma}_{ij}$, extrinsic curvature
+$\tilde{A}_{ij}$, conformal factor $W$, trace $K$, and the shift vector
+components). The refrate dataset increases both the linear grid size by
+a factor of 2 (8$\times$ more grid points) and the iteration count by
+8$\times$, making it approximately $64\times$ more expensive than the
+test dataset.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/cactuBSSN/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/cactuBSSN/cactuBSSN_r.riscv
+  --options="benchmarks/cactuBSSN/spec_test.par"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. Cactus printed per-iteration
+output showing convergence of the BSSN fields across all 10 time
+steps, followed by \texttt{"Done."} and a clean exit.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI was entered, Cactus executed full framework
+initialisation: parameter parsing, thorn activation, grid construction,
+and initial data setup (\texttt{CCTK\_Initialise()}). This pre-ROI
+phase includes setting up all 74,088 grid points with GaugeWave
+initial data.
+Table~\ref{tab:preroi} shows the global counters at the moment
+\texttt{m5\_work\_begin} was triggered.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 936,822,146 \\
+Total spills detected (pre-ROI) & 110,850,678 \\
+Pre-ROI spill rate & 11.83\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI spill rate of 11.83\% is remarkably high, reflecting the
+register pressure already present during Cactus framework initialisation
+and initial data computation.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected exclusively
+within the ROI (10 BSSN time steps via \texttt{CCTK\_Evolve()}).
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 507.cactuBSSN\_r (test, $42^3$, 10 iter.)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 48,023,254,961 \\
+ROI stores               &  6,919,103,141 \\
+ROI loads                & 12,477,164,927 \\
+\midrule
+\textbf{ROI spills}      & \textbf{3,782,099,438} \\
+\textbf{Spill rate}      & \textbf{7.8756\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 263.59\,s \\
+Host wall time           & 43,555\,s ($\approx$12.1\,hours) \\
+Total simulated instructions & 48,961,298,333 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{7.88\%} means that approximately
+1 in every 13 instructions inside the ROI is a register spill.
+This is the highest spill rate observed among all SPEC CPU2017
+benchmarks evaluated in this study (Table~\ref{tab:compare}).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & \textbf{7.8756\%} \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (12.48B) is approximately $1.80\times$ higher than the
+store count (6.92B). This ratio is consistent with a stencil-heavy
+workload: at each grid point, values from neighbouring grid points
+must be loaded multiple times (for different derivative stencil arms)
+but written back only once per time step. The BSSN kernel reads each
+of its 25 evolved fields from several neighbouring points for each
+spatial derivative, leading to a high load-to-store ratio.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{3{,}782{,}099{,}438}{12{,}477{,}164{,}927} \approx 30.3\%
+\]
+Nearly 1 in 3 load instructions is a spill reload. The BSSN evolution
+kernel must simultaneously keep live a large number of floating-point
+values at each grid point: the 25 evolved fields, their spatial
+derivatives, intermediate expressions (Christoffel symbols, Ricci
+tensor components, etc.), and loop variables. With RISC-V providing
+32 floating-point registers, the compiler cannot avoid aggressive
+spilling of these intermediates to the stack.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $48{,}023{,}254{,}961$ out of
+$48{,}961{,}298{,}333$ total simulated instructions:
+\[
+\frac{48{,}023{,}254{,}961}{48{,}961{,}298{,}333} \approx 98.1\%
+\]
+This is the highest ROI coverage fraction observed across all
+benchmarks. The instrumentation is near-perfect: \texttt{CCTK\_Evolve()}
+encompasses essentially the entire meaningful computation of the
+benchmark, with only 1.9\% of instructions spent on framework
+initialisation and shutdown.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 11.83\% ($110{,}850{,}678$ spills over
+$936{,}822{,}146$ instructions) is itself the highest pre-ROI spill
+rate observed across all benchmarks. This indicates that even the
+Cactus framework's initialisation code --- which sets up the grid
+structure, activates thorns, and computes initial data --- is
+extremely register-pressure-intensive on RISC-V. The initial data
+computation (GaugeWave setup) involves the same BSSN tensor
+expressions as the evolution, explaining the similarly high spill density.
+
+\subsection{Physical Interpretation of Register Pressure}
+
+The BSSN equations in McLachlan form involve the simultaneous
+computation of:
+\begin{itemize}
+    \item The conformal metric $\tilde{\gamma}_{ij}$ (6 independent
+          components) and its 18 first spatial derivatives
+    \item The conformal extrinsic curvature $\tilde{A}_{ij}$
+          (6 independent components) and its derivatives
+    \item The Christoffel symbols $\tilde{\Gamma}^k_{ij}$
+          (18 independent components in 3D)
+    \item The Ricci tensor $R_{ij}$ (6 independent components)
+          and its contractions
+    \item The gauge variables $W$, $K$, $\Gamma^i$, $\alpha$,
+          $\beta^i$ and their derivatives
+\end{itemize}
+A single grid-point update in the ML\_BSSN kernel requires
+$\mathcal{O}(100)$--$\mathcal{O}(1000)$ floating-point operations
+with $\mathcal{O}(50)$ or more simultaneously live intermediate
+values. The RISC-V F/D register file (32 floating-point registers)
+is fundamentally insufficient to hold all live values simultaneously,
+making spilling unavoidable regardless of compiler optimisation level.
+
+\subsection{Scaling to Refrate}
+
+The refrate dataset uses a $84^3$ grid (8$\times$ more grid points)
+and 80 iterations (8$\times$ more time steps), making it $\sim$64$\times$
+more expensive. Assuming spill rate remains constant, the estimated
+refrate ROI spill count would be:
+\[
+3{,}782{,}099{,}438 \times 64 \approx 242 \text{ billion spills}
+\]
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{507.cactuBSSN\_r} benchmark exhibits the highest register
+spill rate (7.88\%) among all SPEC CPU2017 benchmarks evaluated in
+this study. With 3.78 billion spill events across 48 billion ROI
+instructions, and 1 in 3 load instructions being a spill reload,
+cactuBSSN places the most sustained register pressure of any benchmark
+on the RISC-V floating-point register file. This is structurally
+driven by the BSSN evolution kernel: evaluating the Einstein field
+equations at each grid point requires $\mathcal{O}(50)$ simultaneously
+live floating-point intermediates, far exceeding the 32-register
+RISC-V F/D file capacity. The ROI captures 98.1\% of total execution,
+making it an ideal representative of the full benchmark. These results
+establish \texttt{507.cactuBSSN\_r} as the most register-spill-intensive
+benchmark in the SPEC CPU2017 suite on RISC-V, and a critical workload
+for evaluating any register file extension or compiler spill-reduction
+strategy on this architecture.
+
+\end{document}

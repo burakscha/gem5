@@ -1,0 +1,338 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 531.deepsjeng\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{531.deepsjeng\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (a single chess position, depth\,15) was used as the
+input. Results show a spill rate of \textbf{4.17\%} within the ROI,
+corresponding to 1.93 billion detected spill events across 46.2 billion
+ROI instructions. The alpha-beta search engine creates deep, recursive
+call stacks that maintain large amounts of board state simultaneously,
+driving persistent register pressure throughout the search.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{531.deepsjeng\_r} is the SPEC CPU2017 rate variant of Deep
+Sjeng, a computer chess engine implementing minimax search with
+alpha-beta pruning, quiescence search, and move ordering heuristics.
+Given a chess position in Forsyth-Edwards Notation (FEN) and a search
+depth, Deep Sjeng searches all legal continuations to the specified
+depth, evaluating leaf positions with a static evaluation function.
+The workload exercises recursive tree traversal with irregular control
+flow, frequent function calls, transposition table lookups, and
+move-ordering bookkeeping.
+
+The RISC-V binary (\texttt{deepsjeng\_r.riscv}) was compiled with gem5
+ROI markers inserted in \texttt{src/sjeng.cpp}, wrapping the
+\texttt{run\_epd\_testsuite()} function call from \texttt{main()}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{run\_epd\_testsuite()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{run\_epd\_testsuite()}
+\end{itemize}
+
+\texttt{run\_epd\_testsuite()} reads the EPD file (one position per
+line), parses each FEN record, and runs a full alpha-beta search for
+each position. This function encompasses all benchmark computation.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{deepsjeng\_r},
+differing in the number of chess positions and the required search depth
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{deepsjeng\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Dataset} & \textbf{Positions} & \textbf{Search depth} \\
+\midrule
+test    & 1  & 15 \\
+train   & 1  & 15 \\
+refrate & 24 & 15 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this run. The single test
+position is given in FEN notation:
+\begin{verbatim}
+r2qk2r/ppp1b1pp/2n1p3/3pP1n1/
+3P2b1/2PB1NN1/PP4PP/R1BQK2R w KQkq - 0 1
+\end{verbatim}
+This is an open tactical position with both sides having active pieces,
+requiring a deep combinatorial search. The search depth of 15 half-moves
+(plies) results in an extremely large search tree, dominating the
+simulation time.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/deepsjeng/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/deepsjeng/deepsjeng_r.riscv
+  --options="benchmarks/deepsjeng/test.txt"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. Deep Sjeng searched the test
+position to depth 15 and printed the best move sequence at each
+iterative deepening step.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI, the binary executed engine initialisation: loading
+the transposition table, initialising the move generator, and parsing
+the input file. This pre-ROI phase is exceptionally small compared to
+the ROI workload. Table~\ref{tab:preroi} shows the global counters at
+ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 115,433,501 \\
+Total spills detected (pre-ROI) & 4,962 \\
+Pre-ROI spill rate & 0.004\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI spill rate of 0.004\% is by far the lowest observed across
+all benchmarks in this study. Engine initialisation involves mainly
+linear table setup with simple sequential access patterns and minimal
+register pressure, in stark contrast to the recursive search phase.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 531.deepsjeng\_r (test, depth\,15)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 46,202,686,170 \\
+ROI stores               &  3,395,185,975 \\
+ROI loads                &  7,989,081,366 \\
+\midrule
+\textbf{ROI spills}      & \textbf{1,928,903,656} \\
+\textbf{Spill rate}      & \textbf{4.1749\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 78.15\,s \\
+Host wall time           & 24{,}937\,s ($\approx$6.9\,hours) \\
+Total simulated instructions & 46,318,246,441 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{4.17\%} means that approximately
+1 in every 24 instructions inside the ROI is a register spill.
+Table~\ref{tab:compare} places deepsjeng among all evaluated benchmarks.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & \textbf{4.1749\%} \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &     327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+deepsjeng places sixth among the ten evaluated benchmarks, slightly
+below lbm (4.21\%) and just above nab (2.26\%). Its spill rate is
+consistent with other tree-search workloads (\texttt{541.leela\_r}:
+4.44\%), reflecting the shared structural characteristic of deep
+recursive call frames.
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (7.99B) is approximately $2.35\times$ higher than the
+store count (3.40B). This asymmetry is characteristic of alpha-beta
+search: each internal node must read the current position's piece
+lists, hash table entry, and move list to score and order moves, while
+writes occur only when updating alpha/beta bounds, recording the best
+move, or writing a new transposition table entry. The dominant access
+pattern is read-heavy position evaluation.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{1{,}928{,}903{,}656}{7{,}989{,}081{,}366} \approx 24.1\%
+\]
+Nearly 1 in 4 load instructions is a spill reload. Alpha-beta search
+requires each recursive call to save and restore the current position's
+state (side to move, piece lists, castling rights, en passant square,
+move history) alongside the search parameters (alpha, beta, depth,
+best-move candidate), creating register pressure at every call frame
+that the RISC-V 32-register file cannot fully absorb.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 0.004\% ($4{,}962$ spills over
+$115{,}433{,}501$ instructions) is the lowest pre-ROI rate observed
+across all benchmarks evaluated. Deep Sjeng's engine initialisation
+consists mainly of sequential table fills and simple struct
+assignments with few live variables simultaneously, resulting in
+negligible register pressure before the search begins.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $46{,}202{,}686{,}170$ out of $46{,}318{,}246{,}441$
+total simulated instructions:
+\[
+\frac{46{,}202{,}686{,}170}{46{,}318{,}246{,}441} \approx 99.75\%
+\]
+This is the highest ROI coverage fraction among all benchmarks evaluated,
+confirming that virtually the entire simulation is occupied by the
+alpha-beta search inside \texttt{run\_epd\_testsuite()}. The 0.25\%
+outside the ROI corresponds to the trivially simple engine initialisation
+phase.
+
+\subsection{Search Tree Depth and Register Pressure}
+
+Alpha-beta search at depth 15 creates call stacks up to 15 frames deep
+in the main search routine, with additional frames for quiescence search
+at tactical positions. At each frame, the engine must keep alive the
+board state, move iterator, alpha and beta bounds, the current move
+being examined, and the best-move record. With RISC-V providing 32
+general-purpose registers, the compiler spills the excess live variables
+to the stack at each recursive call and reloads them on return,
+producing the observed 24.1\% spill fraction of loads.
+
+The sharp contrast between the negligible pre-ROI spill rate (0.004\%)
+and the high ROI rate (4.17\%) is the most distinctive characteristic
+of deepsjeng: the benchmark transitions abruptly from a simple
+initialisation sequence to an extremely register-intensive recursive
+kernel with no gradual ramp-up.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{531.deepsjeng\_r} benchmark exhibits a register spill rate
+of 4.17\% within its alpha-beta search ROI on RISC-V RV64GC. With 1.93
+billion spill events across 46.2 billion ROI instructions, deepsjeng
+places sixth among the ten evaluated SPEC CPU2017 benchmarks. The
+2.35:1 load-to-store ratio and 24.1\% spill fraction of loads both
+reflect the read-dominated nature of minimax tree traversal, where
+position state is frequently read for move generation and evaluation
+but written only when bounds or best-moves change. The most distinctive
+characteristic of deepsjeng is the extreme contrast between its
+negligible pre-ROI spill rate (0.004\%) --- the lowest of all benchmarks
+--- and its substantial ROI spill rate, demonstrating that the chess
+engine transitions from a trivial initialisation phase directly into a
+highly register-pressure-intensive recursive search kernel.
+
+\end{document}

@@ -1,0 +1,295 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 519.lbm\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{519.lbm\_r} benchmark from SPEC CPU2017, executed on a RISC-V
+(RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (20 time steps, channel flow, $100 \times 100 \times 130$
+grid) was used as the input.
+Results show a spill rate of \textbf{4.21\%} within the ROI,
+corresponding to 274 million detected spill events across 6.5 billion
+ROI instructions. The benchmark's lattice Boltzmann fluid solver
+iterates over a large 3D grid with 19 distribution functions per cell,
+sustaining high register pressure throughout the entire simulation.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{519.lbm\_r} is the SPEC CPU2017 rate variant of LBM, a
+Lattice Boltzmann Method fluid dynamics simulator. It simulates
+incompressible fluid flow in a 3D domain by propagating and
+colliding 19 distribution functions per lattice site (D3Q19 model)
+using the two-relaxation-time (TRT) collision operator. The benchmark
+is dominated by a single innermost kernel ---
+\texttt{LBM\_performStreamCollideTRT()} --- which is called once per
+time step and sweeps the entire 3D grid.
+
+The RISC-V binary (\texttt{lbm\_r.riscv}) was compiled with gem5 ROI
+markers inserted in \texttt{src/main.c}, wrapping the main time-step
+loop:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before the time-step for-loop
+    \item \texttt{m5\_work\_end(0,0)}   --- after the time-step for-loop
+\end{itemize}
+
+Each iteration of the loop calls \texttt{LBM\_handleInOutFlow()} (for
+channel flow simulations) and \texttt{LBM\_performStreamCollideTRT()},
+then swaps source and destination grids.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input Datasets}
+
+The three dataset sizes differ only in the number of time steps
+and the initial fluid state (obstacle file), as shown in
+Table~\ref{tab:inputs}. The grid dimensions are fixed at
+$100 \times 100 \times 130$ cells across all sizes.
+
+\begin{table}[H]
+\centering
+\caption{lbm\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lcll}
+\toprule
+\textbf{Dataset} & \textbf{Time steps} & \textbf{Obstacle file} & \textbf{Sim type} \\
+\midrule
+test    &    20 & 100\_100\_130\_cf\_a.of & channel flow \\
+train   &   300 & 100\_100\_130\_cf\_b.of & channel flow \\
+refrate & 3,000 & 100\_100\_130\_ldc.of  & lid-driven cavity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset (20 time steps, channel flow) was selected
+for this run. The grid has $100 \times 100 \times 130 = 1{,}300{,}000$
+lattice sites, each with 19 double-precision distribution values
+(19 $\times$ 8 bytes = 152 bytes per site), totalling approximately
+198\,MB of working set.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/lbm/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/lbm/lbm_r.riscv
+  --options="20 benchmarks/lbm/reference.dat 0 1
+             benchmarks/lbm/100_100_130_cf_a.of"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully, printing per-step grid
+statistics every 64 time steps and producing the reference output file.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI, the binary executed grid allocation, obstacle file
+parsing, and fluid initialisation. Table~\ref{tab:preroi} shows
+the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 239,085,882 \\
+Total spills detected (pre-ROI) & 7,890,132 \\
+Pre-ROI spill rate & 3.30\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI (20 LBM time steps).
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 519.lbm\_r (test, 20 steps)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 6,506,800,041 \\
+ROI stores               &   775,731,184 \\
+ROI loads                & 1,276,836,306 \\
+\midrule
+\textbf{ROI spills}      & \textbf{274,130,440} \\
+\textbf{Spill rate}      & \textbf{4.2130\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 37.74\,s \\
+Host wall time           & 6,482\,s ($\approx$1.8\,hours) \\
+Total simulated instructions & 6,841,278,693 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{4.21\%} means that approximately
+1 in every 24 instructions inside the ROI is a register spill.
+Table~\ref{tab:compare} places this in context of all evaluated benchmarks.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & \textbf{4.2130\%} \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (1.28B) is approximately $1.65\times$ higher than the
+store count (776M). In the D3Q19 TRT collision operator, each lattice
+site reads distribution values from 19 neighbours (stream step), then
+computes the post-collision state and writes it back. The read-heavy
+ratio reflects that each of the 19 neighbours is loaded from memory,
+while only the local site is written.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{274{,}130{,}440}{1{,}276{,}836{,}306} \approx 21.5\%
+\]
+Roughly 1 in 5 load instructions is a spill reload. The TRT collision
+kernel simultaneously manipulates all 19 distribution values plus
+their equilibrium counterparts and collision-relaxation intermediates.
+With RISC-V's 32 FP registers unable to accommodate all of these
+live values, systematic spilling occurs at every grid point.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $6{,}506{,}800{,}041$ out of $6{,}841{,}278{,}693$
+total simulated instructions:
+\[
+\frac{6{,}506{,}800{,}041}{6{,}841{,}278{,}693} \approx 95.1\%
+\]
+The ROI captures almost all execution. The remaining 4.9\% is grid
+setup and I/O, confirming the time-step loop dominates the benchmark.
+
+\subsection{Scaling to Refrate}
+
+The refrate dataset uses 3,000 time steps (150$\times$ more than test).
+Assuming linear scaling, the estimated refrate spill count is:
+\[
+274{,}130{,}440 \times 150 \approx 41.1 \text{ billion spills}
+\]
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{519.lbm\_r} benchmark exhibits a register spill rate of
+4.21\% within its core time-step loop on RISC-V RV64GC. With 274
+million spill events across 6.5 billion ROI instructions, the D3Q19
+TRT collision kernel sustains continuous register pressure due to the
+19 distribution functions and their intermediate values that must be
+simultaneously live at each grid point. The ROI captures 95.1\% of
+total execution, confirming the time-step loop as the dominant
+computation. At 1.8 hours host time for only 20 time steps, a full
+refrate run (3,000 steps) would require approximately 270 hours,
+making \texttt{519.lbm\_r} one of the most simulation-time-intensive
+benchmarks in the SPEC CPU2017 suite under gem5.
+
+\end{document}

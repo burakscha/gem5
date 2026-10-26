@@ -1,0 +1,334 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 502.gcc\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{502.gcc\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{t1.c}, a minimal C file compiled with
+\texttt{-O3 -finline-limit=50000}) was used as the input.
+Results show a spill rate of \textbf{6.92\%} within the ROI ---
+third highest across all SPEC CPU2017 benchmarks evaluated in this
+study --- with a spill-to-load ratio of \textbf{37.5\%}, the highest
+observed fraction among all benchmarks. The GCC compilation pipeline
+maintains a large set of simultaneously live compiler-internal data
+structures on the RISC-V stack, producing severe and persistent
+register pressure throughout the \texttt{toplev\_main()} call.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{502.gcc\_r} is the SPEC CPU2017 rate variant of GCC 4.5.0
+(SPEC-modified), a C compiler that translates C source files into
+assembly output. It is one of the largest and most complex integer
+workloads in the SPEC suite: the binary encompasses the full GCC
+front-end (lexer, parser, semantic analysis), middle-end (SSA
+construction, loop optimisations, inlining, register allocation),
+and back-end (instruction selection, scheduling, assembly emission).
+
+The \texttt{502.gcc\_r} binary compiled for RISC-V is itself a
+RISC-V executable; however, the GCC it embodies was configured to
+\emph{target} the x86 architecture. Consequently, the output assembly
+files contain x86 instructions, while the register spill measurements
+reflect the RISC-V execution of the GCC binary itself.
+
+The RISC-V binary (\texttt{gcc\_r.riscv}) was compiled with gem5
+ROI markers inserted around the \texttt{toplev\_main(argc, argv)}
+call in \texttt{src/main.c}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{toplev\_main()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{toplev\_main()}
+\end{itemize}
+
+\texttt{toplev\_main()} is the entry point to GCC's entire compilation
+pipeline and encompasses all parsing, optimisation, and code-generation
+passes.
+
+\subsection{Input Datasets}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{gcc\_r}, each
+supplying different C source files and compiler option combinations
+(Table~\ref{tab:inputs}).
+
+\begin{table}[H]
+\centering
+\caption{gcc\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Input file(s)} & \textbf{Compiler options} \\
+\midrule
+test    & t1.c (69\,B)      & \texttt{-O3 -finline-limit=50000} \\
+train   & Various .c files  & Multiple option sets \\
+refrate & gcc-pp.c ($>$1\,MB) & Multiple option sets, many runs \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this study for consistency
+with the other evaluated benchmarks. The test input \texttt{t1.c} is a
+minimal C file (\texttt{printf("hello world")}) compiled with
+aggressive inlining enabled (\texttt{-finline-limit=50000}).
+Although the source file is small, the GCC compilation pipeline incurs
+substantial fixed overhead per compilation unit: front-end
+initialisation, option processing, pass scheduling, and back-end
+setup all execute regardless of source size, resulting in 16 million
+ROI instructions.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/gcc/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/gcc/gcc_r.riscv
+  --options="benchmarks/gcc/t1.c
+             -O3 -finline-limit=50000
+             -o benchmarks/gcc/t1.s"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully, producing a 369-byte x86
+assembly file (\texttt{t1.s}) as expected for a SPEC-configured
+x86-targeting GCC binary.
+
+\subsection{Pre-ROI Context}
+
+Before \texttt{toplev\_main()} was entered, the binary executed
+GCC's startup phase: dynamic linker resolution, C runtime
+initialisation, option parsing, and language front-end registration.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 2,391,942 \\
+Total spills detected (pre-ROI) & 79,848 \\
+Pre-ROI spill rate & 3.34\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 502.gcc\_r (test, t1.c -O3)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 16,027,045 \\
+ROI stores               &  1,955,576 \\
+ROI loads                &  2,957,463 \\
+\midrule
+\textbf{ROI spills}      & \textbf{1,108,838} \\
+\textbf{Spill rate}      & \textbf{6.9185\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 0.042\,s \\
+Host wall time           & 11.87\,s \\
+Total simulated instructions & 20,805,917 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{6.92\%} places \texttt{gcc\_r}
+third among all evaluated SPEC CPU2017 benchmarks
+(Table~\ref{tab:compare}), behind only \texttt{507.cactuBSSN\_r}
+(7.88\%) and \texttt{500.perlbench\_r} (7.28\%).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+502.gcc\_r       &     1,108,838 & \textbf{6.9185\%} \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+523.xalancbmk\_r &    18,381,250 & 4.6427\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+531.deepsjeng\_r & 1,928,903,656 & 4.1749\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & 2.0601\% \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (2.96M) is $1.51\times$ higher than the store count
+(1.96M). This load-dominated ratio is distinctive among the evaluated
+benchmarks: most floating-point benchmarks exhibit store-heavy or
+near-symmetric ratios (2:1 or higher), whereas \texttt{gcc\_r}
+is read-heavy. The GCC compilation pipeline reads complex pointer-heavy
+data structures --- expression trees, control-flow graphs, SSA use-def
+chains, loop nests, and dominance trees --- far more often than it
+writes them, as most passes traverse and query structures that were
+built in earlier passes.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{1{,}108{,}838}{2{,}957{,}463} \approx 37.5\%
+\]
+This is \textbf{the highest spill-to-load fraction observed across all
+benchmarks in the study}. Approximately 2 in 5 load instructions is a
+spill reload. GCC's mid-end optimisation passes simultaneously maintain
+live pointers to expression trees, basic-block data, loop information,
+alias sets, and per-instruction metadata. With RISC-V providing only
+32 general-purpose registers, the compiler of the compiler cannot keep
+all these data-structure pointers live across the deep call chains of
+GCC's pass manager, resulting in pervasive reloading of previously
+spilled pointers.
+
+\subsection{Pre-ROI Spill Density}
+
+The pre-ROI spill rate of 3.34\% ($79{,}848$ spills over
+$2{,}391{,}942$ instructions) reflects GCC's startup phase: option
+parsing, language front-end registration, and internal table
+initialisation. Even before the main compilation pass begins, GCC
+exercises complex initialisation code paths with high register pressure.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $16{,}027{,}045$ out of $20{,}805{,}917$
+total simulated instructions:
+\[
+\frac{16{,}027{,}045}{20{,}805{,}917} \approx 77.0\%
+\]
+The remaining 23\% is split between the pre-ROI startup phase and
+the post-ROI cleanup and output phase.
+
+\subsection{Compiler-Driven Register Pressure}
+
+The extreme spill-to-load ratio of 37.5\% reflects a structural
+property of compiler internals: GCC's passes are written to operate
+on a rich set of live pointers simultaneously. During a single pass
+invocation, the pass manager keeps alive pointers to the current
+function's \texttt{cgraph\_node}, its \texttt{function} struct, the
+current \texttt{basic\_block}, the current \texttt{gimple} statement,
+and various per-pass state structures. Each RISC-V function call in
+GCC's highly modular pass infrastructure spills and reloads these
+pointers from the stack, as the 32-register RISC-V file cannot hold
+them all simultaneously. This structural property is independent of
+the input source file size and would persist on larger inputs.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{502.gcc\_r} benchmark exhibits a register spill rate of
+6.92\% within the \texttt{toplev\_main()} ROI on RISC-V RV64GC, the
+third highest across all evaluated benchmarks. Most remarkably, its
+spill-to-load ratio of 37.5\% is the highest in the study: nearly
+2 in 5 load instructions is a spill reload. This distinguishes
+\texttt{gcc\_r} from the floating-point workloads, which exhibit
+store-dominated memory traffic; \texttt{gcc\_r} is load-heavy,
+driven by repeated traversal of complex compiler-internal data
+structures. The results demonstrate that GCC's pass infrastructure
+generates severe register pressure on RISC-V RV64GC even for trivially
+small input files, owing to the large number of simultaneously live
+data-structure pointers that exceed the 32-register file capacity.
+
+\end{document}

@@ -1,0 +1,298 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 526.blender\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{526.blender\_r} benchmark from SPEC CPU2017, executed on a RISC-V
+(RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{cube.blend}, 1 frame) was used as the input.
+Results show a spill rate of approximately 6.22\% within the ROI ---
+the highest observed across all SPEC CPU2017 benchmarks evaluated in
+this study --- corresponding to over 61 million detected spill events
+out of 994 million ROI instructions.
+ROI instrumentation required a non-trivial fix: the original markers
+were placed in a dead code path (\texttt{cycles\_standalone.cpp}) and
+had to be moved to the actual render entry point in \texttt{creator.c}.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{526.blender\_r} is the SPEC CPU2017 rate variant of Blender,
+the open-source 3D rendering suite. The benchmark exercises Blender's
+ray-tracing renderer by rendering one or more frames of a 3D scene.
+It is compute-intensive and mixed-precision, combining floating-point
+geometry calculations with integer-heavy BVH tree traversal and
+pixel compositing.
+
+The RISC-V binary (\texttt{blender\_r.riscv}) was compiled with gem5 ROI
+markers inserted in \texttt{creator.c}, around the \texttt{RE\_BlenderAnim()}
+call inside the \texttt{render\_animation()} callback:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{RE\_BlenderAnim()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{RE\_BlenderAnim()}
+\end{itemize}
+
+Only spills occurring between these two markers are counted.
+
+\subsection{ROI Instrumentation History}
+
+An earlier version of the binary placed ROI markers inside
+\texttt{cycles\_standalone.cpp}'s \texttt{main()} function. That
+function is the entry point for a \emph{standalone} Cycles renderer
+binary and is \emph{never called} when running \texttt{blender\_r},
+whose entry point resides in \texttt{creator.c}. As a result, the
+early binary produced no \texttt{riscv\_spill\_stats.txt} output.
+The binary was rebuilt after moving the markers to the correct location.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input Datasets}
+
+Blender's three standard SPEC input sizes are summarised in
+Table~\ref{tab:inputs}.
+
+\begin{table}[H]
+\centering
+\caption{Blender Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{llcc}
+\toprule
+\textbf{Dataset} & \textbf{Scene file} & \textbf{Frames} & \textbf{File size} \\
+\midrule
+test    & cube.blend          & 1 (frame 1)   & 437\,KB \\
+train   & sh5\_reduced.blend  & 1 (frame 234) & 41\,MB  \\
+refrate & sh3\_no\_char.blend & 1 (frame 849) & 57\,MB  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset (\texttt{cube.blend}) was selected for this run
+to obtain a fast and verifiable measurement consistent with the policy
+used for other benchmarks in this study.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/blender/m5out_test2
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/blender/blender_r.riscv
+  --options="benchmarks/blender/cube.blend
+             --render-output benchmarks/blender/cube_
+             --threads 1 -b -F RAWTGA -s 1 -e 1 -a"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully. Blender printed the expected
+frame-by-frame progress log and exited cleanly
+(\texttt{Blender quit}).
+
+\subsection{Pre-ROI Context}
+
+Before the ROI was entered, the binary executed Blender's startup,
+scene parsing, and renderer initialisation. Table~\ref{tab:preroi}
+shows the global counters at the moment \texttt{m5\_work\_begin}
+was triggered.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 189,437,743 \\
+Total spills detected (pre-ROI) & 6,449,141 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected exclusively
+within the ROI (rendering of frame 1 of \texttt{cube.blend}).
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 526.blender\_r (test, 1 frame)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         &   994,414,074 \\
+ROI stores               &   116,509,594 \\
+ROI loads                &   233,612,215 \\
+\midrule
+\textbf{ROI spills}      & \textbf{61,845,869} \\
+\textbf{Spill rate}      & \textbf{6.2193\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time  & 2.278\,s \\
+Host wall time  & 842.72\,s ($\approx$14\,min) \\
+Total simulated instructions & 1,191,956,028 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{6.22\%} means that approximately
+1 in every 16 instructions inside the ROI is a register spill
+(a stack load matching a prior stack store). This is the highest
+spill rate observed among all SPEC CPU2017 benchmarks evaluated
+in this study, as shown in Table~\ref{tab:compare}.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison (test input)}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+526.blender\_r & 61,845,869  & \textbf{6.2193\%} \\
+544.nab\_r     & 151,310,616 & 2.2612\% \\
+505.mcf\_r     & 446,113,136 & 1.8263\% \\
+508.namd\_r    & 327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (233.6M) is approximately $2.0\times$ higher than the
+store count (116.5M). This 2:1 ratio is notably lower than the 4.3:1
+ratio seen in NAMD, suggesting that Blender's rendering kernel
+both writes and reads the stack more symmetrically --- consistent
+with the recursive BVH traversal pattern typical of ray tracers,
+where activation frames are pushed and popped in nearly equal measure.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{61{,}845{,}869}{233{,}612{,}215} \approx 26.5\%
+\]
+meaning roughly 1 in 4 load instructions is a spill reload.
+This is an exceptionally high fraction compared to other
+benchmarks and reflects the deep call-stack depth and high
+register pressure of the recursive ray-tracing engine.
+
+\subsection{Pre-ROI vs.\ ROI Spill Density}
+
+Pre-ROI spills: $6{,}449{,}141$ over $189{,}437{,}743$ instructions
+= \textbf{3.40\%} spill rate. This is notably lower than the ROI
+rate (6.22\%), which is the inverse of the pattern seen in most
+other benchmarks. In Blender, the core rendering phase is
+\emph{more} register-pressure-intensive than startup, reflecting
+the deep recursion and many live variables in the BVH traversal
+and shading kernels during actual rendering.
+
+\subsection{ROI Fraction of Total Execution}
+
+The ROI accounts for $994{,}414{,}074$ out of $1{,}191{,}956{,}028$
+total simulated instructions:
+\[
+\frac{994{,}414{,}074}{1{,}191{,}956{,}028} \approx 83.4\%
+\]
+This confirms that the ROI captures the dominant portion of the
+benchmark's execution and is a faithful representative of its
+overall behaviour.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{526.blender\_r} benchmark exhibits the highest register
+spill rate (6.22\%) among all SPEC CPU2017 benchmarks evaluated in
+this study. With 61.8 million spill events across 994 million ROI
+instructions for a single rendered frame, Blender places severe
+register pressure on the RISC-V backend. The 2:1 load-to-store ratio
+and the 26.5\% spill fraction of loads both confirm that ray-tracing
+recursion and BVH traversal generate dense stack traffic. These
+results suggest that \texttt{526.blender\_r} would be a prime
+candidate for investigating compiler spill-reduction strategies or
+hardware register-file extensions on RISC-V.
+
+\end{document}

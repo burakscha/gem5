@@ -529,7 +529,7 @@ def config_embedded_python(env):
                   f"CC = {env['CC']}")
         py_version = conf.CheckPythonLib()
         if not py_version:
-            error("Can't find a working Python installation")
+            print("Can't find a working Python installation")
 
     # Found a working Python installation. Check if it meets minimum
     # requirements.

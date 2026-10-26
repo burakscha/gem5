@@ -135,6 +135,10 @@ TimingSimpleCPU::TimingSimpleCPU(const BaseTimingSimpleCPUParams &p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
       fetchEvent([this] { fetch(); }, name()) {
   _status = Idle;
+  // Apply the spill_verbose parameter from the Python SimObject.
+  // setVerbose(true)  -> per-spill CSV lines + summary (verbose mode)
+  // setVerbose(false) -> compact summary only (default, safe for large runs)
+  spillDetector.setVerbose(p.spill_verbose);
 }
 
 TimingSimpleCPU::~TimingSimpleCPU() {
@@ -493,12 +497,15 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   // REGISTER SPILL DETECTION: Track this load instruction
   // Get architecture-specific stack pointer for spill analysis
   Addr current_sp = getStackPointer(thread);
-  spillDetector.onLoadInstruction(addr, pc, curTick(), size, current_sp,
-                                  thread->getTC());
+  bool is_spill_load = spillDetector.onLoadInstruction(addr, pc, curTick(),
+                                  size, current_sp, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
+  // Tag request so BaseCache can count spill-specific hit/miss stats.
+  if (is_spill_load)
+      req->setFlags(Request::SPILL_LOAD);
 
   req->taskId(taskId());
 
@@ -576,11 +583,14 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   // REGISTER SPILL DETECTION: Track this store instruction
   // Get architecture-specific stack pointer for spill analysis
   Addr current_sp = getStackPointer(thread);
-  spillDetector.onStoreInstruction(addr, pc, curTick(), size, current_sp);
+  bool is_spill_store = spillDetector.onStoreInstruction(
+      addr, pc, curTick(), size, current_sp, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
+  if (is_spill_store)
+      req->setFlags(Request::SPILL_STORE);
 
   req->taskId(taskId());
 

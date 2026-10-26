@@ -1,0 +1,317 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 538.imagick\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{538.imagick\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The test dataset (\texttt{test\_input.tga}, with shear, resize, negate,
+and alpha operations) was used as the input.
+Results show a spill rate of \textbf{2.06\%} within the ROI,
+corresponding to 2.4 million detected spill events across 117 million
+ROI instructions. The benchmark completed in only 93 seconds of host
+time, making it the fastest simulation in this study. Despite the
+relatively modest spill rate, the large ImageMagick codebase exhibits
+non-trivial register pressure across its image transformation pipeline.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{538.imagick\_r} is the SPEC CPU2017 rate variant of
+ImageMagick's \texttt{convert} utility, a widely used open-source
+image processing tool. The benchmark applies a sequence of image
+transformations to an input TARGA (\texttt{.tga}) image: geometric
+operations (shear, resize), pixel-level operations (negate), and
+channel masking (alpha removal). The workload exercises a large,
+diverse codebase covering pixel format conversion, resampling filters,
+geometric transformation matrices, and color space arithmetic.
+
+The RISC-V binary (\texttt{imagick\_r.riscv}) was compiled with gem5
+ROI markers inserted in \texttt{src/utilities/convert.c}, wrapping
+the entire \texttt{ConvertMain()} call from \texttt{main()}:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{ConvertMain()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{ConvertMain()}
+\end{itemize}
+
+\texttt{ConvertMain()} parses the command-line options and dispatches
+all image transformation operations, making it the sole entry point
+for all benchmark computation.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{Input Datasets}
+
+The test and refrate datasets differ in image size, input image, and
+the set of applied transformations (Table~\ref{tab:inputs}).
+The refrate dataset applies more computationally expensive operations
+(edge detection, resampling, emboss, color space conversion,
+mean-shift filtering).
+
+\begin{table}[H]
+\centering
+\caption{imagick\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lp{5cm}}
+\toprule
+\textbf{Dataset} & \textbf{Operations} \\
+\midrule
+test    & \texttt{-shear 25 -resize 640x480 -negate -alpha Off} \\
+refrate & \texttt{-edge 41 -resample 181\% -emboss 31 -colorspace YUV -mean-shift 19x19+15\% -resize 30\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{test} dataset was selected for this run. The input image
+is \texttt{test\_input.tga}; the operations applied are:
+\begin{enumerate}
+    \item \textbf{Shear} by 25 degrees --- affine transform with background fill
+    \item \textbf{Resize} to $640 \times 480$ --- Lanczos resampling
+    \item \textbf{Negate} --- per-pixel channel inversion
+    \item \textbf{Alpha Off} --- remove alpha channel
+\end{enumerate}
+The result is written to \texttt{test\_output.tga}.
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/imagick/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/imagick/imagick_r.riscv
+  --options="-limit disk 0
+             benchmarks/imagick/test_input.tga
+             -shear 25 -resize 640x480
+             -negate -alpha Off
+             benchmarks/imagick/test_output.tga"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed successfully in 93 seconds of host wall time
+--- the fastest completion among all SPEC CPU2017 benchmarks evaluated
+in this study. The output image \texttt{test\_output.tga} was produced
+without errors.
+
+\subsection{Pre-ROI Context}
+
+Before the ROI, the binary executed ImageMagick library initialisation:
+loading codec registries, configuring memory limits (\texttt{-limit disk 0}),
+and parsing command-line options. This pre-ROI phase is extremely small.
+Table~\ref{tab:preroi} shows the global counters at ROI entry.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 432,667 \\
+Total spills detected (pre-ROI) & 14,530 \\
+Pre-ROI spill rate & 3.36\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pre-ROI phase is negligibly small (432K instructions) compared to
+all other benchmarks, confirming that virtually all meaningful
+computation is inside \texttt{ConvertMain()} and thus inside the ROI.
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 538.imagick\_r (test)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         & 117,706,530 \\
+ROI stores               &   8,985,594 \\
+ROI loads                &  20,607,956 \\
+\midrule
+\textbf{ROI spills}      & \textbf{2,424,899} \\
+\textbf{Spill rate}      & \textbf{2.0601\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Timing}
+
+\begin{table}[H]
+\centering
+\caption{Simulation Timing}
+\label{tab:timing}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Simulated time           & 0.23\,s \\
+Host wall time           & 93.10\,s ($\approx$1.6\,min) \\
+Total simulated instructions & 118,567,806 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{2.06\%} means that approximately
+1 in every 49 instructions inside the ROI is a register spill.
+Table~\ref{tab:compare} places imagick\_r in the lower half of the
+spill rate distribution across all evaluated benchmarks.
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+507.cactuBSSN\_r & 3,782,099,438 & 7.8756\% \\
+500.perlbench\_r &     1,070,055 & 7.2838\% \\
+526.blender\_r   &    61,845,869 & 6.2193\% \\
+541.leela\_r     & 1,158,236,271 & 4.4438\% \\
+519.lbm\_r       &   274,130,440 & 4.2130\% \\
+544.nab\_r       &   151,310,616 & 2.2612\% \\
+538.imagick\_r   &     2,424,899 & \textbf{2.0601\%} \\
+505.mcf\_r       &   446,113,136 & 1.8263\% \\
+508.namd\_r      &   327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (20.6M) is approximately $2.29\times$ higher than the
+store count (9.0M). This reflects the read-heavy nature of image
+processing pipelines: each pixel is read for computation (potentially
+multiple times for filtering kernels), but written back only once.
+For the shear and resize operations, source pixels are accessed via
+interpolation, reading multiple neighbours per output pixel.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{2{,}424{,}899}{20{,}607{,}956} \approx 11.8\%
+\]
+Approximately 1 in 8 load instructions is a spill reload. This is
+notably lower than the compute-intensive benchmarks (cactuBSSN: 30.3\%,
+perlbench: 30.6\%), reflecting ImageMagick's pipeline-oriented
+architecture: each transformation stage has a relatively simple
+per-pixel computation with a modest number of simultaneously live
+variables.
+
+\subsection{ROI Coverage}
+
+The ROI accounts for $117{,}706{,}530$ out of $118{,}567{,}806$
+total simulated instructions:
+\[
+\frac{117{,}706{,}530}{118{,}567{,}806} \approx 99.3\%
+\]
+This is the highest ROI coverage fraction across all benchmarks
+(tied with cactuBSSN's 98.1\%), confirming that the ROI placement
+around \texttt{ConvertMain()} captures virtually all benchmark
+computation. The 0.7\% outside the ROI (432K instructions) is
+exclusively library initialisation.
+
+\subsection{Absolute Instruction Count}
+
+With only 117.7 million ROI instructions, imagick\_r has the smallest
+absolute ROI instruction count of any benchmark evaluated. The small
+test image and limited number of operations (shear, resize, negate,
+alpha removal) result in a workload that is representative in character
+but brief in duration. The refrate dataset, with its more expensive
+operations (edge detection with radius 41, 181\% resampling, emboss,
+mean-shift) on a larger image, would be substantially more intensive.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{538.imagick\_r} benchmark exhibits a spill rate of 2.06\%
+within its image transformation ROI on RISC-V RV64GC. With 2.4 million
+spill events across 117 million ROI instructions, imagick\_r has the
+smallest absolute spill count of any evaluated benchmark. The
+near-complete ROI coverage (99.3\%) confirms the instrumentation
+accuracy, while the modest spill rate (1 in 49 instructions) reflects
+ImageMagick's pipeline-oriented, per-pixel computation model with
+limited simultaneously live variables. At 93 seconds host time,
+imagick\_r is by far the fastest benchmark in this study, suggesting
+that the test workload may underrepresent the full benchmark character
+relative to the refrate dataset.
+
+\end{document}

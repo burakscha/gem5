@@ -1,0 +1,276 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\begin{document}
+
+\title{
+    \textbf{Benchmark Report: 500.perlbench\_r} \\
+    \text{Register Spill Analysis on RISC-V via gem5}
+}
+
+\author{
+    \IEEEauthorblockN{Lütfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Ismail Akturk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January\or February\or March\or April\or May\or June%
+    \or July\or August\or September\or October\or November\or December%
+    \fi
+    \space \number\year
+}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\maketitle
+\begin{center}{\small \LongDate}\end{center}
+\vspace{1em}
+\end{@twocolumnfalse}
+]
+
+% ================================================
+
+\begin{abstract}
+This report presents the register spill characterization of the
+\texttt{500.perlbench\_r} benchmark from SPEC CPU2017, executed on a
+RISC-V (RV64GC) target using the gem5 TimingSimpleCPU simulator.
+A custom SpillDetector was integrated into gem5 to count store-then-load
+patterns on the stack within a user-defined Region of Interest (ROI).
+The \texttt{checkspam.pl} workload (2500 messages, single-process) was
+used as the input, selected for compatibility with gem5's SE mode which
+does not support \texttt{fork()}. Results show a spill rate of
+approximately 7.28\% within the ROI --- the highest observed across all
+SPEC CPU2017 benchmarks evaluated in this study --- corresponding to over
+1 million detected spill events across 14.7 million ROI instructions.
+\end{abstract}
+
+% =========================================================
+\section{Benchmark Overview}
+
+\texttt{500.perlbench\_r} is the SPEC CPU2017 rate variant of a
+stripped-down Perl interpreter. The benchmark compiles and executes
+real-world Perl scripts, exercising the interpreter's parser, bytecode
+compiler, and runtime engine. It is one of the most complex integer
+workloads in the SPEC suite, with a large and irregular code footprint
+spanning the Perl core and several extension modules.
+
+The RISC-V binary (\texttt{perlbench\_r.riscv}) was compiled with gem5
+ROI markers inserted around the \texttt{perl\_run(my\_perl)} call in
+\texttt{src/perlmain.c}. This call is the top-level dispatch into the
+Perl interpreter's execution loop and encompasses all script execution:
+
+\begin{itemize}
+    \item \texttt{m5\_work\_begin(0,0)} --- before \texttt{perl\_run()}
+    \item \texttt{m5\_work\_end(0,0)}   --- after  \texttt{perl\_run()}
+\end{itemize}
+
+\subsection{Input Selection}
+
+SPEC CPU2017 provides three dataset sizes for \texttt{perlbench\_r},
+each running a different Perl workload (Table~\ref{tab:inputs}).
+The standard test dataset (\texttt{test.pl}) runs the Perl internal
+test suite by forking one sub-process per test file, which is
+incompatible with gem5's SE mode (no \texttt{fork()} support).
+Therefore, \texttt{checkspam.pl} from the refrate dataset was used.
+This script is a single-process spam filter based on SpamAssassin
+rules and exercises the full Perl interpreter without any
+process spawning.
+
+\begin{table}[H]
+\centering
+\caption{perlbench\_r Input Dataset Sizes}
+\label{tab:inputs}
+\begin{tabular}{lll}
+\toprule
+\textbf{Dataset} & \textbf{Script} & \textbf{Description} \\
+\midrule
+test    & test.pl      & Perl internal test suite (fork-based) \\
+train   & diffmail.pl  & Email diff utility \\
+refrate & checkspam.pl & SpamAssassin-based spam filter \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \textbf{checkspam.pl} workload was invoked with the refrate
+argument set: \texttt{2500 5 25 11 150 1 1 1 1}, which classifies
+2500 email messages against a set of SpamAssassin rules.
+
+% =========================================================
+\section{Simulation Setup}
+
+\subsection{gem5 Configuration}
+
+\begin{itemize}
+    \item \textbf{CPU model:}   TimingSimpleCPU
+    \item \textbf{ISA:}         RISC-V RV64GC
+    \item \textbf{Caches:}      enabled (default L1 I/D + L2)
+    \item \textbf{Memory:}      4\,GB simulated physical RAM
+    \item \textbf{Spill mode:}  summary only (\texttt{spill\_verbose=False})
+\end{itemize}
+
+The full gem5 invocation was:
+
+\begin{verbatim}
+./build/RISCV/gem5.opt
+  --outdir=benchmarks/perlbench/m5out_test
+  configs/deprecated/example/se.py
+  --cmd=benchmarks/perlbench/perlbench_r.riscv
+  --options="-I./benchmarks/perlbench
+             -I./benchmarks/perlbench/lib
+             benchmarks/perlbench/checkspam.pl
+             2500 5 25 11 150 1 1 1 1"
+  --cpu-type=TimingSimpleCPU
+  --caches
+  --mem-size=4GB
+\end{verbatim}
+
+% =========================================================
+\section{Simulation Results}
+
+The simulation completed with exit code 0. The \texttt{checkspam.pl}
+script processed all 2500 email messages and printed per-message
+classification results.
+
+\subsection{Pre-ROI Context}
+
+Table~\ref{tab:preroi} shows the global counters at the moment
+\texttt{m5\_work\_begin} was triggered.
+
+\begin{table}[H]
+\centering
+\caption{Global Counters at ROI Entry}
+\label{tab:preroi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total instructions (pre-ROI) & 1,134,635 \\
+Total spills detected (pre-ROI) & 65,714 \\
+Pre-ROI spill rate & 5.79\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ROI Spill Statistics}
+
+Table~\ref{tab:roi} presents the spill statistics collected within
+the ROI.
+
+\begin{table}[H]
+\centering
+\caption{ROI Spill Statistics --- 500.perlbench\_r (checkspam.pl, 2500 msgs)}
+\label{tab:roi}
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+ROI instructions         &  14,690,864 \\
+ROI stores               &   2,035,472 \\
+ROI loads                &   3,491,473 \\
+\midrule
+\textbf{ROI spills}      & \textbf{1,070,055} \\
+\textbf{Spill rate}      & \textbf{7.2838\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Analysis}
+
+\subsection{Spill Rate Interpretation}
+
+The measured spill rate of \textbf{7.28\%} means that approximately
+1 in every 14 instructions inside the ROI is a register spill.
+This is the highest spill rate observed among all SPEC CPU2017
+benchmarks evaluated in this study (Table~\ref{tab:compare}).
+
+\begin{table}[H]
+\centering
+\caption{Cross-Benchmark Spill Rate Comparison}
+\label{tab:compare}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Benchmark} & \textbf{ROI Spills} & \textbf{Spill Rate} \\
+\midrule
+500.perlbench\_r & 1,070,055   & \textbf{7.2838\%} \\
+526.blender\_r   & 61,845,869  & 6.2193\% \\
+544.nab\_r       & 151,310,616 & 2.2612\% \\
+505.mcf\_r       & 446,113,136 & 1.8263\% \\
+508.namd\_r      & 327,718,955 & 1.0269\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store vs.\ Load Balance}
+
+The load count (3.49M) is approximately $1.72\times$ higher than the
+store count (2.04M). This near-symmetric ratio is characteristic of
+interpreter dispatch loops: the interpreter must load operands,
+dispatch through a function pointer table (loading the handler
+address), and frequently save/restore interpreter state registers
+across recursive calls into user-defined Perl functions.
+
+\subsection{Spill Fraction of Loads}
+
+Within the ROI, the ratio of spills to total loads is:
+\[
+\frac{1{,}070{,}055}{3{,}491{,}473} \approx 30.6\%
+\]
+Nearly 1 in 3 load instructions is a spill reload. This is the
+highest such fraction across all benchmarks evaluated, reflecting the
+deep and irregular call stack of the Perl interpreter: each level of
+Perl function call pushes interpreter state onto the C stack, creating
+severe register pressure in the RISC-V backend.
+
+\subsection{Pre-ROI Spill Density}
+
+Pre-ROI spills: $65{,}714$ over $1{,}134{,}635$ instructions
+= \textbf{5.79\%}. This is high relative to most other benchmarks'
+pre-ROI phases, indicating that even Perl interpreter startup ---
+module loading, script parsing, and bytecode compilation via
+\texttt{perl\_parse()} --- is register-pressure-intensive on RISC-V.
+
+\subsection{Interpreter-Driven Spill Pressure}
+
+The extreme spill rate in perlbench is structurally driven by the
+Perl interpreter's C implementation. The bytecode dispatch loop
+must maintain a large set of live variables simultaneously:
+the interpreter's program counter (\texttt{PL\_op}), the stack
+pointer (\texttt{PL\_stack\_sp}), the current pad (lexical variable
+frame), the current context stack, and various per-opcode temporaries.
+With RISC-V providing 32 general-purpose registers (of which only
+$\sim$27 are caller/callee-save usable), the compiler cannot keep
+all of these live across the frequent \texttt{call}/\texttt{ret} pairs
+of opcode handler dispatch, resulting in pervasive register spilling.
+
+% =========================================================
+\section{Conclusion}
+
+The \texttt{500.perlbench\_r} benchmark exhibits the highest register
+spill rate (7.28\%) among all SPEC CPU2017 benchmarks evaluated in
+this study. With 1.07 million spill events across 14.7 million ROI
+instructions, approximately 1 in 3 load instructions is a spill reload.
+This is attributable to the Perl interpreter's deeply recursive C call
+structure, which continuously exceeds the RISC-V register file capacity
+during opcode dispatch. These results identify
+\texttt{500.perlbench\_r} as the most register-pressure-intensive
+benchmark in the evaluated suite and a prime candidate for studying
+compiler spill-reduction techniques on RISC-V.
+
+\end{document}
