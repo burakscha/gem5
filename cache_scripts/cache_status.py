@@ -171,32 +171,39 @@ def workloads() -> list[tuple[str, str]]:
     return [r for r in runs if wanted is None or r[0] in wanted]
 
 
-_ARCHIVE: dict[str, dict[tuple[str, str, str], Path]] = {}
+_ARCHIVE: dict[tuple[str, bool], dict[tuple[str, str, str], Path]] = {}
 
 
 def archived_runs(benchmark: str) -> dict[tuple[str, str, str], Path]:
     """(input, cache, run ID) -> newest completed run of schema SCHEMA, from
     every run directory of the benchmark (the latest_* links follow the
-    newest run, which may be of the current schema)."""
-    if benchmark not in _ARCHIVE:
+    newest run, which may be of the current schema). With SIMPOINT, the
+    combined SimPoint estimates (<run>_simpoint, and <run>_simpoint_schema9
+    where a campaign moved an older one aside) instead of the full runs."""
+    if (benchmark, SIMPOINT) not in _ARCHIVE:
         best: dict[tuple[str, str, str], tuple[int, Path]] = {}
         bench = ROOT / "benchmarks" / benchmark
         # Runs before 2026-10-15: m5out_<bench>/m5out_*; since then
-        # <input>/m5out/<cache>/<run_id>_<stamp>.
+        # <input>/m5out/<cache>/<run_id>_<stamp> (SimPoint: <run_id>_simpoint).
         dirs = [*bench.glob(f"m5out_{benchmark}/m5out_*"), *bench.glob("*/m5out/*/*")]
         for d in dirs:
             if d.is_symlink() or not d.is_dir():
                 continue
             r = d / ".runner"
+            if (r / "simpoint").exists() != SIMPOINT:
+                continue
             if read(r / "status") != "COMPLETED" or run_schema(d) != SCHEMA:
                 continue
-            key = (read(r / "profile"), read(r / "cache"), read(r / "run_id"))
+            # A combined SimPoint directory names its input and cache only
+            # through its path: <input>/m5out/<cache>/<run>_simpoint*.
+            key = (read(r / "profile") or d.parent.parent.parent.name,
+                   read(r / "cache") or d.parent.name, read(r / "run_id"))
             end = read(r / "finished.epoch")
             end = int(end) if end.isdigit() else 0
             if key not in best or end > best[key][0]:
                 best[key] = (end, d)
-        _ARCHIVE[benchmark] = {k: v[1] for k, v in best.items()}
-    return _ARCHIVE[benchmark]
+        _ARCHIVE[(benchmark, SIMPOINT)] = {k: v[1] for k, v in best.items()}
+    return _ARCHIVE[(benchmark, SIMPOINT)]
 
 
 def dir_schema(d: Path) -> int | None:
@@ -985,6 +992,18 @@ def queued_runs() -> tuple[set[tuple[str, str, str]], list[str]]:
     for qdir in dirs:
         log = read(qdir / "queue.log")
         host = read(qdir / "queue.host") or "?"
+        if (qdir / "campaign.pid").exists():
+            # A running campaign (campaign_schema10.sh) starts every run of
+            # its plan, step by step; its log holds one queue per step after
+            # older queues' lines, so the plan is what it still starts.
+            if host == HERE and not pid_alive(read(qdir / "campaign.pid")):
+                notes.append(f"campaign on {host} is not running")
+                continue
+            for line in read(qdir / "queue.plan").splitlines():
+                fields = line.split()
+                if len(fields) > 2:
+                    queued.update((fields[0], fields[1], r) for r in fields[2].split(","))
+            continue
         if not log.startswith("Queue: "):
             continue
         if host == HERE and not pid_alive(read(qdir / "queue.pid")):

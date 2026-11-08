@@ -4,7 +4,7 @@
 # validate gem5 on it, and start a detached queue sized to its cores.
 #
 #   cache_scripts/run_on_host.sh check                  is this host ready? (changes nothing)
-#   cache_scripts/run_on_host.sh test                   spill_test suite (22 cases) with gem5 here
+#   cache_scripts/run_on_host.sh test                   spill_test suite (27 cases) with gem5 here
 #   cache_scripts/run_on_host.sh smoke INPUT            5M-instruction trial of every run x config
 #   cache_scripts/run_on_host.sh start INPUTS [opts]    start this host's queue (detached)
 #   cache_scripts/run_on_host.sh all INPUTS [opts]      check + test + smoke + start, in one go
@@ -152,7 +152,7 @@ cmd_check() {
 cmd_test() {
     [[ -x "$TOOLS/bin/riscv64-unknown-linux-gnu-as" ]] ||
         die "the RISC-V assembler is not visible on this host ($TOOLS); the tests need it"
-    echo "spill_test suite with gem5 on $HOST (22 cases)"
+    echo "spill_test suite with gem5 on $HOST (27 cases)"
     python3 tests/spill_test/run_tests.py "$@"
 }
 

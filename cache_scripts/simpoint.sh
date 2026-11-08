@@ -15,6 +15,9 @@
 #   MAXK=30 cache_scripts/simpoint.sh cluster ref
 #   JOBS=36 WARMUP=500000000 cache_scripts/simpoint.sh checkpoint ref
 #   JOBS=60 cache_scripts/simpoint.sh run ref small-2way,small-fa,small-dm,small-4way,small-8way
+#   JOBS=45 TOTAL_JOBS=45 cache_scripts/simpoint.sh run ref ...   (run: also keep this
+#                                                     user's gem5 runs on the host, the
+#                                                     queue's included, below TOTAL_JOBS)
 #
 # profile runs each workload to its end under qemu-riscv64 with the runner's
 # command line (binary with m5ops patched to NOPs, cache_scripts/qemu) and the
@@ -39,7 +42,7 @@
 #
 # run restores every point with TimingSimpleCPU and the configuration's caches
 # (spec_spill_runner.sh's cache_options), WARMUP instructions of warmup (the
-# SpillDetector tracks stores through it, counting nothing) and one INTERVAL
+# SpillDetector sees none of it: its ROI is the interval) and one INTERVAL
 # measured, into benchmarks/<bench>/<input>/m5out/<config>/<run>_simpoint/spNN.
 # When a (run, config) has all its points, simpoint_combine.py writes the
 # weighted estimate of the whole ROI into that directory, in the files a full
@@ -61,6 +64,7 @@ NM="$TOOLS/bin/riscv64-unknown-linux-gnu-nm"
 SIMPOINT=/cta/users/bkaya/riscv-spec-register-spilling/tools/simpoint/SimPoint.3.2/bin/simpoint
 HOST_CC="${HOST_CC:-/cta/users/bkaya/miniconda3/envs/gem5_env/bin/x86_64-conda-linux-gnu-gcc}"
 JOBS="${JOBS:-3}"
+TOTAL_JOBS="${TOTAL_JOBS:-}"   # run: cap on all of this user's gem5 runs here
 INTERVAL="${INTERVAL:-100000000}"
 WARMUP="${WARMUP:-500000000}"
 MAXK="${MAXK:-30}"
@@ -398,6 +402,20 @@ run_point() {   # INPUT CONFIG BENCHMARK RUN K BINARY OPTIONS RUN_SRC
     fi
 }
 
+# A slot for one more point run: fewer than JOBS of this command's runs and,
+# with TOTAL_JOBS, fewer than TOTAL_JOBS gem5 processes of this user on the
+# host (queue runs started by launch_spill_batch.sh included).
+own_gem5() {
+    pgrep -c -u "$(id -u)" -x gem5.opt 2>/dev/null || true
+}
+wait_for_slot() {
+    while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
+    [[ -n "$TOTAL_JOBS" ]] || return 0
+    while (( $(own_gem5) >= TOTAL_JOBS )); do
+        if (( $(jobs -rp | wc -l) > 0 )); then wait -n; else sleep 30; fi
+    done
+}
+
 cmd_run() {
     local input="${1:?usage: $0 run INPUT CONFIGS [RUN...]}" configs="${2:?usage: $0 run INPUT CONFIGS [RUN...]}"
     shift 2
@@ -415,12 +433,14 @@ cmd_run() {
             done
         done
     done < <(selected "$input" "$@")
-    printf '[%(%H:%M:%S)T] %s point runs to do, %s at a time\n' -1 "${#tasks[@]}" "$JOBS"
+    printf '[%(%H:%M:%S)T] %s point runs to do, %s at a time%s\n' -1 "${#tasks[@]}" "$JOBS" \
+        "${TOTAL_JOBS:+, at most $TOTAL_JOBS gem5 runs of this user here}"
     local t
     for t in "${tasks[@]}"; do
         IFS=$'\x1f' read -r cfg benchmark run_id k binary options run_src <<< "$t"
-        while (( $(jobs -rp | wc -l) >= JOBS )); do wait -n; done
+        wait_for_slot
         run_point "$input" "$cfg" "$benchmark" "$run_id" "$k" "$binary" "$options" "$run_src" &
+        [[ -n "$TOTAL_JOBS" ]] && sleep 2   # let gem5 start before the next count
     done
     wait
     cmd_combine "$input" "$configs" > /dev/null
