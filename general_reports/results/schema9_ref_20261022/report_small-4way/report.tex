@@ -1,0 +1,100 @@
+\documentclass[9pt,landscape,a4paper]{article}
+\usepackage[landscape,a4paper,margin=10mm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{adjustbox}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\pagestyle{empty}
+\setlength{\tabcolsep}{2.6pt}
+\renewcommand{\arraystretch}{1.08}
+
+\begin{document}
+\begin{center}
+{\large\bfseries Improving CPU Efficiency for Data-Intensive Applications}\\[1pt]
+{\large\bfseries through Cache-Aware Spill Optimization}\\[5pt]
+{\normalsize Register Spill Behaviour and Cache Hit/Miss Rates on RISC-V SPEC CPU2017}\\[7pt]
+\begin{tabular}{@{}c@{\hspace{3em}}c@{}}
+L\"utfullah Burak Kaya & Ismail Akturk \\[2pt]
+{\small Ozyegin University} & {\small Ozyegin University} \\
+{\small burak.kaya.50711@ozu.edu.tr} & {\small ismail.akturk@ozyegin.edu.tr} \\
+\end{tabular}\\[6pt]
+{\small 22 October 2026}\\[3pt]
+{\small gem5 TimingSimpleCPU $\cdot$ workload profile \texttt{ref} $\cdot$ L1D 4\,KiB, L1I 32\,KiB, L2 32\,KiB, L1D 4-way, L2 8-way $\cdot$ gem5 \texttt{e0a12aa4e3+dirty}}
+\end{center}
+
+\vspace{-2mm}
+\noindent\footnotesize
+\noindent\textbf{SimPoint estimates.} Ref runs are too long to simulate in full: every value is estimated from up to 30 simulation points of 100\,M instructions per run, each after a 500\,M-instruction warmup, weighted by SimPoint (\texttt{cache\_scripts/simpoint.sh}; points and weights in each run directory's \texttt{simpoint.txt}). \texttt{total\_insts} is the whole program's count from qemu.\par\medskip
+\textbf{Definitions (metric schema 9).} Every stack store issued inside
+the region of interest, and every later load that reads it back (the load's address lies in the bytes the store wrote; widths may differ), belongs to
+exactly one class.
+\texttt{spill}: register-allocator spill code, identified by GCC itself
+(\texttt{-dP} RTL dumps of the same build, memory operands in the LRA spill
+area). \texttt{csave}: callee-saved register save/restore, return address
+included, identified from the binary's CFI (\texttt{.eh\_frame}).
+\texttt{other\_stack}: every remaining SP/FP-relative stack store and reload
+(stack-passed arguments, memory-resident locals). \texttt{stack\_*} is the sum
+of the three. For each class an \emph{event} is one (store, first reload)
+pair, so $\texttt{event} \leq \texttt{store}$ and
+$\texttt{load} \geq \texttt{event}$. All counters cover only the region
+delimited by \texttt{m5\_work\_begin}/\texttt{m5\_work\_end}: the gem5
+statistics are dumped and reset at those boundaries, so the cache columns span
+the same window, and the cache tags carry the class, so per-class hit/miss
+rates come straight from gem5. \emph{Spill\,\%} and \emph{Csave\,\%} are the
+class's store+reload instructions over \texttt{ROI\_insts};
+\emph{spill/stack\,\%} is the share of stack events that are real spills.
+
+\vspace{2mm}
+\centering
+% Scaled to the page width and to the height left under the header, so the
+% table stays on the first page however many runs it has.
+\begin{adjustbox}{max width=\textwidth, max totalheight=0.50\textheight}%
+\begin{tabular}{lrrrrrrrrrrrrrr}
+\toprule
+Benchmark & ROI\_insts & stack\_event & \textbf{spill\_event} & csave\_event & other\_event & spill/stack\,\% & Spill\,\% & Csave\,\% & L1D m\,\% & L2 m\,\% & sp\_load m\,\% & sp\_store m\,\% & cs\_load m\,\% & cs\_store m\,\% \\
+\midrule
+cactuBSSN & 3\,831\,491\,985\,262 & 309\,177\,145\,504 & 308\,680\,668\,558 & 495\,633\,510 & 843\,436 & 99.8 & 20.65 & 0.03 & 15.631 & 64.99 & 5.185 & 4.296 & 0.034 & 0.051 \\
+parest & 4\,088\,545\,717\,646 & 14\,998\,028\,893 & 811\,009\,843 & 9\,923\,720\,515 & 4\,263\,298\,536 & 5.4 & 0.16 & 0.49 & 10.383 & 70.85 & 2.355 & 1.667 & 0.381 & 0.855 \\
+deepsjeng & 2\,288\,124\,945\,739 & 80\,869\,347\,873 & 19\,984\,799\,357 & 59\,448\,342\,020 & 1\,436\,206\,496 & 24.7 & 2.92 & 5.20 & 8.811 & 6.35 & 2.098 & 7.453 & 2.119 & 3.329 \\
+leela & 2\,625\,129\,460\,409 & 80\,675\,242\,597 & 2\,803\,257\,082 & 74\,618\,676\,357 & 3\,253\,309\,159 & 3.5 & 0.38 & 5.68 & 4.941 & 23.48 & 0.510 & 0.002 & 1.163 & 0.920 \\
+namd & 2\,028\,976\,157\,237 & 22\,071\,447\,345 & 22\,036\,018\,281 & 32\,351\,019 & 3\,078\,044 & 99.8 & 3.27 & 0.00 & 11.577 & 27.50 & 2.404 & 1.259 & 11.362 & 2.686 \\
+lbm & 1\,326\,361\,633\,658 & 60\,519\,089\,363 & 60\,519\,012\,839 & 65\,196 & 11\,327 & 100.0 & 10.48 & 0.00 & 17.634 & 97.01 & 0.014 & 0.115 & 9.507 & 1.048 \\
+nab & 1\,734\,299\,363\,064 & 43\,335\,663\,671 & 28\,093\,888\,918 & 13\,442\,916\,323 & 1\,798\,858\,430 & 64.8 & 5.20 & 1.55 & 5.400 & 59.18 & 0.130 & 0.688 & 0.634 & 0.755 \\
+xz\_cld & 401\,325\,607\,575 & 6\,541\,500\,109 & 2\,739\,318\,343 & 3\,420\,468\,756 & 381\,713\,010 & 41.9 & 3.38 & 1.70 & 10.656 & 35.09 & 2.045 & 1.513 & 1.906 & 3.096 \\
+xz\_cpu2006docs & 1\,147\,585\,864\,648 & 6\,856\,700\,239 & 3\,294\,943\,229 & 3\,244\,099\,774 & 317\,657\,236 & 48.1 & 1.47 & 0.57 & 9.404 & 39.60 & 2.196 & 1.905 & 3.190 & 5.011 \\
+xz\_combined & 625\,442\,471\,499 & 8\,750\,690\,789 & 4\,136\,091\,420 & 4\,131\,534\,419 & 483\,064\,950 & 47.3 & 2.85 & 1.32 & 9.724 & 24.47 & 1.976 & 1.297 & 2.416 & 2.495 \\
+imagick & 4\,419\,819\,220\,333 & 161\,009\,229\,576 & 985\,726\,347 & 112\,611\,984\,461 & 47\,411\,518\,767 & 0.6 & 0.23 & 5.10 & 2.178 & 96.60 & 3.929 & 0.032 & 0.000 & 0.001 \\
+blender & 1\,882\,360\,450\,846 & 37\,346\,363\,686 & 1\,777\,349\,126 & 31\,450\,061\,421 & 4\,118\,953\,139 & 4.8 & 0.38 & 3.34 & 8.000 & 18.31 & 2.666 & 1.425 & 2.180 & 4.787 \\
+povray & 3\,547\,172\,911\,376 & 268\,807\,318\,785 & 3\,408\,113\,585 & 248\,064\,943\,702 & 17\,334\,261\,499 & 1.3 & 0.27 & 13.99 & 9.157 & 45.94 & 7.206 & 18.522 & 1.705 & 1.066 \\
+omnetpp & 1\,183\,494\,051\,463 & 77\,273\,945\,237 & 5\,553\,868 & 75\,458\,441\,451 & 1\,809\,949\,918 & 0.0 & 0.00 & 12.75 & 16.311 & 28.08 & 0.076 & 1.496 & 2.610 & 3.051 \\
+xalancbmk & 1\,280\,238\,262\,454 & 32\,984\,432\,390 & 514\,678\,757 & 30\,661\,938\,211 & 1\,807\,815\,421 & 1.6 & 0.13 & 4.79 & 17.119 & 70.02 & 11.801 & 22.711 & 2.901 & 4.521 \\
+x264\_pass1 & 532\,607\,517\,842 & 26\,480\,570\,114 & 17\,955\,938\,896 & 8\,302\,056\,795 & 222\,574\,424 & 67.8 & 7.07 & 3.12 & 2.421 & 28.58 & 0.133 & 1.004 & 1.167 & 1.363 \\
+x264\_pass2 & 2\,060\,055\,578\,301 & 88\,359\,230\,989 & 60\,166\,511\,652 & 24\,461\,154\,321 & 3\,731\,565\,017 & 68.1 & 6.25 & 2.37 & 1.949 & 35.53 & 0.185 & 0.776 & 0.994 & 1.078 \\
+x264\_seek & 1\,966\,389\,483\,167 & 85\,688\,434\,921 & 58\,863\,030\,064 & 23\,684\,590\,688 & 3\,140\,814\,169 & 68.7 & 6.41 & 2.41 & 1.962 & 31.56 & 0.156 & 0.908 & 1.035 & 1.135 \\
+gcc\_pp\_O3 & 224\,853\,966\,645 & 17\,984\,502\,435 & 877\,592\,244 & 16\,879\,105\,802 & 227\,804\,388 & 4.9 & 1.23 & 15.01 & 8.737 & 41.84 & 1.298 & 4.768 & 0.646 & 1.534 \\
+gcc\_pp\_O2 & 266\,929\,823\,668 & 21\,831\,478\,671 & 1\,077\,827\,255 & 20\,499\,147\,410 & 254\,504\,006 & 4.9 & 1.25 & 15.36 & 8.893 & 38.46 & 1.190 & 4.312 & 0.709 & 1.464 \\
+gcc\_smaller & 254\,671\,373\,628 & 17\,265\,308\,635 & 931\,220\,362 & 16\,129\,309\,979 & 204\,778\,295 & 5.4 & 1.09 & 12.67 & 10.479 & 47.59 & 2.045 & 3.709 & 0.567 & 1.282 \\
+gcc\_ref32\_O5 & 214\,010\,333\,381 & 16\,552\,733\,395 & 576\,497\,719 & 15\,646\,044\,451 & 330\,191\,225 & 3.5 & 0.91 & 14.62 & 8.862 & 50.61 & 1.679 & 4.070 & 0.453 & 1.108 \\
+gcc\_ref32\_O3 & 318\,165\,395\,272 & 17\,589\,262\,663 & 566\,719\,818 & 16\,818\,061\,154 & 204\,481\,691 & 3.2 & 0.68 & 10.57 & 10.652 & 72.66 & 2.477 & 5.119 & 0.575 & 1.363 \\
+mcf & 888\,079\,703\,023 & 7\,407\,299\,183 & 3\,229\,620\,454 & 4\,144\,174\,494 & 33\,504\,235 & 43.6 & 1.40 & 0.93 & 21.529 & 74.18 & 6.088 & 6.445 & 2.546 & 5.330 \\
+perlbench\_checkspam & 1\,309\,521\,527\,045 & 120\,008\,085\,121 & 23\,137\,601\,197 & 93\,974\,994\,957 & 2\,895\,488\,967 & 19.3 & 7.98 & 14.35 & 2.496 & 28.16 & 0.097 & 0.427 & 0.266 & 0.472 \\
+perlbench\_diffmail & 778\,566\,201\,895 & 66\,166\,562\,175 & 3\,721\,969\,520 & 61\,702\,382\,195 & 742\,210\,461 & 5.6 & 1.96 & 15.85 & 4.512 & 37.92 & 0.127 & 4.559 & 0.161 & 0.780 \\
+perlbench\_splitmail & 736\,991\,491\,190 & 79\,002\,095\,413 & 7\,227\,608\,106 & 70\,427\,685\,127 & 1\,346\,802\,180 & 9.1 & 4.16 & 19.11 & 8.879 & 8.50 & 0.033 & 7.272 & 0.206 & 0.860 \\
+bwaves\_1 & 497\,063\,723\,317 & 2\,989\,609\,538 & 2\,989\,191\,752 & 351\,316 & 66\,470 & 100.0 & 2.51 & 0.00 & 44.121 & 23.63 & 6.223 & 0.104 & 3.836 & 5.057 \\
+bwaves\_2 & 784\,691\,829\,793 & 4\,892\,060\,128 & 4\,891\,557\,364 & 404\,109 & 98\,655 & 100.0 & 2.59 & 0.00 & 43.897 & 23.88 & 6.018 & 0.121 & 6.867 & 4.802 \\
+bwaves\_3 & 611\,703\,570\,107 & 3\,688\,669\,131 & 3\,688\,117\,546 & 439\,481 & 112\,104 & 100.0 & 2.51 & 0.00 & 43.191 & 24.11 & 6.111 & 0.001 & 5.174 & 4.519 \\
+bwaves\_4 & 745\,048\,195\,941 & 4\,606\,093\,801 & 4\,605\,716\,550 & 319\,055 & 58\,197 & 100.0 & 2.56 & 0.00 & 43.283 & 23.87 & 5.840 & 0.001 & 4.176 & 5.478 \\
+exchange2 & 2\,120\,109\,818\,190 & 67\,506\,596\,157 & 51\,688\,048\,432 & 8\,987\,153\,068 & 6\,831\,394\,657 & 76.6 & 5.23 & 0.85 & 1.667 & 0.94 & 1.409 & 2.236 & 6.668 & 2.222 \\
+fotonik3d & 2\,457\,798\,604\,788 & 19\,150\,475\,290 & 18\,811\,665\,225 & 309\,878\,797 & 28\,931\,268 & 98.2 & 3.36 & 0.03 & 10.254 & 66.95 & 4.031 & 0.045 & 0.018 & 3.311 \\
+roms & 2\,733\,593\,366\,577 & 17\,773\,282\,831 & 16\,141\,154\,959 & 967\,833\,899 & 664\,293\,973 & 90.8 & 4.37 & 0.07 & 15.129 & 53.37 & 2.310 & 0.521 & 2.831 & 2.643 \\
+wrf & 4\,131\,413\,910\,638 & 19\,044\,552\,577 & 5\,282\,083\,873 & 12\,615\,402\,211 & 1\,147\,066\,493 & 27.7 & 0.91 & 0.61 & 11.267 & 33.77 & 6.626 & 4.405 & 0.562 & 1.570 \\
+cam4 & 2\,349\,180\,609\,851 & 44\,573\,582\,631 & 21\,602\,368\,027 & 21\,690\,037\,915 & 1\,281\,176\,689 & 48.5 & 3.14 & 1.85 & 10.694 & 55.53 & 2.039 & 2.355 & 0.692 & 1.622 \\
+\midrule
+\textbf{Total} & 58\,391\,814\,127\,468 & 1\,959\,776\,631\,856 & \textbf{767\,822\,470\,568} & 1\,084\,245\,704\,359 & 107\,708\,456\,932 & 39.2 & 3.78 & 3.71 & 0.000 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+\bottomrule
+\end{tabular}%
+\end{adjustbox}
+
+\end{document}

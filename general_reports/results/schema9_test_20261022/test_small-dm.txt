@@ -1,0 +1,195 @@
+=== small-dm: direct-mapped L1D and L2   (2026-10-22 17:31) ===
+Input: test  (SPEC CPU2017 'test' inputs, the smallest set)
+queue on castEpyc: started 10-15 22:41; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castXeon: started 10-22 17:21; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castdata: FINISHED (every run has been started)   gem5 processes: 0 
+
+Cache geometry [source: config.ini of the cactuBSSN run]
+cache    size  line  lines   organisation  sets  lines/set     tag store  replacement
+-----  ------  ----  -----  -------------  ----  ---------  ------------  -----------
+L1I    32 KiB  64 B    512          2-way   256          2  BaseSetAssoc          LRU
+L1D     4 KiB  64 B     64  direct-mapped    64          1  BaseSetAssoc          LRU
+L2     32 KiB  64 B    512  direct-mapped   512          1  BaseSetAssoc          LRU
+
+1) State and instruction counts
+#   run                 state          started     finished   elapsed  progress      total_insts       total_load     total_store  roi_total_insts   roi_total_load  roi_total_store      roi_spills  roi_spill_load  roi_spill_store
+--  ------------------  ---------  -----------  -----------  --------  --------  ---------------  ---------------  --------------  ---------------  ---------------  ---------------  --------------  --------------  ---------------
+1   cactuBSSN           COMPLETED  10-18 00:35  10-19 02:23  1d01h48m      100%   48,961,302,896   12,751,681,985   7,055,598,121   48,023,254,960   12,477,164,927    6,919,086,576   3,797,752,332   6,401,687,686    3,837,990,717
+2   parest              COMPLETED  10-18 22:07  10-19 11:46    13h39m      100%   37,270,023,921   11,901,126,269   1,009,979,037   37,262,401,281   11,899,900,782    1,009,655,855      16,148,624      66,217,914       16,642,373
+3   deepsjeng           COMPLETED  10-18 12:03  10-19 03:28    15h25m      100%   46,318,246,516    7,989,140,971   3,486,742,687   46,202,686,169    7,989,081,366    3,395,185,945     380,604,124     745,453,632      537,831,290
+4   leela               COMPLETED  10-19 03:20  10-19 11:34     8h13m      100%   26,994,310,209    5,290,039,816   1,847,316,654   26,063,891,644    5,110,627,711    1,756,735,740      26,356,444      63,956,477       29,095,730
+5   namd                COMPLETED  10-18 23:15  10-19 12:22    13h06m      100%   33,474,257,572    8,697,059,846   2,146,680,768   31,914,751,099    8,380,476,926    1,945,490,950     334,454,030     663,278,810      335,948,515
+6   lbm                 COMPLETED  10-19 16:41  10-19 20:32     3h51m      100%    6,841,279,611    1,348,279,167     840,859,037    6,506,800,040    1,276,836,306      775,731,184     274,130,500     354,886,400      274,130,600
+7   nab                 COMPLETED  10-19 17:49  10-19 20:08     2h19m      100%    6,706,037,177    1,526,215,996     322,850,429    6,691,483,051    1,523,059,851      321,568,360     124,535,928     400,344,049      128,172,401
+8   xz                  COMPLETED  10-19 20:34  10-19 21:40     1h06m      100%    2,947,407,043      449,723,401     218,433,943    2,014,351,521      367,733,280      183,548,298       4,683,669       8,658,750        5,052,909
+9   xz_4m_l1            COMPLETED  10-19 20:34  10-19 21:33    58m42s      100%    2,934,518,383      448,696,183     210,399,055    2,001,462,938      366,706,068      175,513,410       3,959,703       7,645,075        4,259,658
+10  xz_4m_l2            COMPLETED  10-19 20:34  10-19 21:35     1h01m      100%    3,016,159,388      461,708,227     206,113,320    2,083,103,943      379,718,112      171,227,675       3,700,891       7,270,601        3,971,667
+11  xz_4m_l3e           COMPLETED  10-19 20:34  10-19 23:58     3h24m      100%   11,506,572,108    1,933,510,044     424,286,054   10,573,516,663    1,851,519,929      389,400,409      61,575,948     167,045,225       97,871,930
+12  xz_4m_l4            COMPLETED  10-19 19:13  10-19 20:43     1h29m      100%    4,945,023,030      791,129,164     283,370,678    4,011,967,585      709,139,049      248,485,033      20,213,033      49,400,908       35,846,619
+13  xz_4m_l4e           COMPLETED  10-19 20:34  10-20 00:28     3h54m      100%   13,048,766,797    2,230,713,827     434,376,932   12,115,711,352    2,148,723,712      399,491,287      63,036,496     175,168,147      100,532,484
+14  xz_1m_l0            COMPLETED  10-19 20:34  10-19 21:06    32m12s      100%    1,515,794,714      200,948,304     100,866,282      711,271,503      129,353,782       69,200,051       1,091,347       3,227,892        1,164,119
+15  xz_1m_l1            COMPLETED  10-19 20:34  10-19 21:03    28m57s      100%    1,524,371,538      202,622,986     100,665,323      719,848,327      131,028,464       68,999,092         973,549       3,121,299        1,018,284
+16  xz_1m_l2            COMPLETED  10-19 20:34  10-19 21:03    29m18s      100%    1,529,213,433      203,325,953     100,463,675      724,690,222      131,731,431       68,797,444         956,442       3,096,544          999,909
+17  xz_1m_l3e           COMPLETED  10-19 20:34  10-19 21:22    48m01s      100%    2,798,929,773      415,598,207     148,304,049    1,994,406,562      344,003,685      116,637,818      12,876,553      32,164,053       19,545,498
+18  xz_1m_l4            COMPLETED  10-19 20:34  10-19 21:06    32m27s      100%    1,880,580,996      266,460,190     125,093,660    1,076,057,785      194,865,668       93,427,429       5,156,845      12,966,545        8,689,531
+19  xz_1m_l4e           COMPLETED  10-19 19:41  10-19 20:36    54m59s      100%    3,003,310,877      452,903,350     150,070,681    2,198,787,666      381,308,828      118,404,450      13,089,895      33,430,210       19,942,017
+20  imagick             COMPLETED  10-19 22:13  10-19 22:15     2m18s      100%      118,594,571       20,742,703       9,017,747      117,733,190       20,613,373        8,988,063           2,450          16,900            4,860
+21  blender             COMPLETED  10-19 21:51  10-19 22:16    24m59s      100%    1,191,973,917      267,162,539     125,420,634      994,421,777      233,613,214      116,496,457       4,430,041       6,349,861        5,174,136
+22  povray              COMPLETED  10-19 21:41  10-19 22:37    56m06s      100%    2,242,300,270      716,537,972     288,091,672    2,241,026,793      716,295,701      288,013,420       2,121,674       3,251,568        2,687,871
+23  omnetpp             COMPLETED  10-19 14:54  10-19 19:56     5h02m      100%   12,429,416,353    2,794,287,784   1,491,537,285   12,426,246,371    2,793,807,079    1,491,417,035       5,233,033       5,338,980        5,340,159
+24  xalancbmk           COMPLETED  10-19 22:05  10-19 22:14     8m56s      100%      401,236,384      106,833,563      39,178,825      395,919,938      106,032,300       38,988,755         295,564         564,192          357,677
+25  x264                COMPLETED  10-14 21:13  10-21 21:57  7d00h44m      100%  475,536,009,539  115,858,184,752  35,469,461,484  475,535,613,470  115,858,125,861   35,469,446,107  13,777,288,367  15,603,826,180   14,077,381,677
+26  gcc                 COMPLETED  10-19 22:17  10-19 22:17     0m24s      100%       20,806,790        3,674,570       2,115,445       16,026,850        2,957,472        1,955,133          52,739          64,544           69,936
+27  mcf                 COMPLETED  10-19 05:18  10-19 17:48    12h30m      100%   24,622,624,372    8,151,807,678   1,327,908,117   24,426,982,047    8,113,038,194    1,300,581,564      91,410,910     171,466,071      214,228,672
+28  perlbench_makerand  COMPLETED  10-19 21:35  10-19 22:27    51m45s      100%    2,423,353,792      780,404,942     382,671,984    2,421,667,618      780,109,238      382,536,343              55              55        1,898,402
+29  bwaves_1            COMPLETED  10-19 10:50  10-19 19:13     8h23m      100%   17,317,212,001    4,937,639,312     798,344,472   17,288,358,363    4,937,533,880      771,843,321     145,451,376     467,421,697      145,634,161
+30  bwaves_2            COMPLETED  10-19 11:33  10-19 19:52     8h18m      100%   17,316,284,641    4,937,388,857     798,344,422   17,287,430,556    4,937,283,355      771,843,214     145,451,376     467,421,697      145,634,161
+31  exchange2           COMPLETED  10-17 20:09  10-18 14:09    17h59m      100%   57,667,531,856   14,464,562,666  10,703,416,583   57,667,143,431   14,464,503,427   10,703,398,716   1,304,771,747   1,554,754,331    1,346,307,211
+32  fotonik3d           COMPLETED  10-18 14:38  10-19 03:41    13h02m      100%   40,946,300,288    8,039,176,505   5,838,150,940    3,098,360,920      839,995,013      303,387,282      27,853,226      90,811,113       28,069,702
+33  roms                COMPLETED  10-19 02:19  10-19 16:14    13h55m      100%   30,434,875,550    8,337,949,278   2,040,398,394   28,955,766,090    7,869,349,871    1,964,377,400     182,777,748   1,197,391,828      189,905,226
+34  wrf                 COMPLETED  10-17 13:55  10-19 00:29  1d10h33m      100%   85,116,377,565   18,764,308,023   5,413,293,761   84,396,927,626   18,603,828,993    5,344,445,341     109,794,207     633,618,672      133,279,582
+35  cam4                COMPLETED  10-15 06:15  10-16 20:25  1d14h09m      100%  141,281,739,420   29,914,970,261   9,290,856,007   33,466,803,465    6,418,095,793    2,815,229,898     168,288,974     506,945,884      198,124,898
+   total_*         = the whole run (outside the ROI included): all instructions, loads, stores
+   roi_total_*     = only between m5_work_begin/end; roi_total_insts = all instructions in the ROI
+   roi_spills      = number of spills: one spill store + its first reload = 1 spill
+   roi_spill_load  = spill reload instructions (a spill can be reloaded many times: can exceed roi_spills)
+   roi_spill_store = spill store instructions (some spills are never reloaded: can exceed roi_spills)
+   Spills are the real, compiler-confirmed spills, measured inside the ROI only.
+   progress        = estimate: elapsed time / the same benchmark's earlier run time (another
+                     configuration of this experiment if one finished, else the earlier standard-cache
+                     run). Smaller caches can run longer; above 100% means slower than the reference.
+
+2) Ratios
+#   run                 roi/total  load/roi  store/roi  spill/roi  spill_load/roi  spill_store/roi  spill_load/load  spill_store/store
+--  ------------------  ---------  --------  ---------  ---------  --------------  ---------------  ---------------  -----------------
+1   cactuBSSN              98.08%    25.98%     14.41%     21.32%          13.33%            7.99%           51.31%             55.47%
+2   parest                 99.98%    31.94%      2.71%      0.22%           0.18%            0.04%            0.56%              1.65%
+3   deepsjeng              99.75%    17.29%      7.35%      2.78%           1.61%            1.16%            9.33%             15.84%
+4   leela                  96.55%    19.61%      6.74%      0.36%           0.25%            0.11%            1.25%              1.66%
+5   namd                   95.34%    26.26%      6.10%      3.13%           2.08%            1.05%            7.91%             17.27%
+6   lbm                    95.11%    19.62%     11.92%      9.67%           5.45%            4.21%           27.79%             35.34%
+7   nab                    99.78%    22.76%      4.81%      7.90%           5.98%            1.92%           26.29%             39.86%
+8   xz                     68.34%    18.26%      9.11%      0.68%           0.43%            0.25%            2.35%              2.75%
+9   xz_4m_l1               68.20%    18.32%      8.77%      0.59%           0.38%            0.21%            2.08%              2.43%
+10  xz_4m_l2               69.06%    18.23%      8.22%      0.54%           0.35%            0.19%            1.91%              2.32%
+11  xz_4m_l3e              91.89%    17.51%      3.68%      2.51%           1.58%            0.93%            9.02%             25.13%
+12  xz_4m_l4               81.13%    17.68%      6.19%      2.12%           1.23%            0.89%            6.97%             14.43%
+13  xz_4m_l4e              92.85%    17.74%      3.30%      2.28%           1.45%            0.83%            8.15%             25.17%
+14  xz_1m_l0               46.92%    18.19%      9.73%      0.62%           0.45%            0.16%            2.50%              1.68%
+15  xz_1m_l1               47.22%    18.20%      9.59%      0.58%           0.43%            0.14%            2.38%              1.48%
+16  xz_1m_l2               47.39%    18.18%      9.49%      0.57%           0.43%            0.14%            2.35%              1.45%
+17  xz_1m_l3e              71.26%    17.25%      5.85%      2.59%           1.61%            0.98%            9.35%             16.76%
+18  xz_1m_l4               57.22%    18.11%      8.68%      2.01%           1.21%            0.81%            6.65%              9.30%
+19  xz_1m_l4e              73.21%    17.34%      5.38%      2.43%           1.52%            0.91%            8.77%             16.84%
+20  imagick                99.27%    17.51%      7.63%      0.02%           0.01%            0.00%            0.08%              0.05%
+21  blender                83.43%    23.49%     11.71%      1.16%           0.64%            0.52%            2.72%              4.44%
+22  povray                 99.94%    31.96%     12.85%      0.27%           0.15%            0.12%            0.45%              0.93%
+23  omnetpp                99.97%    22.48%     12.00%      0.09%           0.04%            0.04%            0.19%              0.36%
+24  xalancbmk              98.67%    26.78%      9.85%      0.23%           0.14%            0.09%            0.53%              0.92%
+25  x264                  100.00%    24.36%      7.46%      6.24%           3.28%            2.96%           13.47%             39.69%
+26  gcc                    77.03%    18.45%     12.20%      0.84%           0.40%            0.44%            2.18%              3.58%
+27  mcf                    99.21%    33.21%      5.32%      1.58%           0.70%            0.88%            2.11%             16.47%
+28  perlbench_makerand     99.93%    32.21%     15.80%      0.08%           0.00%            0.08%            0.00%              0.50%
+29  bwaves_1               99.83%    28.56%      4.46%      3.55%           2.70%            0.84%            9.47%             18.87%
+30  bwaves_2               99.83%    28.56%      4.46%      3.55%           2.70%            0.84%            9.47%             18.87%
+31  exchange2             100.00%    25.08%     18.56%      5.03%           2.70%            2.33%           10.75%             12.58%
+32  fotonik3d               7.57%    27.11%      9.79%      3.84%           2.93%            0.91%           10.81%              9.25%
+33  roms                   95.14%    27.18%      6.78%      4.79%           4.14%            0.66%           15.22%              9.67%
+34  wrf                    99.15%    22.04%      6.33%      0.91%           0.75%            0.16%            3.41%              2.49%
+35  cam4                   23.69%    19.18%      8.41%      2.11%           1.51%            0.59%            7.90%              7.04%
+   All values are percentages: 18.45% = 18.45 of every 100 (a ratio of 0.1845).
+   roi/total         = (roi_total_insts / total_insts) * 100                          komutlarin yuzde kaci ROI icinde
+   load/roi          = (roi_total_load / roi_total_insts) * 100                       ROI komutlarinin yuzde kaci load
+   store/roi         = (roi_total_store / roi_total_insts) * 100                      ROI komutlarinin yuzde kaci store
+   spill/roi         = ((roi_spill_load + roi_spill_store) / roi_total_insts) * 100   ROI komutlarinin yuzde kaci spill kaynakli (load + store)
+   spill_load/roi    = (roi_spill_load / roi_total_insts) * 100                       ROI komutlarinin yuzde kaci spill kaynakli load
+   spill_store/roi   = (roi_spill_store / roi_total_insts) * 100                      ROI komutlarinin yuzde kaci spill kaynakli store
+   spill_load/load   = (roi_spill_load / roi_total_load) * 100                        ROI load'larinin yuzde kaci spill kaynakli
+   spill_store/store = (roi_spill_store / roi_total_store) * 100                      ROI store'larinin yuzde kaci spill kaynakli
+
+3) Cache miss rates (ROI)
+   Terimler (tablodan once):
+     access      = bir load ya da store komutunun cache'e yaptigi tek bir istek. Cache line
+                   sinirini asan bir komut iki access sayilir.
+     hit         = istenen veri cache'te bulundu; access o seviyede biter.
+     miss        = istenen veri cache'te yok; istek bir alt seviyeye gider (L1D -> L2 -> DRAM).
+     miss rate   = (misses / accesses) * 100: access'lerin yuzde kaci miss oldu.
+     load        = bellekten veri okuyan komut. store = bellege veri yazan komut.
+     spill store = register allocator'in register'a sigmayan bir degeri stack'teki spill
+                   slot'una yazan store'u (derleyicinin -dP ciktisiyla dogrulanmis).
+     spill load  = o degeri spill slot'undan geri okuyan load (spill reload).
+     other load  = spill load olmayan butun load'lar: array, struct, pointer ve global veri,
+                   stack'teki local degiskenler, callee-saved register geri yuklemeleri.
+     other store = ayni sekilde, spill store olmayan butun store'lar.
+     load miss   = bir load access'inin L1D'de miss olmasi. Load miss'ler iki gruba ayrilir:
+                   spill load miss ve other load miss (store miss icin de ayni).
+     L1D         = level-1 data cache; her load/store once buraya gelir.
+     L2          = L1D ve L1I'nin miss'lerini alan ortak level-2 cache. L2 access = L1 miss.
+   Tum degerler yuzde ve ROI icinde olculur. Tablo 1 ve 2 her konfigurasyonda aynidir (ayni
+   program, ayni komutlar); bu tablo ise konfigurasyona gore degisir, cunku sadece hit/miss
+   davranisi degisir.
+
+#   run                 L1D_miss  spill_ld_L1miss  other_ld_L1miss  spill_st_L1miss  other_st_L1miss  L2_miss  spill_ld_L2miss  spill_st_L2miss
+--  ------------------  --------  ---------------  ---------------  ---------------  ---------------  -------  ---------------  ---------------
+1   cactuBSSN             17.36%            6.42%           36.76%            5.51%           16.60%   48.80%           11.27%            8.80%
+2   parest                15.36%           20.70%           16.29%            6.63%            4.09%   47.58%            6.04%            4.98%
+3   deepsjeng             13.69%            6.73%           17.17%            9.45%            7.46%   19.74%            5.47%           19.70%
+4   leela                  8.96%           19.60%            9.62%            0.46%            6.77%   17.75%            0.11%           89.76%
+5   namd                  15.58%           12.11%           18.89%            2.49%            3.89%   37.33%            9.19%           19.63%
+6   lbm                   27.22%            1.63%           13.94%            5.46%           81.64%   75.06%            5.17%            6.13%
+7   nab                   10.79%            1.54%           16.64%            1.65%            2.00%   15.30%            4.26%            1.90%
+8   xz                     8.70%            1.33%           10.47%            0.57%            5.73%   28.28%            0.77%            4.42%
+9   xz_4m_l1              10.08%            1.45%           11.65%            0.59%            7.40%   36.30%            0.67%            6.24%
+10  xz_4m_l2              11.65%            1.49%           13.72%            0.61%            7.75%   42.38%            0.72%            6.54%
+11  xz_4m_l3e              9.40%            3.08%           10.73%            2.60%            7.62%   25.69%            2.17%            2.46%
+12  xz_4m_l4              10.81%            3.07%           12.82%            3.15%            7.68%   33.53%            2.39%            6.32%
+13  xz_4m_l4e              9.17%            3.19%           10.25%            2.62%            7.73%   24.56%            2.26%            2.47%
+14  xz_1m_l0               7.98%            2.02%           10.31%            0.93%            4.06%   29.63%            0.74%            4.37%
+15  xz_1m_l1               8.79%            2.14%           11.01%            0.94%            5.05%   33.78%            0.69%            4.81%
+16  xz_1m_l2               8.92%            2.15%           11.17%            0.94%            5.09%   34.53%            0.69%            4.80%
+17  xz_1m_l3e              8.68%            2.69%           10.71%            3.22%            5.26%   23.89%            1.69%            2.08%
+18  xz_1m_l4               8.85%            2.90%           11.22%            4.94%            5.07%   28.51%            1.76%            3.37%
+19  xz_1m_l4e              8.88%            2.79%           10.80%            3.23%            5.33%   22.40%            1.64%            2.05%
+20  imagick                7.43%           16.95%            7.67%           70.35%            6.85%   47.92%           58.94%           85.67%
+21  blender                9.92%            2.96%           11.28%            7.02%            7.67%   31.78%           70.70%            1.91%
+22  povray                13.66%           13.93%           16.10%           21.86%            7.48%   37.82%           37.71%           55.51%
+23  omnetpp               15.05%            0.72%           19.86%           10.67%            6.10%   36.64%            7.35%            0.74%
+24  xalancbmk             15.16%           13.19%           18.38%           18.14%            6.36%   41.74%           10.63%           10.75%
+25  x264                   3.98%            0.98%            4.71%            1.20%            4.58%   26.05%            4.69%           17.50%
+26  gcc                   10.14%            2.27%           13.17%            4.98%            5.94%   32.44%            2.38%            7.12%
+27  mcf                   28.22%            8.95%           31.53%           10.17%           10.66%   72.37%            8.73%           19.17%
+28  perlbench_makerand    12.68%            0.00%           14.74%            1.44%            8.52%    0.38%                -            0.01%
+29  bwaves_1              44.12%            5.35%           49.10%            1.37%           47.45%   27.18%           19.22%            2.30%
+30  bwaves_2              44.12%            5.35%           49.10%            1.37%           47.45%   27.18%           19.22%            2.30%
+31  exchange2              4.01%            3.42%            5.09%            3.67%            2.66%    1.04%            0.14%            0.49%
+32  fotonik3d             22.43%            9.89%           29.57%            0.43%            9.39%   38.96%           11.39%            2.22%
+33  roms                  30.01%            7.11%           37.22%            3.38%           21.21%   38.90%           15.88%            7.82%
+34  wrf                   26.37%           13.69%           28.28%            9.13%           21.78%   26.50%           14.64%           14.89%
+35  cam4                  14.02%            5.43%           14.76%            4.41%           14.73%   44.30%           11.42%           26.82%
+   Formuller ve aciklamalari:
+     L1D_miss        = (L1D misses / L1D accesses) * 100
+                       Tum load ve store access'lerinin (spill + other) L1D miss rate'i: L1D'nin bu
+                       konfigurasyondaki genel performansi.
+     spill_ld_L1miss = (spill load L1D misses / spill load L1D accesses) * 100
+                       Spill load'larin yuzde kaci L1D'de miss oldu. Genelde dusuktur: spill slot'u kisa
+                       sure once yazildigi icin cache line cogu zaman hala L1D'dedir.
+     other_ld_L1miss = ((load misses - spill load misses) / (load accesses - spill load accesses)) * 100
+                       Other load'larin (spill olmayan load'lar) L1D miss rate'i. spill_ld_L1miss ile yan
+                       yana bakilir: spill load'lar normal veriden daha mi az, daha mi cok miss oluyor?
+     spill_st_L1miss = (spill store L1D misses / spill store L1D accesses) * 100
+                       Spill store'larin yuzde kaci L1D'de miss oldu. Cache write-allocate: miss olan bir
+                       store once cache line'i L2'den getirir, sonra yazar.
+     other_st_L1miss = ((store misses - spill store misses) / (store accesses - spill store accesses)) * 100
+                       Other store'larin (spill olmayan store'lar) L1D miss rate'i; spill_st_L1miss ile
+                       karsilastirmak icin.
+     L2_miss         = (L2 misses / L2 accesses) * 100
+                       L2'ye gelen tum isteklerin (L1D ve L1I miss'leri) yuzde kaci L2'de de miss oldu
+                       ve DRAM'e gitti.
+     spill_ld_L2miss = (spill load L2 misses / spill load L2 accesses) * 100
+                       L1D'de miss olan spill load'larin yuzde kaci L2'de de miss oldu. Payda sadece
+                       L1D'yi miss eden spill load'lardir, butun spill load'lar degil.
+     spill_st_L2miss = (spill store L2 misses / spill store L2 accesses) * 100
+                       L1D'de miss olan spill store'larin yuzde kaci L2'de de miss oldu (payda yine
+                       sadece L1D miss'leri).
+
+COMPLETED: 35, RUNNING: 0, PENDING: 0, FAILED/STOPPED/INTERRUPTED: 0   (total 35)

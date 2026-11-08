@@ -1,0 +1,36 @@
+tests: 4/26 cases failed (exit code 1)
+
+Ground truth from the 2026-10-07 GCC -dP study, same windows:
+  mcf  spill 181,091 events / 346,925 reloads, csave 276,565, other ~2,600
+  lbm  spill 2,151,952 events / 2,791,344 reloads, csave 15
+
+mcf (schema-8 detector with its stack_pc_map):
+  spill        events   181,093 ( 39.3%)   reloads   346,930
+  csave        events   276,739 ( 60.1%)   reloads   276,739
+  other_stack  events     2,454 (  0.5%)   reloads     2,455
+  stack        events   460,286            reloads   626,124
+
+lbm (schema-8 detector with its stack_pc_map):
+  spill        events 2,151,897 (100.0%)   reloads 2,791,272
+  csave        events        15 (  0.0%)   reloads        15
+  other_stack  events         0 (  0.0%)   reloads         0
+  stack        events 2,151,912            reloads 2,791,287
+
+tests after the map fix: All 26 cases passed (exit code 0)
+
+Why the schema-8 numbers differ slightly from the 2026-10-07 ground truth:
+the 50M-instruction windows start at a slightly different point. Binary paths
+and argv differed between the two runs, so the pre-ROI code ran a different
+number of instructions (ROI entry, from the ROI_BEGIN lines of the logs):
+  mcf  2026-10-07: 194,085,407   2026-10-08: 194,085,337   (window +70 insts)
+  lbm  2026-10-07: 239,086,788   2026-10-08: 239,088,029   (window -1,241 insts)
+The signs match the differences: mcf +2 spill events, lbm -55.
+
+mcf csave rose by ~174 and other_stack fell by the same amount: on 2026-10-07
+the 183 UNLABELED pairs were in statically linked libc, which is not rebuilt
+with -dP; schema 8 takes callee saves from CFI, which covers libc. The
+remaining mcf other_stack (2,454 events) is ~1,460 stack-argument pairs
+(OUT_ARG -> NAMED), ~985 memory-resident locals (NAMED -> NAMED) and ~9 libc
+pairs.
+
+Raw logs: logs/schema8/validation/{mcf,lbm}/riscv_spill_stats.txt (STACK lines).

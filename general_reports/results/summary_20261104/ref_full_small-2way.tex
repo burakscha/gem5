@@ -1,0 +1,91 @@
+\documentclass[10pt,a4paper,landscape]{article}
+\usepackage[landscape,a4paper,margin=12mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,booktabs,longtable}
+\setlength{\LTpre}{2pt}\setlength{\LTpost}{8pt}
+\setlength{\tabcolsep}{4pt}
+\begin{document}
+\begin{center}
+{\large\bfseries ref input, full runs --- small-2way}\\[3pt]
+{\small L1D 32 sets x 2, L2 64 sets x 8 $\cdot$ metric schema 9 $\cdot$ gem5 TimingSimpleCPU $\cdot$ 4 November 2026}
+\end{center}
+\textbf{0 of 15 runs completed}, 8 running, 7 pending; \textbf{15 remaining}.\par
+\subsection*{Program (does not depend on the cache)}
+{\footnotesize
+\begin{longtable}{lcrrrrrr}
+\toprule
+run & configs done & spill/ROI & spill ld/load & spill st/store & (spill+csave)/ROI & (spill+csave) ld/load & (spill+csave) st/store \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+xz\_cld & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+xz\_combined & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+x264\_pass1 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_pp\_O3 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_pp\_O2 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_smaller & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_ref32\_O5 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_ref32\_O3 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+mcf & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+perlbench\_diffmail & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+perlbench\_splitmail & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_1 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_2 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_3 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_4 & 0/1 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+\end{longtable}
+}
+\subsection*{Miss rates}
+{\footnotesize
+\begin{longtable}{llrrrrrrrr}
+\toprule
+run & state & L1D & spill ld L1 & other ld L1 & spill st L1 & other st L1 & L2 & spill ld L2 & spill st L2 \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+xz\_cld & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+xz\_combined & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+x264\_pass1 & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_pp\_O3 & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_pp\_O2 & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_smaller & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_ref32\_O5 & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+gcc\_ref32\_O3 & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+mcf & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+perlbench\_diffmail & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+perlbench\_splitmail & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_1 & pending & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_2 & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_3 & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+bwaves\_4 & running & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+\end{longtable}
+}
+\section*{Formulas}
+{\footnotesize
+\begin{longtable}{lp{11cm}p{10cm}}
+\toprule
+column & formula & aciklama \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+spill/ROI & \texttt{((spill\_load + spill\_store) / roi\_total\_insts) * 100} & ROI komutlarinin yuzde kaci spill load veya spill store \\
+spill ld/load & \texttt{(spill\_load / roi\_load) * 100} & ROI load'larinin yuzde kaci spill reload \\
+spill st/store & \texttt{(spill\_store / roi\_store) * 100} & ROI store'larinin yuzde kaci spill store \\
+(spill+csave)/ROI & \texttt{((spill\_load + spill\_store + csave\_load + csave\_store) / roi\_total\_insts) * 100} & ayni oran, callee-save save/restore dahil \\
+(spill+csave) ld/load & \texttt{((spill\_load + csave\_load) / roi\_load) * 100} & ROI load'larinin yuzde kaci spill reload veya callee-save restore \\
+(spill+csave) st/store & \texttt{((spill\_store + csave\_store) / roi\_store) * 100} & ROI store'larinin yuzde kaci spill store veya callee-save save \\
+L1D & \texttt{(L1D misses / L1D accesses) * 100} & Tum load ve store access'lerinin (spill + other) L1D miss rate'i: L1D'nin bu konfigurasyondaki genel performansi. \\
+spill ld L1 & \texttt{(spill load L1D misses / spill load L1D accesses) * 100} & Spill load'larin yuzde kaci L1D'de miss oldu. Genelde dusuktur: spill slot'u kisa sure once yazildigi icin cache line cogu zaman hala L1D'dedir. \\
+other ld L1 & \texttt{((load misses - spill load misses) / (load accesses - spill load accesses)) * 100} & Other load'larin (spill olmayan load'lar) L1D miss rate'i. spill\_ld\_L1miss ile yan yana bakilir: spill load'lar normal veriden daha mi az, daha mi cok miss oluyor? \\
+spill st L1 & \texttt{(spill store L1D misses / spill store L1D accesses) * 100} & Spill store'larin yuzde kaci L1D'de miss oldu. Cache write-allocate: miss olan bir store once cache line'i L2'den getirir, sonra yazar. \\
+other st L1 & \texttt{((store misses - spill store misses) / (store accesses - spill store accesses)) * 100} & Other store'larin (spill olmayan store'lar) L1D miss rate'i; spill\_st\_L1miss ile karsilastirmak icin. \\
+L2 & \texttt{(L2 misses / L2 accesses) * 100} & L2'ye gelen tum isteklerin (L1D ve L1I miss'leri) yuzde kaci L2'de de miss oldu ve DRAM'e gitti. \\
+spill ld L2 & \texttt{(spill load L2 misses / spill load L2 accesses) * 100} & L1D'de miss olan spill load'larin yuzde kaci L2'de de miss oldu. Payda sadece L1D'yi miss eden spill load'lardir, butun spill load'lar degil. \\
+spill st L2 & \texttt{(spill store L2 misses / spill store L2 accesses) * 100} & L1D'de miss olan spill store'larin yuzde kaci L2'de de miss oldu (payda yine sadece L1D miss'leri). \\
+\end{longtable}
+spill = compiler-confirmed register-allocator spill (GCC \texttt{-dP}), csave = callee-saved register save/restore (CFI), both inside the ROI only. pooled = sum of numerators / sum of denominators over the completed runs; mean = average of the per-run percentages. Miss rates are per cache access; an L2 rate's denominator is the L1D misses of that access type.\par}
+
+\end{document}

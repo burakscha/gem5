@@ -1,0 +1,110 @@
+=== Cache organisation experiment   (2026-10-22 17:31) ===
+queue on castEpyc: started 10-15 22:41; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castXeon: started 10-22 17:21; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castdata: FINISHED (every run has been started)   gem5 processes: 0
+queue order: test:small-2way -> test:small-fa -> test:small-dm -> test:small-4way -> test:small-8way -> train:small-2way -> train:small-fa -> train:small-dm -> train:small-4way -> train:small-8way
+
+====================================================================================================
+Input: test  (SPEC CPU2017 'test' inputs, the smallest set)
+====================================================================================================
+Per configuration (sums over completed runs)
+config      L1D          L2            completed  running  pending  failed      wall        total_insts    roi_total_insts   roi_total_load  roi_total_store      roi_spills  roi_spill_load  roi_spill_store  spill_load/load  spill_store/store
+----------  -----------  ------------  ---------  -------  -------  ------  --------  -----------------  -----------------  ---------------  ---------------  --------------  --------------  ---------------  ---------------  -----------------
+small-2way  32 sets x 2  64 sets x 8          35        0        0       0  6d22h48m  1,166,282,695,591  1,003,626,825,216  242,488,151,015   79,999,527,342  21,110,519,840  29,908,263,794   21,952,804,582           12.33%             27.44%
+small-fa    1 sets x 64  1 sets x 512         35        0        0       0  6d21h18m  1,166,282,666,834  1,003,626,796,416  242,488,146,351   79,999,524,606  21,110,519,840  29,908,263,790   21,952,804,582           12.33%             27.44%
+small-dm    64 sets x 1  512 sets x 1         35        0        0       0  7d00h44m  1,166,282,743,291  1,003,626,872,816  242,488,162,641   79,999,535,055  21,110,519,840  29,908,263,790   21,952,804,582           12.33%             27.44%
+small-4way  16 sets x 4  64 sets x 8          35        0        0       0  6d22h03m  1,166,282,689,772  1,003,626,819,509  242,488,149,938   79,999,527,131  21,110,519,840  29,908,263,794   21,952,804,582           12.33%             27.44%
+small-8way  8 sets x 8   64 sets x 8          35        0        0       0  6d22h07m  1,166,282,688,605  1,003,626,818,127  242,488,149,688   79,999,527,093  21,110,519,840  29,908,263,794   21,952,804,582           12.33%             27.44%
+
+Per benchmark: state, elapsed, progress
+run                 small-2way          small-fa            small-dm            small-4way          small-8way        
+------------------  ------------------  ------------------  ------------------  ------------------  ------------------
+cactuBSSN           COMPLETED 1d02h36m  COMPLETED 1d01h51m  COMPLETED 1d01h48m  COMPLETED 1d03h03m  COMPLETED 1d03h05m
+parest              COMPLETED 12h41m    COMPLETED 12h18m    COMPLETED 13h39m    COMPLETED 12h33m    COMPLETED 12h39m  
+deepsjeng           COMPLETED 14h31m    COMPLETED 14h21m    COMPLETED 15h25m    COMPLETED 14h26m    COMPLETED 14h29m  
+leela               COMPLETED 8h07m     COMPLETED 8h01m     COMPLETED 8h13m     COMPLETED 8h04m     COMPLETED 8h00m   
+namd                COMPLETED 12h29m    COMPLETED 12h09m    COMPLETED 13h06m    COMPLETED 12h28m    COMPLETED 12h24m  
+lbm                 COMPLETED 3h50m     COMPLETED 3h45m     COMPLETED 3h51m     COMPLETED 3h48m     COMPLETED 3h56m   
+nab                 COMPLETED 2h09m     COMPLETED 2h05m     COMPLETED 2h19m     COMPLETED 2h07m     COMPLETED 2h09m   
+xz                  COMPLETED 1h02m     COMPLETED 53m51s    COMPLETED 1h06m     COMPLETED 54m16s    COMPLETED 53m47s  
+xz_4m_l1            COMPLETED 54m51s    COMPLETED 52m57s    COMPLETED 58m42s    COMPLETED 50m40s    COMPLETED 50m51s  
+xz_4m_l2            COMPLETED 53m38s    COMPLETED 57m36s    COMPLETED 1h01m     COMPLETED 1h03m     COMPLETED 57m15s  
+xz_4m_l3e           COMPLETED 3h21m     COMPLETED 3h14m     COMPLETED 3h24m     COMPLETED 3h27m     COMPLETED 3h18m   
+xz_4m_l4            COMPLETED 1h39m     COMPLETED 1h30m     COMPLETED 1h29m     COMPLETED 1h27m     COMPLETED 1h27m   
+xz_4m_l4e           COMPLETED 3h47m     COMPLETED 3h43m     COMPLETED 3h54m     COMPLETED 3h41m     COMPLETED 3h42m   
+xz_1m_l0            COMPLETED 30m28s    COMPLETED 28m35s    COMPLETED 32m12s    COMPLETED 25m31s    COMPLETED 27m13s  
+xz_1m_l1            COMPLETED 26m44s    COMPLETED 33m02s    COMPLETED 28m57s    COMPLETED 30m08s    COMPLETED 25m50s  
+xz_1m_l2            COMPLETED 25m43s    COMPLETED 27m38s    COMPLETED 29m18s    COMPLETED 30m14s    COMPLETED 30m18s  
+xz_1m_l3e           COMPLETED 57m09s    COMPLETED 53m31s    COMPLETED 48m01s    COMPLETED 51m50s    COMPLETED 46m20s  
+xz_1m_l4            COMPLETED 36m09s    COMPLETED 31m11s    COMPLETED 32m27s    COMPLETED 37m00s    COMPLETED 36m42s  
+xz_1m_l4e           COMPLETED 50m08s    COMPLETED 49m00s    COMPLETED 54m59s    COMPLETED 50m41s    COMPLETED 58m05s  
+imagick             COMPLETED 2m14s     COMPLETED 2m09s     COMPLETED 2m18s     COMPLETED 2m14s     COMPLETED 2m35s   
+blender             COMPLETED 23m03s    COMPLETED 22m36s    COMPLETED 24m59s    COMPLETED 22m57s    COMPLETED 23m31s  
+povray              COMPLETED 53m29s    COMPLETED 52m23s    COMPLETED 56m06s    COMPLETED 53m50s    COMPLETED 53m43s  
+omnetpp             COMPLETED 4h50m     COMPLETED 4h46m     COMPLETED 5h02m     COMPLETED 4h44m     COMPLETED 4h43m   
+xalancbmk           COMPLETED 8m38s     COMPLETED 8m25s     COMPLETED 8m56s     COMPLETED 8m33s     COMPLETED 8m41s   
+x264                COMPLETED 6d22h48m  COMPLETED 6d21h18m  COMPLETED 7d00h44m  COMPLETED 6d22h03m  COMPLETED 6d22h07m
+gcc                 COMPLETED 0m24s     COMPLETED 0m24s     COMPLETED 0m24s     COMPLETED 0m23s     COMPLETED 0m24s   
+mcf                 COMPLETED 12h20m    COMPLETED 12h12m    COMPLETED 12h30m    COMPLETED 12h24m    COMPLETED 12h32m  
+perlbench_makerand  COMPLETED 47m44s    COMPLETED 43m17s    COMPLETED 51m45s    COMPLETED 45m52s    COMPLETED 47m11s  
+bwaves_1            COMPLETED 8h15m     COMPLETED 6h06m     COMPLETED 8h23m     COMPLETED 8h18m     COMPLETED 7h29m   
+bwaves_2            COMPLETED 8h19m     COMPLETED 6h12m     COMPLETED 8h18m     COMPLETED 8h25m     COMPLETED 7h32m   
+exchange2           COMPLETED 17h49m    COMPLETED 17h23m    COMPLETED 17h59m    COMPLETED 17h42m    COMPLETED 17h36m  
+fotonik3d           COMPLETED 12h33m    COMPLETED 12h09m    COMPLETED 13h02m    COMPLETED 12h25m    COMPLETED 12h13m  
+roms                COMPLETED 12h51m    COMPLETED 11h42m    COMPLETED 13h55m    COMPLETED 12h24m    COMPLETED 12h12m  
+wrf                 COMPLETED 1d09h44m  COMPLETED 1d05h23m  COMPLETED 1d10h33m  COMPLETED 1d06h19m  COMPLETED 1d05h41m
+cam4                COMPLETED 2d17h12m  COMPLETED 2d16h38m  COMPLETED 1d14h09m  COMPLETED 2d17h03m  COMPLETED 2d17h12m
+
+====================================================================================================
+Input: train  (SPEC CPU2017 'train' inputs, the medium set)
+====================================================================================================
+Per configuration (sums over completed runs)
+config      L1D          L2            completed  running  pending  failed      wall        total_insts    roi_total_insts   roi_total_load  roi_total_store      roi_spills  roi_spill_load  roi_spill_store  spill_load/load  spill_store/store
+----------  -----------  ------------  ---------  -------  -------  ------  --------  -----------------  -----------------  ---------------  ---------------  --------------  --------------  ---------------  ---------------  -----------------
+small-2way  32 sets x 2  64 sets x 8          27        5        0       0  7d20h18m  4,127,579,428,343  4,004,101,460,435  949,525,315,662  308,286,557,201  37,185,367,925  71,076,440,038   41,176,582,964            7.49%             13.36%
+small-fa    1 sets x 64  1 sets x 512         27        5        0       0  7d20h18m  4,127,579,426,421  4,004,101,459,801  949,525,316,175  308,286,556,839  37,185,367,925  71,076,440,042   41,176,582,964            7.49%             13.36%
+small-dm    64 sets x 1  512 sets x 1         27        5        0       0  7d20h18m  4,127,579,991,692  4,004,102,025,125  949,525,449,107  308,286,661,886  37,185,367,925  71,076,440,042   41,176,582,964            7.49%             13.36%
+small-4way  16 sets x 4  64 sets x 8          27        5        0       0  7d20h18m  4,127,579,387,562  4,004,101,419,635  949,525,306,697  308,286,549,356  37,185,367,925  71,076,440,042   41,176,582,964            7.49%             13.36%
+small-8way  8 sets x 8   64 sets x 8          27        5        0       0  7d20h18m  4,127,579,346,441  4,004,101,378,514  949,525,297,078  308,286,541,790  37,185,367,925  71,076,440,038   41,176,582,964            7.49%             13.36%
+
+Per benchmark: state, elapsed, progress
+run                  small-2way                small-fa                  small-dm                  small-4way                small-8way             
+-------------------  ------------------------  ------------------------  ------------------------  ------------------------  -----------------------
+cactuBSSN            RUNNING (pre-ROI) 8m36s   RUNNING (pre-ROI) 8m31s   RUNNING (pre-ROI) 8m26s   RUNNING (pre-ROI) 8m20s   RUNNING (pre-ROI) 8m15s
+parest               COMPLETED 4d22h25m        COMPLETED 4d18h00m        COMPLETED 3d01h23m        COMPLETED 4d18h14m        COMPLETED 3d03h57m     
+deepsjeng            COMPLETED 5d16h04m        COMPLETED 5d17h19m        COMPLETED 6d08h16m        COMPLETED 5d19h01m        COMPLETED 5d17h50m     
+leela                COMPLETED 5d23h01m        COMPLETED 5d21h26m        COMPLETED 5d23h55m        COMPLETED 5d21h47m        COMPLETED 5d22h26m     
+namd                 COMPLETED 4d00h52m        COMPLETED 3d23h38m        COMPLETED 4d04h44m        COMPLETED 4d00h50m        COMPLETED 4d01h45m     
+lbm                  COMPLETED 1d14h28m        COMPLETED 1d18h27m        COMPLETED 1d19h24m        COMPLETED 1d17h59m        COMPLETED 1d19h40m     
+nab                  COMPLETED 12h23m          COMPLETED 12h07m          COMPLETED 12h21m          COMPLETED 12h04m          COMPLETED 12h00m       
+nab_gcn4dna          COMPLETED 5d15h12m        COMPLETED 5d12h59m        COMPLETED 5d21h08m        COMPLETED 5d14h14m        COMPLETED 5d13h34m     
+xz                   COMPLETED 16h05m          COMPLETED 15h43m          COMPLETED 16h11m          COMPLETED 15h58m          COMPLETED 12h18m       
+xz_combined          COMPLETED 1d09h03m        COMPLETED 1d08h21m        COMPLETED 1d09h43m        COMPLETED 1d08h21m        COMPLETED 1d00h12m     
+imagick              COMPLETED 4d01h51m        COMPLETED 2d13h02m        COMPLETED 4d01h58m        COMPLETED 2d16h26m        COMPLETED 4d02h45m     
+blender              RUNNING (pre-ROI) 9m03s   RUNNING (pre-ROI) 8m57s   RUNNING (pre-ROI) 8m52s   RUNNING (pre-ROI) 8m47s   RUNNING (pre-ROI) 8m42s
+povray               COMPLETED 11h31m          COMPLETED 7h05m           COMPLETED 8h53m           COMPLETED 9h33m           COMPLETED 11h17m       
+omnetpp              COMPLETED 2d22h52m        COMPLETED 2d21h44m        COMPLETED 3d03h11m        COMPLETED 2d23h44m        COMPLETED 2d23h08m     
+xalancbmk            COMPLETED 3d08h26m        COMPLETED 4d18h31m        COMPLETED 3d13h38m        COMPLETED 4d22h11m        COMPLETED 4d21h43m     
+x264                 COMPLETED 3d20h47m        COMPLETED 5d15h26m        COMPLETED 5d20h23m        COMPLETED 5d18h15m        COMPLETED 5d19h33m     
+gcc_200              COMPLETED 2d09h20m        COMPLETED 2d05h45m        COMPLETED 1d17h03m        COMPLETED 1d14h42m        COMPLETED 1d05h42m     
+gcc_scilab           COMPLETED 19h22m          COMPLETED 1d03h07m        COMPLETED 1d05h41m        COMPLETED 1d02h36m        COMPLETED 1d03h08m     
+gcc                  COMPLETED 2h35m           COMPLETED 3h35m           COMPLETED 3h55m           COMPLETED 3h37m           COMPLETED 3h36m        
+mcf                  COMPLETED 3d03h17m        COMPLETED 3d02h17m        COMPLETED 3d05h01m        COMPLETED 3d04h03m        COMPLETED 3d03h54m     
+perlbench_scrabbl    COMPLETED 10h31m          COMPLETED 10h04m          COMPLETED 10h05m          COMPLETED 10h29m          COMPLETED 10h13m       
+perlbench_suns       COMPLETED 46m30s          COMPLETED 53m57s          COMPLETED 58m10s          COMPLETED 49m30s          COMPLETED 54m26s       
+perlbench_diffmail   COMPLETED 1d03h36m        COMPLETED 20h18m          COMPLETED 23h23m          COMPLETED 1d03h00m        COMPLETED 19h38m       
+perlbench_perfect    COMPLETED 5h59m           COMPLETED 5h27m           COMPLETED 5h56m           COMPLETED 5h35m           COMPLETED 5h35m        
+perlbench_splitmail  COMPLETED 3m10s           COMPLETED 3m03s           COMPLETED 3m15s           COMPLETED 3m07s           COMPLETED 3m07s        
+bwaves_1             COMPLETED 1d20h51m        COMPLETED 1d09h45m        COMPLETED 1d21h02m        COMPLETED 1d21h02m        COMPLETED 1d15h57m     
+bwaves_2             COMPLETED 1d19h14m        COMPLETED 1d08h30m        COMPLETED 1d19h43m        COMPLETED 1d19h56m        COMPLETED 1d14h50m     
+exchange2            COMPLETED 2d05h48m        COMPLETED 2d05h16m        COMPLETED 2d06h49m        COMPLETED 2d05h50m        COMPLETED 2d06h00m     
+fotonik3d            RUNNING (pre-ROI) 10m20s  RUNNING (pre-ROI) 10m15s  RUNNING (pre-ROI) 10m10s  RUNNING (pre-ROI) 10m04s  RUNNING (pre-ROI) 9m59s
+roms                 RUNNING (pre-ROI) 9m54s   RUNNING (pre-ROI) 9m49s   RUNNING (pre-ROI) 9m44s   RUNNING (pre-ROI) 9m39s   RUNNING (pre-ROI) 9m34s
+wrf                  RUNNING (pre-ROI) 9m28s   RUNNING (pre-ROI) 9m23s   RUNNING (pre-ROI) 9m18s   RUNNING (pre-ROI) 9m13s   RUNNING (pre-ROI) 9m08s
+cam4                 COMPLETED 2d15h14m        COMPLETED 2d14h15m        COMPLETED 2d16h13m        COMPLETED 2d14h33m        COMPLETED 2d13h14m     
+
+   wall = time from the configuration's first run start to its last run end (or now)
+   spill_load/load, spill_store/store = share of ROI loads/stores that are spill accesses
+   progress = estimate from the benchmark's earlier run time
+
+Details: cache_scripts/status_cache.sh --2way | --4way | --8way | --fa | --dm  [--test | --train]   cache geometry: --info

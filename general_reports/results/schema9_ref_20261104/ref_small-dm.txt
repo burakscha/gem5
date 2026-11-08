@@ -1,0 +1,135 @@
+=== small-dm: direct-mapped L1D and L2   (2026-11-04 14:40) ===
+Input: ref  (SPEC CPU2017 'ref' inputs, the largest set)
+queue on castEpyc: started 10-15 22:41; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castXeon: started 10-31 21:20; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castdata: FINISHED (every run has been started)   gem5 processes: 0 
+
+Cache geometry [source: config.ini of the xz_combined run]
+cache    size  line  lines   organisation  sets  lines/set     tag store  replacement
+-----  ------  ----  -----  -------------  ----  ---------  ------------  -----------
+L1I    32 KiB  64 B    512          2-way   256          2  BaseSetAssoc          LRU
+L1D     4 KiB  64 B     64  direct-mapped    64          1  BaseSetAssoc          LRU
+L2     32 KiB  64 B    512  direct-mapped   512          1  BaseSetAssoc          LRU
+
+1) State and instruction counts
+#   run                  state                 started  finished   elapsed  progress  total_insts  total_load  total_store  roi_total_insts  roi_total_load  roi_total_store  roi_spills  roi_spill_load  roi_spill_store
+--  -------------------  ----------------  -----------  --------  --------  --------  -----------  ----------  -----------  ---------------  --------------  ---------------  ----------  --------------  ---------------
+1   xz_cld               PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+2   xz_combined          RUNNING (in ROI)  11-01 09:13         -  3d05h26m         -            -           -            -                -               -                -           -               -                -
+3   x264_pass1           RUNNING (in ROI)  11-02 03:05         -  2d11h34m         -            -           -            -                -               -                -           -               -                -
+4   gcc_pp_O3            PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+5   gcc_pp_O2            PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+6   gcc_smaller          PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+7   gcc_ref32_O5         PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+8   gcc_ref32_O3         PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+9   mcf                  RUNNING (in ROI)  10-31 21:23         -  3d17h17m         -            -           -            -                -               -                -           -               -                -
+10  perlbench_diffmail   RUNNING (in ROI)  10-31 21:58         -  3d16h41m         -            -           -            -                -               -                -           -               -                -
+11  perlbench_splitmail  RUNNING (in ROI)  11-01 03:24         -  3d11h15m         -            -           -            -                -               -                -           -               -                -
+12  bwaves_1             PENDING                     -         -         -         -            -           -            -                -               -                -           -               -                -
+13  bwaves_2             RUNNING (in ROI)  10-31 21:23         -  3d17h16m         -            -           -            -                -               -                -           -               -                -
+14  bwaves_3             RUNNING (in ROI)  11-01 11:29         -  3d03h10m         -            -           -            -                -               -                -           -               -                -
+15  bwaves_4             RUNNING (in ROI)  10-31 22:15         -  3d16h24m         -            -           -            -                -               -                -           -               -                -
+   total_*         = the whole run (outside the ROI included): all instructions, loads, stores
+   roi_total_*     = only between m5_work_begin/end; roi_total_insts = all instructions in the ROI
+   roi_spills      = number of spills: one spill store + its first reload = 1 spill
+   roi_spill_load  = spill reload instructions (a spill can be reloaded many times: can exceed roi_spills)
+   roi_spill_store = spill store instructions (some spills are never reloaded: can exceed roi_spills)
+   Spills are the real, compiler-confirmed spills, measured inside the ROI only.
+   progress        = estimate: elapsed time / the same benchmark's earlier run time (another
+                     configuration of this experiment if one finished, else the earlier standard-cache
+                     run). Smaller caches can run longer; above 100% means slower than the reference.
+
+2) Ratios
+#   run                  roi/total  load/roi  store/roi  spill/roi  spill_load/roi  spill_store/roi  spill_load/load  spill_store/store
+--  -------------------  ---------  --------  ---------  ---------  --------------  ---------------  ---------------  -----------------
+1   xz_cld                       -         -          -          -               -                -                -                  -
+2   xz_combined                  -         -          -          -               -                -                -                  -
+3   x264_pass1                   -         -          -          -               -                -                -                  -
+4   gcc_pp_O3                    -         -          -          -               -                -                -                  -
+5   gcc_pp_O2                    -         -          -          -               -                -                -                  -
+6   gcc_smaller                  -         -          -          -               -                -                -                  -
+7   gcc_ref32_O5                 -         -          -          -               -                -                -                  -
+8   gcc_ref32_O3                 -         -          -          -               -                -                -                  -
+9   mcf                          -         -          -          -               -                -                -                  -
+10  perlbench_diffmail           -         -          -          -               -                -                -                  -
+11  perlbench_splitmail          -         -          -          -               -                -                -                  -
+12  bwaves_1                     -         -          -          -               -                -                -                  -
+13  bwaves_2                     -         -          -          -               -                -                -                  -
+14  bwaves_3                     -         -          -          -               -                -                -                  -
+15  bwaves_4                     -         -          -          -               -                -                -                  -
+   All values are percentages: 18.45% = 18.45 of every 100 (a ratio of 0.1845).
+   roi/total         = (roi_total_insts / total_insts) * 100                          komutlarin yuzde kaci ROI icinde
+   load/roi          = (roi_total_load / roi_total_insts) * 100                       ROI komutlarinin yuzde kaci load
+   store/roi         = (roi_total_store / roi_total_insts) * 100                      ROI komutlarinin yuzde kaci store
+   spill/roi         = ((roi_spill_load + roi_spill_store) / roi_total_insts) * 100   ROI komutlarinin yuzde kaci spill kaynakli (load + store)
+   spill_load/roi    = (roi_spill_load / roi_total_insts) * 100                       ROI komutlarinin yuzde kaci spill kaynakli load
+   spill_store/roi   = (roi_spill_store / roi_total_insts) * 100                      ROI komutlarinin yuzde kaci spill kaynakli store
+   spill_load/load   = (roi_spill_load / roi_total_load) * 100                        ROI load'larinin yuzde kaci spill kaynakli
+   spill_store/store = (roi_spill_store / roi_total_store) * 100                      ROI store'larinin yuzde kaci spill kaynakli
+
+3) Cache miss rates (ROI)
+   Terimler (tablodan once):
+     access      = bir load ya da store komutunun cache'e yaptigi tek bir istek. Cache line
+                   sinirini asan bir komut iki access sayilir.
+     hit         = istenen veri cache'te bulundu; access o seviyede biter.
+     miss        = istenen veri cache'te yok; istek bir alt seviyeye gider (L1D -> L2 -> DRAM).
+     miss rate   = (misses / accesses) * 100: access'lerin yuzde kaci miss oldu.
+     load        = bellekten veri okuyan komut. store = bellege veri yazan komut.
+     spill store = register allocator'in register'a sigmayan bir degeri stack'teki spill
+                   slot'una yazan store'u (derleyicinin -dP ciktisiyla dogrulanmis).
+     spill load  = o degeri spill slot'undan geri okuyan load (spill reload).
+     other load  = spill load olmayan butun load'lar: array, struct, pointer ve global veri,
+                   stack'teki local degiskenler, callee-saved register geri yuklemeleri.
+     other store = ayni sekilde, spill store olmayan butun store'lar.
+     load miss   = bir load access'inin L1D'de miss olmasi. Load miss'ler iki gruba ayrilir:
+                   spill load miss ve other load miss (store miss icin de ayni).
+     L1D         = level-1 data cache; her load/store once buraya gelir.
+     L2          = L1D ve L1I'nin miss'lerini alan ortak level-2 cache. L2 access = L1 miss.
+   Tum degerler yuzde ve ROI icinde olculur. Tablo 1 ve 2 her konfigurasyonda aynidir (ayni
+   program, ayni komutlar); bu tablo ise konfigurasyona gore degisir, cunku sadece hit/miss
+   davranisi degisir.
+
+#   run                  L1D_miss  spill_ld_L1miss  other_ld_L1miss  spill_st_L1miss  other_st_L1miss  L2_miss  spill_ld_L2miss  spill_st_L2miss
+--  -------------------  --------  ---------------  ---------------  ---------------  ---------------  -------  ---------------  ---------------
+1   xz_cld                      -                -                -                -                -        -                -                -
+2   xz_combined                 -                -                -                -                -        -                -                -
+3   x264_pass1                  -                -                -                -                -        -                -                -
+4   gcc_pp_O3                   -                -                -                -                -        -                -                -
+5   gcc_pp_O2                   -                -                -                -                -        -                -                -
+6   gcc_smaller                 -                -                -                -                -        -                -                -
+7   gcc_ref32_O5                -                -                -                -                -        -                -                -
+8   gcc_ref32_O3                -                -                -                -                -        -                -                -
+9   mcf                         -                -                -                -                -        -                -                -
+10  perlbench_diffmail          -                -                -                -                -        -                -                -
+11  perlbench_splitmail         -                -                -                -                -        -                -                -
+12  bwaves_1                    -                -                -                -                -        -                -                -
+13  bwaves_2                    -                -                -                -                -        -                -                -
+14  bwaves_3                    -                -                -                -                -        -                -                -
+15  bwaves_4                    -                -                -                -                -        -                -                -
+   Formuller ve aciklamalari:
+     L1D_miss        = (L1D misses / L1D accesses) * 100
+                       Tum load ve store access'lerinin (spill + other) L1D miss rate'i: L1D'nin bu
+                       konfigurasyondaki genel performansi.
+     spill_ld_L1miss = (spill load L1D misses / spill load L1D accesses) * 100
+                       Spill load'larin yuzde kaci L1D'de miss oldu. Genelde dusuktur: spill slot'u kisa
+                       sure once yazildigi icin cache line cogu zaman hala L1D'dedir.
+     other_ld_L1miss = ((load misses - spill load misses) / (load accesses - spill load accesses)) * 100
+                       Other load'larin (spill olmayan load'lar) L1D miss rate'i. spill_ld_L1miss ile yan
+                       yana bakilir: spill load'lar normal veriden daha mi az, daha mi cok miss oluyor?
+     spill_st_L1miss = (spill store L1D misses / spill store L1D accesses) * 100
+                       Spill store'larin yuzde kaci L1D'de miss oldu. Cache write-allocate: miss olan bir
+                       store once cache line'i L2'den getirir, sonra yazar.
+     other_st_L1miss = ((store misses - spill store misses) / (store accesses - spill store accesses)) * 100
+                       Other store'larin (spill olmayan store'lar) L1D miss rate'i; spill_st_L1miss ile
+                       karsilastirmak icin.
+     L2_miss         = (L2 misses / L2 accesses) * 100
+                       L2'ye gelen tum isteklerin (L1D ve L1I miss'leri) yuzde kaci L2'de de miss oldu
+                       ve DRAM'e gitti.
+     spill_ld_L2miss = (spill load L2 misses / spill load L2 accesses) * 100
+                       L1D'de miss olan spill load'larin yuzde kaci L2'de de miss oldu. Payda sadece
+                       L1D'yi miss eden spill load'lardir, butun spill load'lar degil.
+     spill_st_L2miss = (spill store L2 misses / spill store L2 accesses) * 100
+                       L1D'de miss olan spill store'larin yuzde kaci L2'de de miss oldu (payda yine
+                       sadece L1D miss'leri).
+
+COMPLETED: 0, RUNNING: 8, PENDING: 7, FAILED/STOPPED/INTERRUPTED: 0   (total 15)

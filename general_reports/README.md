@@ -9,6 +9,7 @@ output stays where it is produced, under
 | `definitions/` | Methodology documents. `spill_definition.tex` / `.pdf` is the executive summary of how a spill is defined and measured — the rule sets and the counter definitions. |
 | `results/` | Cross-benchmark result reports produced by `./scripts/spill_report.sh`: one directory per profile/cache/date with `results.csv`, `report.tex` and the one-page `report.pdf`. |
 | `notes/` | Working notes kept from earlier experiment rounds. |
+| `validation/` | Evidence that the stack classes match the compiler: GCC `-dP` ground truth vs. the detector, with the scripts that compute it. |
 
 Superseded material from earlier metric schemas lives in `ARCHIVED/` at the
 repository root, not here. Its counter names (`roi_spills`,

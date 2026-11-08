@@ -1,0 +1,38 @@
+# GCC -dP ground truth vs. the schema-7 heuristic (2026-10-07)
+# Raw inputs: logs/validation_raw/2026-10-07_gcc_dP/ (gzipped verbose logs + PC classes)
+# probe: whole ROI.  mcf, lbm: first 50M ROI instructions.
+
+################ probe
+heuristic: 607 spill events, 670 spill reloads
+  store class  reload class      events   share     reloads   share
+  SPILL        SPILL                455   75.0%         518   77.3%
+  CALLEE_SAVE  CALLEE_SAVE           92   15.2%          92   13.7%
+  OUT_ARG      NAMED                 60    9.9%          60    9.0%
+
+precision (heuristic events that are compiler spills): 75.0% events, 77.3% reloads
+exact (compiler spill PCs only): 455 events, 518 reloads
+recall (compiler spills the heuristic also reports): 100.00% events, 100.00% reloads
+
+################ mcf
+heuristic: 460,284 spill events, 626,119 spill reloads
+  store class  reload class      events   share     reloads   share
+  CALLEE_SAVE  CALLEE_SAVE      276,565   60.1%     276,565   44.2%
+  SPILL        SPILL            181,091   39.3%     346,925   55.4%
+  OUT_ARG      NAMED              1,460    0.3%       1,460    0.2%
+  NAMED        NAMED                985    0.2%         985    0.2%
+  UNLABELED    UNLABELED            183    0.0%         184    0.0%
+
+precision (heuristic events that are compiler spills): 39.3% events, 55.4% reloads
+exact (compiler spill PCs only): 181,091 events, 346,925 reloads
+recall (compiler spills the heuristic also reports): 100.00% events, 100.00% reloads
+
+################ lbm
+heuristic: 2,151,967 spill events, 2,791,359 spill reloads
+  store class  reload class      events   share     reloads   share
+  SPILL        SPILL          2,151,952  100.0%   2,791,344  100.0%
+  CALLEE_SAVE  CALLEE_SAVE           15    0.0%          15    0.0%
+
+precision (heuristic events that are compiler spills): 100.0% events, 100.0% reloads
+exact (compiler spill PCs only): 2,151,952 events, 2,791,345 reloads
+recall (compiler spills the heuristic also reports): 100.00% events, 100.00% reloads
+  missed reloads: 1; top (store_pc, load_pc): [(('0x11064', '0x112c4'), 1)]

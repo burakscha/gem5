@@ -1,0 +1,98 @@
+\documentclass[9pt,landscape,a4paper]{article}
+\usepackage[landscape,a4paper,margin=10mm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{adjustbox}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\pagestyle{empty}
+\setlength{\tabcolsep}{2.6pt}
+\renewcommand{\arraystretch}{1.08}
+
+\begin{document}
+\begin{center}
+{\large\bfseries Improving CPU Efficiency for Data-Intensive Applications}\\[1pt]
+{\large\bfseries through Cache-Aware Spill Optimization}\\[5pt]
+{\normalsize Register Spill Behaviour and Cache Hit/Miss Rates on RISC-V SPEC CPU2017}\\[7pt]
+\begin{tabular}{@{}c@{\hspace{3em}}c@{}}
+L\"utfullah Burak Kaya & Ismail Akturk \\[2pt]
+{\small Ozyegin University} & {\small Ozyegin University} \\
+{\small burak.kaya.50711@ozu.edu.tr} & {\small ismail.akturk@ozyegin.edu.tr} \\
+\end{tabular}\\[6pt]
+{\small 4 November 2026}\\[3pt]
+{\small gem5 TimingSimpleCPU $\cdot$ workload profile \texttt{test} $\cdot$ L1D 4\,KiB, L1I 32\,KiB, L2 32\,KiB, L1D 4-way, L2 8-way $\cdot$ gem5 \texttt{e0a12aa4e3+dirty}}
+\end{center}
+
+\vspace{-2mm}
+\noindent\footnotesize
+\textbf{Definitions (metric schema 9).} Every stack store issued inside
+the region of interest, and every later load that reads it back (the load's address lies in the bytes the store wrote; widths may differ), belongs to
+exactly one class.
+\texttt{spill}: register-allocator spill code, identified by GCC itself
+(\texttt{-dP} RTL dumps of the same build, memory operands in the LRA spill
+area). \texttt{csave}: callee-saved register save/restore, return address
+included, identified from the binary's CFI (\texttt{.eh\_frame}).
+\texttt{other\_stack}: every remaining SP/FP-relative stack store and reload
+(stack-passed arguments, memory-resident locals). \texttt{stack\_*} is the sum
+of the three. For each class an \emph{event} is one (store, first reload)
+pair, so $\texttt{event} \leq \texttt{store}$ and
+$\texttt{load} \geq \texttt{event}$. All counters cover only the region
+delimited by \texttt{m5\_work\_begin}/\texttt{m5\_work\_end}: the gem5
+statistics are dumped and reset at those boundaries, so the cache columns span
+the same window, and the cache tags carry the class, so per-class hit/miss
+rates come straight from gem5. \emph{Spill\,\%} and \emph{Csave\,\%} are the
+class's store+reload instructions over \texttt{ROI\_insts};
+\emph{spill/stack\,\%} is the share of stack events that are real spills.
+
+\vspace{2mm}
+\centering
+% Scaled to the page width and to the height left under the header, so the
+% table stays on the first page however many runs it has.
+\begin{adjustbox}{max width=\textwidth, max totalheight=0.50\textheight}%
+\begin{tabular}{lrrrrrrrrrrrrrr}
+\toprule
+Benchmark & ROI\_insts & stack\_event & \textbf{spill\_event} & csave\_event & other\_event & spill/stack\,\% & Spill\,\% & Csave\,\% & L1D m\,\% & L2 m\,\% & sp\_load m\,\% & sp\_store m\,\% & cs\_load m\,\% & cs\_store m\,\% \\
+\midrule
+cactuBSSN & 48\,023\,254\,960 & 3\,820\,802\,773 & 3\,797\,752\,332 & 22\,956\,427 & 94\,014 & 99.4 & 21.32 & 0.10 & 15.296 & 65.69 & 4.855 & 4.272 & 0.084 & 0.119 \\
+parest & 37\,262\,401\,281 & 130\,109\,038 & 16\,148\,624 & 110\,058\,554 & 3\,901\,860 & 12.4 & 0.22 & 0.59 & 10.210 & 65.62 & 2.848 & 1.609 & 0.422 & 0.901 \\
+deepsjeng & 46\,202\,686\,169 & 1\,453\,401\,396 & 380\,604\,124 & 1\,046\,384\,737 & 26\,412\,535 & 26.2 & 2.78 & 4.53 & 8.904 & 7.54 & 2.010 & 7.255 & 2.447 & 3.442 \\
+leela & 26\,063\,891\,644 & 808\,702\,134 & 26\,356\,444 & 749\,189\,404 & 33\,156\,286 & 3.3 & 0.36 & 5.75 & 5.854 & 24.20 & 4.140 & 0.422 & 1.494 & 0.454 \\
+namd & 31\,914\,751\,099 & 336\,702\,115 & 334\,454\,030 & 1\,939\,340 & 308\,745 & 99.3 & 3.13 & 0.01 & 11.705 & 28.28 & 2.779 & 1.143 & 3.769 & 3.776 \\
+lbm & 6\,506\,800\,040 & 274\,131\,044 & 274\,130\,500 & 544 & 0 & 100.0 & 9.67 & 0.00 & 21.660 & 97.36 & 0.000 & 0.675 & 15.074 & 0.184 \\
+nab & 6\,691\,483\,051 & 152\,456\,167 & 124\,535\,928 & 24\,348\,560 & 3\,571\,679 & 81.7 & 7.90 & 0.73 & 5.327 & 6.02 & 0.506 & 0.311 & 0.637 & 0.759 \\
+xz & 2\,014\,351\,521 & 34\,435\,119 & 4\,683\,669 & 26\,392\,608 & 3\,358\,842 & 13.6 & 0.68 & 2.62 & 5.694 & 29.53 & 0.008 & 0.207 & 1.591 & 1.545 \\
+xz\_4m\_l1 & 2\,001\,462\,938 & 30\,569\,523 & 3\,959\,703 & 23\,548\,312 & 3\,061\,508 & 13.0 & 0.59 & 2.35 & 7.171 & 39.21 & 0.009 & 0.223 & 2.255 & 1.182 \\
+xz\_4m\_l2 & 2\,083\,103\,943 & 29\,428\,092 & 3\,700\,891 & 22\,776\,791 & 2\,950\,410 & 12.6 & 0.54 & 2.19 & 9.127 & 45.18 & 0.010 & 0.240 & 3.054 & 1.179 \\
+xz\_4m\_l3e & 10\,573\,516\,663 & 134\,644\,921 & 61\,575\,948 & 66\,069\,008 & 6\,999\,965 & 45.7 & 2.51 & 1.25 & 6.348 & 20.93 & 1.036 & 0.505 & 0.782 & 1.822 \\
+xz\_4m\_l4 & 4\,011\,967\,585 & 68\,464\,242 & 20\,213\,033 & 44\,411\,548 & 3\,839\,661 & 29.5 & 2.12 & 2.21 & 7.394 & 34.26 & 0.983 & 0.992 & 0.812 & 0.663 \\
+xz\_4m\_l4e & 12\,115\,711\,352 & 137\,799\,962 & 63\,036\,496 & 67\,532\,844 & 7\,230\,622 & 45.7 & 2.28 & 1.11 & 6.199 & 19.17 & 1.151 & 0.518 & 0.827 & 2.083 \\
+xz\_1m\_l0 & 711\,271\,503 & 13\,362\,560 & 1\,091\,347 & 10\,938\,543 & 1\,332\,670 & 8.2 & 0.62 & 3.08 & 5.145 & 33.71 & 0.007 & 0.702 & 0.710 & 0.671 \\
+xz\_1m\_l1 & 719\,848\,327 & 12\,739\,426 & 973\,549 & 10\,458\,508 & 1\,307\,369 & 7.6 & 0.58 & 2.91 & 5.814 & 39.07 & 0.007 & 0.667 & 0.890 & 0.685 \\
+xz\_1m\_l2 & 724\,690\,222 & 12\,498\,311 & 956\,442 & 10\,241\,945 & 1\,299\,924 & 7.7 & 0.57 & 2.83 & 6.067 & 39.07 & 0.007 & 0.681 & 0.961 & 0.694 \\
+xz\_1m\_l3e & 1\,994\,406\,562 & 34\,952\,797 & 12\,876\,553 & 20\,010\,020 & 2\,066\,224 & 36.8 & 2.59 & 2.01 & 5.462 & 21.23 & 0.742 & 0.675 & 0.307 & 1.086 \\
+xz\_1m\_l4 & 1\,076\,057\,785 & 23\,230\,841 & 5\,156\,845 & 16\,486\,476 & 1\,587\,520 & 22.2 & 2.01 & 3.06 & 5.828 & 28.43 & 0.697 & 1.355 & 0.357 & 0.534 \\
+xz\_1m\_l4e & 2\,198\,787\,666 & 35\,410\,889 & 13\,089\,895 & 20\,222\,586 & 2\,098\,408 & 37.0 & 2.43 & 1.84 & 5.473 & 19.76 & 0.830 & 0.678 & 0.318 & 1.220 \\
+imagick & 117\,733\,556 & 2\,444\,490 & 2\,450 & 2\,437\,082 & 4\,958 & 0.1 & 0.02 & 4.14 & 4.200 & 85.57 & 8.465 & 68.436 & 0.324 & 0.318 \\
+blender & 994\,421\,902 & 46\,417\,461 & 4\,430\,041 & 40\,844\,530 & 1\,142\,890 & 9.5 & 1.16 & 8.21 & 5.064 & 20.38 & 3.273 & 3.869 & 1.857 & 2.825 \\
+povray & 2\,240\,986\,446 & 168\,867\,726 & 2\,121\,674 & 155\,851\,654 & 10\,894\,398 & 1.3 & 0.27 & 13.91 & 9.134 & 45.58 & 6.987 & 19.611 & 1.736 & 1.170 \\
+omnetpp & 12\,426\,267\,350 & 842\,780\,888 & 5\,233\,033 & 791\,025\,406 & 46\,522\,449 & 0.6 & 0.09 & 12.73 & 11.851 & 28.01 & 0.054 & 0.821 & 1.410 & 2.079 \\
+xalancbmk & 395\,919\,938 & 18\,468\,307 & 295\,564 & 17\,282\,226 & 890\,517 & 1.6 & 0.23 & 8.73 & 13.280 & 34.60 & 9.920 & 18.315 & 2.541 & 4.039 \\
+x264 & 475\,535\,613\,470 & 19\,842\,562\,937 & 13\,777\,288\,367 & 5\,322\,257\,634 & 743\,016\,936 & 69.4 & 6.24 & 2.24 & 1.966 & 31.00 & 0.220 & 0.886 & 0.994 & 1.293 \\
+gcc & 16\,026\,850 & 1\,021\,294 & 52\,739 & 952\,288 & 16\,267 & 5.2 & 0.84 & 11.88 & 6.105 & 36.94 & 0.333 & 1.477 & 0.616 & 0.817 \\
+mcf & 24\,426\,982\,047 & 234\,360\,896 & 91\,410\,910 & 142\,147\,076 & 802\,910 & 39.0 & 1.58 & 1.16 & 24.847 & 77.84 & 4.001 & 7.208 & 2.778 & 5.440 \\
+perlbench\_makerand & 2\,400\,742\,243 & 222\,681\,834 & 55 & 222\,662\,746 & 19\,033 & 0.0 & 0.08 & 18.55 & 3.756 & 0.00 & 0.000 & 6.661 & 0.003 & 0.002 \\
+bwaves\_1 & 17\,288\,358\,363 & 145\,483\,800 & 145\,451\,376 & 26\,481 & 5\,943 & 100.0 & 3.55 & 0.00 & 40.946 & 31.23 & 3.813 & 0.021 & 3.312 & 4.917 \\
+bwaves\_2 & 17\,287\,430\,556 & 145\,483\,720 & 145\,451\,376 & 26\,421 & 5\,923 & 100.0 & 3.55 & 0.00 & 40.947 & 31.23 & 3.813 & 0.021 & 3.316 & 4.920 \\
+exchange2 & 57\,667\,143\,431 & 1\,874\,880\,445 & 1\,304\,771\,747 & 345\,493\,349 & 224\,615\,349 & 69.6 & 5.03 & 1.20 & 2.008 & 1.35 & 1.744 & 2.983 & 4.998 & 2.280 \\
+fotonik3d & 3\,098\,360\,920 & 28\,397\,309 & 27\,853\,226 & 437\,206 & 106\,877 & 98.1 & 3.84 & 0.03 & 11.962 & 61.79 & 3.816 & 0.008 & 0.860 & 3.556 \\
+roms & 28\,955\,766\,090 & 203\,007\,943 & 182\,777\,748 & 12\,238\,510 & 7\,991\,685 & 90.0 & 4.79 & 0.08 & 14.936 & 53.16 & 3.051 & 0.793 & 0.316 & 2.387 \\
+wrf & 84\,396\,893\,159 & 420\,514\,417 & 109\,794\,207 & 285\,402\,352 & 25\,317\,858 & 26.1 & 0.91 & 0.68 & 11.550 & 34.19 & 6.880 & 4.952 & 0.529 & 1.411 \\
+cam4 & 33\,466\,803\,502 & 585\,237\,544 & 168\,288\,974 & 404\,426\,594 & 12\,521\,976 & 28.8 & 2.11 & 2.42 & 9.074 & 59.49 & 1.792 & 2.696 & 0.683 & 1.471 \\
+\midrule
+\textbf{Total} & 1\,003\,605\,894\,134 & 32\,326\,452\,361 & \textbf{21\,110\,519\,840} & 10\,037\,478\,310 & 1\,178\,454\,211 & 65.3 & 5.17 & 2.00 & 0.000 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+\bottomrule
+\end{tabular}%
+\end{adjustbox}
+
+\end{document}

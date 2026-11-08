@@ -1,0 +1,99 @@
+\documentclass[9pt,landscape,a4paper]{article}
+\usepackage[landscape,a4paper,margin=10mm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{adjustbox}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\pagestyle{empty}
+\setlength{\tabcolsep}{2.6pt}
+\renewcommand{\arraystretch}{1.08}
+
+\begin{document}
+\begin{center}
+{\large\bfseries Improving CPU Efficiency for Data-Intensive Applications}\\[1pt]
+{\large\bfseries through Cache-Aware Spill Optimization}\\[5pt]
+{\normalsize Register Spill Behaviour and Cache Hit/Miss Rates on RISC-V SPEC CPU2017}\\[7pt]
+\begin{tabular}{@{}c@{\hspace{3em}}c@{}}
+L\"utfullah Burak Kaya & Ismail Akturk \\[2pt]
+{\small Ozyegin University} & {\small Ozyegin University} \\
+{\small burak.kaya.50711@ozu.edu.tr} & {\small ismail.akturk@ozyegin.edu.tr} \\
+\end{tabular}\\[6pt]
+{\small 15 October 2026}\\[3pt]
+{\small gem5 TimingSimpleCPU $\cdot$ workload profile \texttt{test} $\cdot$ L1D 4\,KiB, L1I 32\,KiB, L2 32\,KiB, fully associative L1D/L2 (FALRU) $\cdot$ gem5 \texttt{e0a12aa4e3+dirty}}
+\end{center}
+
+\vspace{-2mm}
+\noindent\footnotesize
+\noindent\textbf{Superseded results (metric schema 8).} The current detector (schema 9) also counts a reload whose address lies inside a wider or merged store (e.g.\ two 4-byte spills read by one 8-byte load). Schema 8 missed those, so \texttt{spill\_load}, \texttt{spill\_event} and the \texttt{other\_stack} counts here are lower (up to 15\% of the spill reloads in bwaves, 8.5\% in leela, 3\% in x264, under 0.1\% in most benchmarks); instruction counts, spill stores and the cache behaviour of the pairs it found are unaffected.\par\vspace{1mm}
+\textbf{Definitions (metric schema 8).} Every stack store issued inside
+the region of interest, and every later load that reads it back (a load from the same address at the same width), belongs to
+exactly one class.
+\texttt{spill}: register-allocator spill code, identified by GCC itself
+(\texttt{-dP} RTL dumps of the same build, memory operands in the LRA spill
+area). \texttt{csave}: callee-saved register save/restore, return address
+included, identified from the binary's CFI (\texttt{.eh\_frame}).
+\texttt{other\_stack}: every remaining SP/FP-relative stack store and reload
+(stack-passed arguments, memory-resident locals). \texttt{stack\_*} is the sum
+of the three. For each class an \emph{event} is one (store, first reload)
+pair, so $\texttt{event} \leq \texttt{store}$ and
+$\texttt{load} \geq \texttt{event}$. All counters cover only the region
+delimited by \texttt{m5\_work\_begin}/\texttt{m5\_work\_end}: the gem5
+statistics are dumped and reset at those boundaries, so the cache columns span
+the same window, and the cache tags carry the class, so per-class hit/miss
+rates come straight from gem5. \emph{Spill\,\%} and \emph{Csave\,\%} are the
+class's store+reload instructions over \texttt{ROI\_insts};
+\emph{spill/stack\,\%} is the share of stack events that are real spills.
+
+\vspace{2mm}
+\centering
+% Scaled to the page width and to the height left under the header, so the
+% table stays on the first page however many runs it has.
+\begin{adjustbox}{max width=\textwidth, max totalheight=0.50\textheight}%
+\begin{tabular}{lrrrrrrrrrrrrrr}
+\toprule
+Benchmark & ROI\_insts & stack\_event & \textbf{spill\_event} & csave\_event & other\_event & spill/stack\,\% & Spill\,\% & Csave\,\% & L1D m\,\% & L2 m\,\% & sp\_load m\,\% & sp\_store m\,\% & cs\_load m\,\% & cs\_store m\,\% \\
+\midrule
+cactuBSSN & 48\,023\,254\,960 & 3\,817\,969\,294 & 3\,794\,919\,348 & 22\,956\,427 & 93\,519 & 99.4 & 21.32 & 0.10 & 15.225 & 59.94 & 4.848 & 5.149 & 0.079 & 0.113 \\
+parest & 37\,262\,401\,281 & 126\,952\,414 & 16\,148\,158 & 110\,058\,554 & 745\,702 & 12.7 & 0.22 & 0.59 & 9.718 & 68.60 & 1.355 & 1.455 & 0.193 & 0.415 \\
+deepsjeng & 46\,202\,686\,169 & 1\,436\,088\,677 & 380\,604\,124 & 1\,046\,384\,737 & 9\,099\,816 & 26.5 & 2.78 & 4.53 & 8.076 & 6.11 & 1.432 & 7.231 & 1.581 & 3.372 \\
+leela & 26\,063\,891\,644 & 802\,403\,734 & 20\,913\,175 & 749\,189\,404 & 32\,301\,155 & 2.6 & 0.34 & 5.75 & 5.074 & 27.89 & 0.357 & 0.422 & 0.940 & 0.358 \\
+namd & 31\,914\,751\,099 & 336\,698\,329 & 334\,454\,030 & 1\,939\,340 & 304\,959 & 99.3 & 3.13 & 0.01 & 11.613 & 28.07 & 2.563 & 1.176 & 3.693 & 3.758 \\
+lbm & 6\,506\,800\,040 & 274\,131\,044 & 274\,130\,500 & 544 & 0 & 100.0 & 9.67 & 0.00 & 21.228 & 99.28 & 0.000 & 0.546 & 15.074 & 0.184 \\
+nab & 6\,691\,483\,051 & 150\,911\,281 & 124\,535\,928 & 24\,348\,560 & 2\,026\,793 & 82.5 & 7.90 & 0.73 & 3.889 & 8.31 & 0.131 & 0.108 & 0.619 & 0.726 \\
+xz & 2\,014\,351\,521 & 32\,945\,274 & 4\,682\,897 & 26\,392\,608 & 1\,869\,769 & 14.2 & 0.65 & 2.62 & 5.093 & 31.78 & 0.009 & 0.156 & 0.181 & 0.290 \\
+xz\_4m\_l1 & 2\,001\,462\,938 & 29\,215\,304 & 3\,958\,947 & 23\,548\,312 & 1\,708\,045 & 13.6 & 0.57 & 2.35 & 6.622 & 41.40 & 0.010 & 0.191 & 0.420 & 0.300 \\
+xz\_4m\_l2 & 2\,083\,103\,943 & 28\,125\,372 & 3\,700\,138 & 22\,776\,791 & 1\,648\,443 & 13.2 & 0.51 & 2.19 & 8.610 & 47.32 & 0.011 & 0.205 & 0.950 & 0.338 \\
+xz\_4m\_l3e & 10\,573\,516\,663 & 124\,670\,474 & 54\,899\,409 & 66\,069\,008 & 3\,702\,057 & 44.0 & 2.44 & 1.25 & 6.036 & 21.48 & 0.400 & 0.295 & 0.193 & 1.605 \\
+xz\_4m\_l4 & 4\,011\,967\,585 & 66\,558\,242 & 20\,142\,751 & 44\,411\,548 & 2\,003\,943 & 30.3 & 2.11 & 2.21 & 6.387 & 38.80 & 0.087 & 0.645 & 0.496 & 0.190 \\
+xz\_4m\_l4e & 12\,115\,711\,352 & 127\,720\,342 & 56\,348\,941 & 67\,532\,844 & 3\,838\,557 & 44.1 & 2.22 & 1.11 & 5.901 & 19.54 & 0.530 & 0.316 & 0.198 & 1.884 \\
+xz\_1m\_l0 & 711\,271\,503 & 12\,737\,212 & 1\,091\,050 & 10\,938\,543 & 707\,619 & 8.6 & 0.56 & 3.08 & 4.615 & 36.56 & 0.008 & 0.492 & 0.100 & 0.068 \\
+xz\_1m\_l1 & 719\,848\,327 & 12\,124\,762 & 973\,253 & 10\,458\,508 & 693\,001 & 8.0 & 0.52 & 2.91 & 5.203 & 42.80 & 0.008 & 0.541 & 0.162 & 0.105 \\
+xz\_1m\_l2 & 724\,690\,222 & 11\,886\,991 & 956\,147 & 10\,241\,945 & 688\,899 & 8.0 & 0.51 & 2.83 & 5.491 & 42.54 & 0.008 & 0.550 & 0.262 & 0.112 \\
+xz\_1m\_l3e & 1\,994\,406\,562 & 32\,343\,460 & 11\,257\,805 & 20\,010\,020 & 1\,075\,635 & 34.8 & 2.49 & 2.01 & 4.757 & 23.80 & 0.235 & 0.268 & 0.105 & 0.750 \\
+xz\_1m\_l4 & 1\,076\,057\,785 & 22\,448\,482 & 5\,149\,009 & 16\,486\,476 & 812\,997 & 22.9 & 1.97 & 3.06 & 4.642 & 34.83 & 0.018 & 0.603 & 0.245 & 0.089 \\
+xz\_1m\_l4e & 2\,198\,787\,666 & 32\,786\,002 & 11\,469\,277 & 20\,222\,586 & 1\,094\,139 & 35.0 & 2.33 & 1.84 & 4.806 & 21.91 & 0.340 & 0.279 & 0.103 & 0.892 \\
+imagick & 117\,733\,663 & 2\,444\,391 & 2\,450 & 2\,437\,084 & 4\,857 & 0.1 & 0.02 & 4.14 & 4.156 & 87.38 & 7.202 & 58.930 & 0.284 & 0.302 \\
+blender & 994\,421\,804 & 46\,392\,827 & 4\,430\,041 & 40\,844\,530 & 1\,118\,256 & 9.5 & 1.16 & 8.21 & 5.126 & 19.66 & 2.125 & 3.868 & 2.169 & 2.989 \\
+povray & 2\,240\,986\,446 & 168\,771\,227 & 2\,121\,674 & 155\,851\,654 & 10\,797\,899 & 1.3 & 0.27 & 13.91 & 8.700 & 50.57 & 7.064 & 19.522 & 1.658 & 0.953 \\
+omnetpp & 12\,426\,241\,547 & 842\,378\,057 & 5\,233\,032 & 791\,024\,854 & 46\,120\,171 & 0.6 & 0.09 & 12.73 & 11.530 & 27.53 & 0.054 & 0.774 & 1.152 & 2.269 \\
+xalancbmk & 395\,919\,938 & 18\,465\,753 & 295\,456 & 17\,282\,226 & 888\,071 & 1.6 & 0.23 & 8.73 & 13.002 & 34.56 & 10.876 & 21.932 & 2.438 & 4.226 \\
+x264 & 475\,535\,613\,470 & 19\,188\,657\,460 & 13\,318\,402\,468 & 5\,322\,257\,634 & 547\,997\,358 & 69.4 & 6.15 & 2.24 & 1.836 & 31.44 & 0.157 & 0.852 & 0.929 & 1.181 \\
+gcc & 16\,026\,870 & 1\,020\,580 & 52\,732 & 952\,288 & 15\,560 & 5.2 & 0.84 & 11.88 & 5.692 & 38.27 & 0.229 & 1.344 & 0.406 & 0.670 \\
+mcf & 24\,426\,982\,047 & 234\,360\,896 & 91\,410\,910 & 142\,147\,076 & 802\,910 & 39.0 & 1.58 & 1.16 & 24.518 & 78.48 & 3.115 & 6.856 & 2.578 & 5.257 \\
+perlbench\_makerand & 2\,421\,667\,618 & 224\,582\,067 & 55 & 224\,562\,979 & 19\,033 & 0.0 & 0.08 & 18.55 & 0.083 & 0.08 & 0.000 & 0.259 & 0.003 & 0.002 \\
+bwaves\_1 & 17\,288\,358\,363 & 145\,483\,579 & 145\,451\,376 & 26\,481 & 5\,722 & 100.0 & 3.55 & 0.00 & 7.312 & 95.60 & 0.859 & 0.001 & 3.384 & 5.019 \\
+bwaves\_2 & 17\,287\,430\,556 & 145\,483\,497 & 145\,451\,376 & 26\,421 & 5\,700 & 100.0 & 3.55 & 0.00 & 7.312 & 95.60 & 0.859 & 0.001 & 3.391 & 5.023 \\
+exchange2 & 57\,667\,143\,431 & 1\,874\,700\,399 & 1\,304\,759\,851 & 345\,493\,349 & 224\,447\,199 & 69.6 & 5.03 & 1.20 & 1.538 & 1.79 & 1.696 & 2.611 & 3.452 & 2.322 \\
+fotonik3d & 3\,098\,360\,920 & 28\,393\,792 & 27\,853\,217 & 437\,206 & 103\,369 & 98.1 & 3.84 & 0.03 & 8.886 & 82.63 & 1.993 & 0.006 & 1.325 & 3.817 \\
+roms & 28\,955\,766\,090 & 203\,000\,119 & 182\,774\,988 & 12\,238\,510 & 7\,986\,621 & 90.0 & 4.79 & 0.08 & 10.763 & 64.31 & 2.165 & 0.970 & 0.303 & 2.174 \\
+wrf & 84\,396\,891\,536 & 420\,492\,444 & 109\,777\,107 & 285\,402\,322 & 25\,313\,015 & 26.1 & 0.91 & 0.68 & 5.883 & 61.76 & 5.433 & 4.485 & 0.483 & 1.248 \\
+cam4 & 33\,466\,803\,502 & 584\,634\,555 & 168\,239\,124 & 404\,426\,594 & 11\,968\,837 & 28.8 & 2.11 & 2.42 & 8.802 & 59.48 & 1.455 & 2.470 & 0.630 & 1.409 \\
+\midrule
+\textbf{Total} & 1\,003\,626\,792\,112 & 31\,607\,978\,333 & \textbf{20\,626\,590\,744} & 10\,039\,377\,963 & 942\,009\,626 & 65.3 & 5.12 & 2.00 & 0.000 & \textemdash & \textemdash & \textemdash & \textemdash & \textemdash \\
+\bottomrule
+\end{tabular}%
+\end{adjustbox}
+
+\end{document}

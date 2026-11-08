@@ -1,0 +1,139 @@
+\documentclass[10pt,a4paper,landscape]{article}
+\usepackage[landscape,a4paper,margin=12mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,booktabs,longtable}
+\setlength{\LTpre}{2pt}\setlength{\LTpost}{8pt}
+\setlength{\tabcolsep}{4pt}
+\begin{document}
+\begin{center}
+{\large\bfseries ref input, SimPoint estimates --- small-4way}\\[3pt]
+{\small L1D 16 sets x 4, L2 64 sets x 8 $\cdot$ metric schema 9 $\cdot$ gem5 TimingSimpleCPU $\cdot$ 4 November 2026}
+\end{center}
+\textbf{36 of 36 runs completed}, 0 running, 0 pending; \textbf{0 remaining}.\par
+\subsection*{Program (does not depend on the cache)}
+{\footnotesize
+\begin{longtable}{lcrrrrrr}
+\toprule
+run & configs done & spill/ROI & spill ld/load & spill st/store & (spill+csave)/ROI & (spill+csave) ld/load & (spill+csave) st/store \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+cactuBSSN & 1/1 & 20.65\% & 47.95\% & 56.30\% & 20.67\% & 48.00\% & 56.39\% \\
+parest & 1/1 & 0.16\% & 0.43\% & 0.62\% & 0.64\% & 1.19\% & 7.86\% \\
+deepsjeng & 1/1 & 2.92\% & 9.17\% & 16.25\% & 8.11\% & 23.58\% & 49.72\% \\
+leela & 1/1 & 0.38\% & 1.36\% & 1.80\% & 6.07\% & 15.90\% & 45.53\% \\
+namd & 1/1 & 3.27\% & 8.21\% & 17.87\% & 3.27\% & 8.22\% & 17.90\% \\
+lbm & 1/1 & 10.48\% & 32.28\% & 44.97\% & 10.48\% & 32.28\% & 44.97\% \\
+nab & 1/1 & 5.20\% & 15.37\% & 34.02\% & 6.75\% & 18.74\% & 49.89\% \\
+xz\_cld & 1/1 & 3.38\% & 12.11\% & 22.88\% & 5.08\% & 17.35\% & 36.71\% \\
+xz\_cpu2006docs & 1/1 & 1.47\% & 5.78\% & 23.30\% & 2.03\% & 7.38\% & 37.90\% \\
+xz\_combined & 1/1 & 2.85\% & 10.66\% & 26.32\% & 4.17\% & 14.65\% & 42.32\% \\
+imagick & 1/1 & 0.23\% & 0.12\% & 3.44\% & 5.33\% & 12.37\% & 46.11\% \\
+blender & 1/1 & 0.38\% & 0.88\% & 3.23\% & 3.72\% & 6.96\% & 42.51\% \\
+povray & 1/1 & 0.27\% & 0.46\% & 0.95\% & 14.26\% & 22.18\% & 55.24\% \\
+omnetpp & 1/1 & 0.00\% & 0.00\% & 0.00\% & 12.75\% & 24.67\% & 48.13\% \\
+xalancbmk & 1/1 & 0.13\% & 0.26\% & 0.80\% & 4.92\% & 8.32\% & 39.84\% \\
+x264\_pass1 & 1/1 & 7.07\% & 15.02\% & 38.53\% & 10.18\% & 21.51\% & 55.90\% \\
+x264\_pass2 & 1/1 & 6.25\% & 13.38\% & 40.16\% & 8.63\% & 18.23\% & 56.21\% \\
+x264\_seek & 1/1 & 6.41\% & 13.66\% & 41.07\% & 8.82\% & 18.56\% & 57.26\% \\
+gcc\_pp\_O3 & 1/1 & 1.23\% & 2.73\% & 4.48\% & 16.24\% & 33.66\% & 64.23\% \\
+gcc\_pp\_O2 & 1/1 & 1.25\% & 2.75\% & 4.47\% & 16.60\% & 34.40\% & 63.73\% \\
+gcc\_smaller & 1/1 & 1.09\% & 2.19\% & 4.61\% & 13.76\% & 25.29\% & 64.09\% \\
+gcc\_ref32\_O5 & 1/1 & 0.91\% & 1.84\% & 3.40\% & 15.53\% & 30.63\% & 59.73\% \\
+gcc\_ref32\_O3 & 1/1 & 0.68\% & 1.85\% & 1.06\% & 11.25\% & 27.66\% & 19.94\% \\
+mcf & 1/1 & 1.40\% & 2.06\% & 7.74\% & 2.33\% & 3.60\% & 12.43\% \\
+perlbench\_checkspam & 1/1 & 7.98\% & 9.83\% & 29.42\% & 22.33\% & 36.24\% & 69.19\% \\
+perlbench\_diffmail & 1/1 & 1.96\% & 4.19\% & 4.64\% & 17.81\% & 31.25\% & 54.38\% \\
+perlbench\_splitmail & 1/1 & 4.16\% & 4.19\% & 15.82\% & 23.27\% & 35.82\% & 68.04\% \\
+bwaves\_1 & 1/1 & 2.51\% & 6.24\% & 18.43\% & 2.51\% & 6.24\% & 18.43\% \\
+bwaves\_2 & 1/1 & 2.59\% & 6.43\% & 18.99\% & 2.59\% & 6.43\% & 18.99\% \\
+bwaves\_3 & 1/1 & 2.51\% & 6.23\% & 18.45\% & 2.51\% & 6.23\% & 18.45\% \\
+bwaves\_4 & 1/1 & 2.56\% & 6.32\% & 19.44\% & 2.56\% & 6.32\% & 19.44\% \\
+exchange2 & 1/1 & 5.23\% & 10.55\% & 12.68\% & 6.08\% & 12.17\% & 14.84\% \\
+fotonik3d & 1/1 & 3.36\% & 9.32\% & 9.25\% & 3.38\% & 9.37\% & 9.40\% \\
+roms & 1/1 & 4.37\% & 13.83\% & 8.97\% & 4.44\% & 13.96\% & 9.48\% \\
+wrf & 1/1 & 0.91\% & 3.38\% & 2.59\% & 1.52\% & 4.76\% & 7.57\% \\
+cam4 & 1/1 & 3.14\% & 11.02\% & 11.03\% & 4.99\% & 15.77\% & 21.23\% \\
+\midrule
+pooled &  & 3.78\% & 9.06\% & 17.53\% & 7.49\% & 16.44\% & 39.26\% \\
+mean &  & 3.31\% & 8.11\% & 15.78\% & 8.49\% & 18.33\% & 39.00\% \\
+\end{longtable}
+}
+\subsection*{Miss rates}
+{\footnotesize
+\begin{longtable}{llrrrrrrrr}
+\toprule
+run & state & L1D & spill ld L1 & other ld L1 & spill st L1 & other st L1 & L2 & spill ld L2 & spill st L2 \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+cactuBSSN & done & 15.63\% & 5.18\% & 33.25\% & 4.30\% & 13.06\% & 64.99\% & 12.26\% & 9.77\% \\
+parest & done & 10.38\% & 2.36\% & 10.98\% & 1.67\% & 5.06\% & 70.85\% & 3.14\% & 27.35\% \\
+deepsjeng & done & 8.81\% & 2.10\% & 11.44\% & 7.45\% & 4.16\% & 6.35\% & 2.23\% & 14.14\% \\
+leela & done & 4.94\% & 0.51\% & 5.49\% & 0.00\% & 3.55\% & 23.48\% & 0.03\% & 21.59\% \\
+namd & done & 11.58\% & 2.40\% & 14.75\% & 1.26\% & 2.43\% & 27.50\% & 7.59\% & 16.11\% \\
+lbm & done & 17.63\% & 0.01\% & 6.46\% & 0.12\% & 75.48\% & 97.01\% & 0.06\% & 12.21\% \\
+nab & done & 5.40\% & 0.13\% & 7.58\% & 0.69\% & 0.43\% & 59.18\% & 9.30\% & 1.65\% \\
+xz\_cld & done & 10.66\% & 2.04\% & 15.30\% & 1.51\% & 2.95\% & 35.09\% & 0.03\% & 0.26\% \\
+xz\_cpu2006docs & done & 9.40\% & 2.20\% & 10.33\% & 1.90\% & 6.32\% & 39.60\% & 4.81\% & 6.67\% \\
+xz\_combined & done & 9.72\% & 1.98\% & 12.37\% & 1.30\% & 4.34\% & 24.47\% & 0.01\% & 1.29\% \\
+imagick & done & 2.18\% & 3.93\% & 2.77\% & 0.03\% & 0.12\% & 96.60\% & 57.37\% & 19.19\% \\
+blender & done & 8.00\% & 2.67\% & 8.76\% & 1.42\% & 3.47\% & 18.31\% & 1.21\% & 46.53\% \\
+povray & done & 9.16\% & 7.21\% & 11.34\% & 18.52\% & 3.61\% & 45.94\% & 51.80\% & 63.63\% \\
+omnetpp & done & 16.31\% & 0.08\% & 21.74\% & 1.50\% & 5.71\% & 28.08\% & 50.69\% & 2.63\% \\
+xalancbmk & done & 17.12\% & 11.80\% & 19.71\% & 22.71\% & 4.54\% & 70.02\% & 6.11\% & 5.53\% \\
+x264\_pass1 & done & 2.42\% & 0.13\% & 2.87\% & 1.00\% & 3.14\% & 28.58\% & 6.19\% & 15.50\% \\
+x264\_pass2 & done & 1.95\% & 0.19\% & 2.37\% & 0.78\% & 2.00\% & 35.53\% & 0.85\% & 18.84\% \\
+x264\_seek & done & 1.96\% & 0.16\% & 2.41\% & 0.91\% & 1.93\% & 31.56\% & 1.11\% & 13.54\% \\
+gcc\_pp\_O3 & done & 8.74\% & 1.30\% & 11.63\% & 4.77\% & 3.64\% & 41.84\% & 5.87\% & 12.58\% \\
+gcc\_pp\_O2 & done & 8.89\% & 1.19\% & 11.84\% & 4.31\% & 3.90\% & 38.46\% & 6.57\% & 11.89\% \\
+gcc\_smaller & done & 10.48\% & 2.05\% & 13.46\% & 3.71\% & 3.44\% & 47.59\% & 3.59\% & 10.17\% \\
+gcc\_ref32\_O5 & done & 8.86\% & 1.68\% & 11.62\% & 4.07\% & 3.81\% & 50.61\% & 7.41\% & 12.73\% \\
+gcc\_ref32\_O3 & done & 10.65\% & 2.48\% & 12.31\% & 5.12\% & 9.62\% & 72.66\% & 4.57\% & 18.30\% \\
+mcf & done & 21.53\% & 6.09\% & 27.47\% & 6.44\% & 4.64\% & 74.18\% & 3.56\% & 19.24\% \\
+perlbench\_checkspam & done & 2.50\% & 0.10\% & 3.92\% & 0.43\% & 1.13\% & 28.16\% & 2.52\% & 8.95\% \\
+perlbench\_diffmail & done & 4.51\% & 0.13\% & 6.17\% & 4.56\% & 1.79\% & 37.92\% & 0.37\% & 12.19\% \\
+perlbench\_splitmail & done & 8.88\% & 0.03\% & 12.58\% & 7.27\% & 2.96\% & 8.50\% & 2.60\% & 0.41\% \\
+bwaves\_1 & done & 44.12\% & 6.22\% & 48.24\% & 0.10\% & 36.83\% & 23.63\% & 3.19\% & 0.58\% \\
+bwaves\_2 & done & 43.90\% & 6.02\% & 48.01\% & 0.12\% & 37.89\% & 23.88\% & 3.03\% & 0.66\% \\
+bwaves\_3 & done & 43.19\% & 6.11\% & 47.21\% & 0.00\% & 36.20\% & 24.11\% & 3.53\% & 67.82\% \\
+bwaves\_4 & done & 43.28\% & 5.84\% & 47.31\% & 0.00\% & 36.77\% & 23.87\% & 2.64\% & 38.55\% \\
+exchange2 & done & 1.67\% & 1.41\% & 2.15\% & 2.24\% & 0.96\% & 0.94\% & 0.09\% & 0.40\% \\
+fotonik3d & done & 10.25\% & 4.03\% & 14.24\% & 0.04\% & 0.18\% & 66.95\% & 1.93\% & 6.94\% \\
+roms & done & 15.13\% & 2.31\% & 18.45\% & 0.52\% & 11.85\% & 53.37\% & 13.34\% & 13.66\% \\
+wrf & done & 11.27\% & 6.63\% & 11.52\% & 4.40\% & 11.13\% & 33.77\% & 8.59\% & 11.72\% \\
+cam4 & done & 10.69\% & 2.04\% & 11.57\% & 2.35\% & 12.15\% & 55.53\% & 8.09\% & 25.31\% \\
+\midrule
+pooled &  & 10.79\% & 3.07\% & 13.38\% & 2.69\% & 6.61\% & 47.07\% & 10.11\% & 11.85\% \\
+mean &  & 13.11\% & 2.80\% & 15.55\% & 3.26\% & 10.03\% & 41.92\% & 8.23\% & 15.79\% \\
+\end{longtable}
+}
+\section*{Formulas}
+{\footnotesize
+\begin{longtable}{lp{11cm}p{10cm}}
+\toprule
+column & formula & aciklama \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+spill/ROI & \texttt{((spill\_load + spill\_store) / roi\_total\_insts) * 100} & ROI komutlarinin yuzde kaci spill load veya spill store \\
+spill ld/load & \texttt{(spill\_load / roi\_load) * 100} & ROI load'larinin yuzde kaci spill reload \\
+spill st/store & \texttt{(spill\_store / roi\_store) * 100} & ROI store'larinin yuzde kaci spill store \\
+(spill+csave)/ROI & \texttt{((spill\_load + spill\_store + csave\_load + csave\_store) / roi\_total\_insts) * 100} & ayni oran, callee-save save/restore dahil \\
+(spill+csave) ld/load & \texttt{((spill\_load + csave\_load) / roi\_load) * 100} & ROI load'larinin yuzde kaci spill reload veya callee-save restore \\
+(spill+csave) st/store & \texttt{((spill\_store + csave\_store) / roi\_store) * 100} & ROI store'larinin yuzde kaci spill store veya callee-save save \\
+L1D & \texttt{(L1D misses / L1D accesses) * 100} & Tum load ve store access'lerinin (spill + other) L1D miss rate'i: L1D'nin bu konfigurasyondaki genel performansi. \\
+spill ld L1 & \texttt{(spill load L1D misses / spill load L1D accesses) * 100} & Spill load'larin yuzde kaci L1D'de miss oldu. Genelde dusuktur: spill slot'u kisa sure once yazildigi icin cache line cogu zaman hala L1D'dedir. \\
+other ld L1 & \texttt{((load misses - spill load misses) / (load accesses - spill load accesses)) * 100} & Other load'larin (spill olmayan load'lar) L1D miss rate'i. spill\_ld\_L1miss ile yan yana bakilir: spill load'lar normal veriden daha mi az, daha mi cok miss oluyor? \\
+spill st L1 & \texttt{(spill store L1D misses / spill store L1D accesses) * 100} & Spill store'larin yuzde kaci L1D'de miss oldu. Cache write-allocate: miss olan bir store once cache line'i L2'den getirir, sonra yazar. \\
+other st L1 & \texttt{((store misses - spill store misses) / (store accesses - spill store accesses)) * 100} & Other store'larin (spill olmayan store'lar) L1D miss rate'i; spill\_st\_L1miss ile karsilastirmak icin. \\
+L2 & \texttt{(L2 misses / L2 accesses) * 100} & L2'ye gelen tum isteklerin (L1D ve L1I miss'leri) yuzde kaci L2'de de miss oldu ve DRAM'e gitti. \\
+spill ld L2 & \texttt{(spill load L2 misses / spill load L2 accesses) * 100} & L1D'de miss olan spill load'larin yuzde kaci L2'de de miss oldu. Payda sadece L1D'yi miss eden spill load'lardir, butun spill load'lar degil. \\
+spill st L2 & \texttt{(spill store L2 misses / spill store L2 accesses) * 100} & L1D'de miss olan spill store'larin yuzde kaci L2'de de miss oldu (payda yine sadece L1D miss'leri). \\
+\end{longtable}
+spill = compiler-confirmed register-allocator spill (GCC \texttt{-dP}), csave = callee-saved register save/restore (CFI), both inside the ROI only. pooled = sum of numerators / sum of denominators over the completed runs; mean = average of the per-run percentages. Miss rates are per cache access; an L2 rate's denominator is the L1D misses of that access type.\par}
+
+\end{document}

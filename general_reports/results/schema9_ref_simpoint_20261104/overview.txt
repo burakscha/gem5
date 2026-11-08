@@ -1,0 +1,162 @@
+=== Cache organisation experiment   (2026-11-04 14:41) ===
+queue on castEpyc: started 10-15 22:41; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castXeon: started 10-31 21:20; this host is castdata, so its processes cannot be checked from here (run states come from the run files)
+queue on castdata: FINISHED (every run has been started)   gem5 processes: 0
+queue order: test:small-2way -> test:small-fa -> test:small-dm -> test:small-4way -> test:small-8way -> train:small-2way -> train:small-fa -> train:small-dm -> train:small-4way -> train:small-8way -> ref:small-2way -> ref:small-fa -> ref:small-dm -> ref:small-4way -> ref:small-8way
+
+====================================================================================================
+Input: test  (SPEC CPU2017 'test' inputs, the smallest set)   [SimPoint estimates, cache_scripts/simpoint.sh]
+====================================================================================================
+Per configuration (sums over completed runs)
+config      L1D          L2            completed  running  pending  failed  wall  total_insts  roi_total_insts  roi_total_load  roi_total_store  roi_spills  roi_spill_load  roi_spill_store  spill_load/load  spill_store/store
+----------  -----------  ------------  ---------  -------  -------  ------  ----  -----------  ---------------  --------------  ---------------  ----------  --------------  ---------------  ---------------  -----------------
+small-2way  32 sets x 2  64 sets x 8           0        0       35       0     -            0                0               0                0           0               0                0                -                  -
+small-fa    1 sets x 64  1 sets x 512          0        0       35       0     -            0                0               0                0           0               0                0                -                  -
+small-dm    64 sets x 1  512 sets x 1          0        0       35       0     -            0                0               0                0           0               0                0                -                  -
+small-4way  16 sets x 4  64 sets x 8           0        0       35       0     -            0                0               0                0           0               0                0                -                  -
+small-8way  8 sets x 8   64 sets x 8           0        0       35       0     -            0                0               0                0           0               0                0                -                  -
+
+Per benchmark: state, elapsed, progress
+run                 small-2way  small-fa  small-dm  small-4way  small-8way
+------------------  ----------  --------  --------  ----------  ----------
+cactuBSSN           PENDING     PENDING   PENDING   PENDING     PENDING   
+parest              PENDING     PENDING   PENDING   PENDING     PENDING   
+deepsjeng           PENDING     PENDING   PENDING   PENDING     PENDING   
+leela               PENDING     PENDING   PENDING   PENDING     PENDING   
+namd                PENDING     PENDING   PENDING   PENDING     PENDING   
+lbm                 PENDING     PENDING   PENDING   PENDING     PENDING   
+nab                 PENDING     PENDING   PENDING   PENDING     PENDING   
+xz                  PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_4m_l1            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_4m_l2            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_4m_l3e           PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_4m_l4            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_4m_l4e           PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l0            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l1            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l2            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l3e           PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l4            PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_1m_l4e           PENDING     PENDING   PENDING   PENDING     PENDING   
+imagick             PENDING     PENDING   PENDING   PENDING     PENDING   
+blender             PENDING     PENDING   PENDING   PENDING     PENDING   
+povray              PENDING     PENDING   PENDING   PENDING     PENDING   
+omnetpp             PENDING     PENDING   PENDING   PENDING     PENDING   
+xalancbmk           PENDING     PENDING   PENDING   PENDING     PENDING   
+x264                PENDING     PENDING   PENDING   PENDING     PENDING   
+gcc                 PENDING     PENDING   PENDING   PENDING     PENDING   
+mcf                 PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_makerand  PENDING     PENDING   PENDING   PENDING     PENDING   
+bwaves_1            PENDING     PENDING   PENDING   PENDING     PENDING   
+bwaves_2            PENDING     PENDING   PENDING   PENDING     PENDING   
+exchange2           PENDING     PENDING   PENDING   PENDING     PENDING   
+fotonik3d           PENDING     PENDING   PENDING   PENDING     PENDING   
+roms                PENDING     PENDING   PENDING   PENDING     PENDING   
+wrf                 PENDING     PENDING   PENDING   PENDING     PENDING   
+cam4                PENDING     PENDING   PENDING   PENDING     PENDING   
+
+====================================================================================================
+Input: train  (SPEC CPU2017 'train' inputs, the medium set)   [SimPoint estimates, cache_scripts/simpoint.sh]
+====================================================================================================
+Per configuration (sums over completed runs)
+config      L1D          L2            completed  running  pending  failed  wall  total_insts  roi_total_insts  roi_total_load  roi_total_store  roi_spills  roi_spill_load  roi_spill_store  spill_load/load  spill_store/store
+----------  -----------  ------------  ---------  -------  -------  ------  ----  -----------  ---------------  --------------  ---------------  ----------  --------------  ---------------  ---------------  -----------------
+small-2way  32 sets x 2  64 sets x 8           0        0       32       0     -            0                0               0                0           0               0                0                -                  -
+small-fa    1 sets x 64  1 sets x 512          0        0       32       0     -            0                0               0                0           0               0                0                -                  -
+small-dm    64 sets x 1  512 sets x 1          0        0       32       0     -            0                0               0                0           0               0                0                -                  -
+small-4way  16 sets x 4  64 sets x 8           0        0       32       0     -            0                0               0                0           0               0                0                -                  -
+small-8way  8 sets x 8   64 sets x 8           0        0       32       0     -            0                0               0                0           0               0                0                -                  -
+
+Per benchmark: state, elapsed, progress
+run                  small-2way  small-fa  small-dm  small-4way  small-8way
+-------------------  ----------  --------  --------  ----------  ----------
+cactuBSSN            PENDING     PENDING   PENDING   PENDING     PENDING   
+parest               PENDING     PENDING   PENDING   PENDING     PENDING   
+deepsjeng            PENDING     PENDING   PENDING   PENDING     PENDING   
+leela                PENDING     PENDING   PENDING   PENDING     PENDING   
+namd                 PENDING     PENDING   PENDING   PENDING     PENDING   
+lbm                  PENDING     PENDING   PENDING   PENDING     PENDING   
+nab                  PENDING     PENDING   PENDING   PENDING     PENDING   
+nab_gcn4dna          PENDING     PENDING   PENDING   PENDING     PENDING   
+xz                   PENDING     PENDING   PENDING   PENDING     PENDING   
+xz_combined          PENDING     PENDING   PENDING   PENDING     PENDING   
+imagick              PENDING     PENDING   PENDING   PENDING     PENDING   
+blender              PENDING     PENDING   PENDING   PENDING     PENDING   
+povray               PENDING     PENDING   PENDING   PENDING     PENDING   
+omnetpp              PENDING     PENDING   PENDING   PENDING     PENDING   
+xalancbmk            PENDING     PENDING   PENDING   PENDING     PENDING   
+x264                 PENDING     PENDING   PENDING   PENDING     PENDING   
+gcc_200              PENDING     PENDING   PENDING   PENDING     PENDING   
+gcc_scilab           PENDING     PENDING   PENDING   PENDING     PENDING   
+gcc                  PENDING     PENDING   PENDING   PENDING     PENDING   
+mcf                  PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_scrabbl    PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_suns       PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_diffmail   PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_perfect    PENDING     PENDING   PENDING   PENDING     PENDING   
+perlbench_splitmail  PENDING     PENDING   PENDING   PENDING     PENDING   
+bwaves_1             PENDING     PENDING   PENDING   PENDING     PENDING   
+bwaves_2             PENDING     PENDING   PENDING   PENDING     PENDING   
+exchange2            PENDING     PENDING   PENDING   PENDING     PENDING   
+fotonik3d            PENDING     PENDING   PENDING   PENDING     PENDING   
+roms                 PENDING     PENDING   PENDING   PENDING     PENDING   
+wrf                  PENDING     PENDING   PENDING   PENDING     PENDING   
+cam4                 PENDING     PENDING   PENDING   PENDING     PENDING   
+
+====================================================================================================
+Input: ref  (SPEC CPU2017 'ref' inputs, the largest set)   [SimPoint estimates, cache_scripts/simpoint.sh]
+====================================================================================================
+Per configuration (sums over completed runs)
+config      L1D          L2            completed  running  pending  failed      wall         total_insts     roi_total_insts      roi_total_load    roi_total_store       roi_spills     roi_spill_load  roi_spill_store  spill_load/load  spill_store/store
+----------  -----------  ------------  ---------  -------  -------  ------  --------  ------------------  ------------------  ------------------  -----------------  ---------------  -----------------  ---------------  ---------------  -----------------
+small-2way  32 sets x 2  64 sets x 8          36        0        0       0  1d04h38m  58,658,493,179,267  58,391,814,127,468  14,696,400,881,425  4,988,303,487,511  767,822,470,568  1,332,083,697,930  874,278,405,967            9.06%             17.53%
+small-fa    1 sets x 64  1 sets x 512         36        0        0       0  1d04h38m  58,658,493,179,267  58,391,814,127,468  14,696,400,845,221  4,988,303,554,643  767,822,470,568  1,332,083,702,406  874,278,410,051            9.06%             17.53%
+small-dm    64 sets x 1  512 sets x 1         36        0        0       0  1d04h44m  58,658,493,179,267  58,391,814,127,468  14,696,400,841,315  4,988,303,499,957  767,822,470,568  1,332,083,697,930  874,278,405,967            9.06%             17.53%
+small-4way  16 sets x 4  64 sets x 8          36        0        0       0  1d04h37m  58,658,493,179,267  58,391,814,127,468  14,696,400,841,715  4,988,303,485,305  767,822,470,568  1,332,083,697,930  874,278,405,967            9.06%             17.53%
+small-8way  8 sets x 8   64 sets x 8          36        0        0       0  1d04h38m  58,658,493,179,267  58,391,814,127,468  14,696,400,841,715  4,988,303,485,305  767,822,470,568  1,332,083,697,930  874,278,405,967            9.06%             17.53%
+
+Per benchmark: state, elapsed, progress
+run                  small-2way        small-fa          small-dm          small-4way        small-8way      
+-------------------  ----------------  ----------------  ----------------  ----------------  ----------------
+cactuBSSN            COMPLETED 2h04m   COMPLETED 1h49m   COMPLETED 2h16m   COMPLETED 2h02m   COMPLETED 2h02m 
+parest               COMPLETED 2h05m   COMPLETED 1h55m   COMPLETED 2h08m   COMPLETED 2h00m   COMPLETED 2h00m 
+deepsjeng            COMPLETED 1h33m   COMPLETED 1h28m   COMPLETED 1h33m   COMPLETED 1h25m   COMPLETED 1h33m 
+leela                COMPLETED 1h12m   COMPLETED 1h10m   COMPLETED 1h14m   COMPLETED 1h11m   COMPLETED 1h09m 
+namd                 COMPLETED 1h36m   COMPLETED 1h36m   COMPLETED 1h43m   COMPLETED 1h37m   COMPLETED 1h37m 
+lbm                  COMPLETED 1h33m   COMPLETED 1h34m   COMPLETED 1h37m   COMPLETED 1h32m   COMPLETED 1h32m 
+nab                  COMPLETED 57m26s  COMPLETED 54m50s  COMPLETED 1h01m   COMPLETED 54m30s  COMPLETED 56m15s
+xz_cld               COMPLETED 47m12s  COMPLETED 44m54s  COMPLETED 51m40s  COMPLETED 49m33s  COMPLETED 49m27s
+xz_cpu2006docs       COMPLETED 1h03m   COMPLETED 1h05m   COMPLETED 1h09m   COMPLETED 1h04m   COMPLETED 1h06m 
+xz_combined          COMPLETED 1h08m   COMPLETED 1h08m   COMPLETED 1h14m   COMPLETED 1h07m   COMPLETED 1h06m 
+imagick              COMPLETED 44m21s  COMPLETED 45m05s  COMPLETED 43m27s  COMPLETED 45m34s  COMPLETED 44m01s
+blender              COMPLETED 1h18m   COMPLETED 1h20m   COMPLETED 1h24m   COMPLETED 1h18m   COMPLETED 1h21m 
+povray               COMPLETED 1h34m   COMPLETED 1h35m   COMPLETED 1h43m   COMPLETED 1h36m   COMPLETED 1h34m 
+omnetpp              COMPLETED 2h15m   COMPLETED 2h08m   COMPLETED 2h24m   COMPLETED 2h12m   COMPLETED 2h16m 
+xalancbmk            COMPLETED 1h32m   COMPLETED 1h32m   COMPLETED 1h32m   COMPLETED 1h32m   COMPLETED 1h35m 
+x264_pass1           COMPLETED 1h17m   COMPLETED 1h13m   COMPLETED 1h19m   COMPLETED 1h11m   COMPLETED 1h13m 
+x264_pass2           COMPLETED 1h10m   COMPLETED 1h05m   COMPLETED 1h09m   COMPLETED 1h09m   COMPLETED 1h07m 
+x264_seek            COMPLETED 50m21s  COMPLETED 50m41s  COMPLETED 52m02s  COMPLETED 48m07s  COMPLETED 50m52s
+gcc_pp_O3            COMPLETED 1h43m   COMPLETED 1h41m   COMPLETED 1h50m   COMPLETED 1h44m   COMPLETED 1h42m 
+gcc_pp_O2            COMPLETED 1h05m   COMPLETED 1h04m   COMPLETED 1h10m   COMPLETED 1h05m   COMPLETED 1h04m 
+gcc_smaller          COMPLETED 1h06m   COMPLETED 1h02m   COMPLETED 1h04m   COMPLETED 1h00m   COMPLETED 58m53s
+gcc_ref32_O5         COMPLETED 1h25m   COMPLETED 1h25m   COMPLETED 1h29m   COMPLETED 1h29m   COMPLETED 1h28m 
+gcc_ref32_O3         COMPLETED 1h32m   COMPLETED 1h31m   COMPLETED 1h35m   COMPLETED 1h30m   COMPLETED 1h32m 
+mcf                  COMPLETED 2h53m   COMPLETED 2h52m   COMPLETED 2h53m   COMPLETED 2h52m   COMPLETED 2h53m 
+perlbench_checkspam  COMPLETED 58m56s  COMPLETED 59m13s  COMPLETED 1h05m   COMPLETED 57m12s  COMPLETED 58m50s
+perlbench_diffmail   COMPLETED 39m31s  COMPLETED 41m27s  COMPLETED 42m19s  COMPLETED 40m26s  COMPLETED 41m41s
+perlbench_splitmail  COMPLETED 29m26s  COMPLETED 30m08s  COMPLETED 32m19s  COMPLETED 28m47s  COMPLETED 28m28s
+bwaves_1             COMPLETED 1h52m   COMPLETED 1h25m   COMPLETED 2h17m   COMPLETED 1h51m   COMPLETED 1h41m 
+bwaves_2             COMPLETED 1h46m   COMPLETED 1h29m   COMPLETED 2h15m   COMPLETED 1h52m   COMPLETED 1h37m 
+bwaves_3             COMPLETED 1h27m   COMPLETED 1h06m   COMPLETED 1h38m   COMPLETED 1h30m   COMPLETED 1h19m 
+bwaves_4             COMPLETED 1h48m   COMPLETED 1h26m   COMPLETED 1h56m   COMPLETED 1h47m   COMPLETED 1h36m 
+exchange2            COMPLETED 1h08m   COMPLETED 1h05m   COMPLETED 1h07m   COMPLETED 1h02m   COMPLETED 1h02m 
+fotonik3d            COMPLETED 2h05m   COMPLETED 1h56m   COMPLETED 2h16m   COMPLETED 1h59m   COMPLETED 1h59m 
+roms                 COMPLETED 2h06m   COMPLETED 1h56m   COMPLETED 2h26m   COMPLETED 2h02m   COMPLETED 2h00m 
+wrf                  COMPLETED 1h47m   COMPLETED 1h39m   COMPLETED 1h55m   COMPLETED 1h40m   COMPLETED 1h38m 
+cam4                 COMPLETED 1h27m   COMPLETED 1h27m   COMPLETED 1h33m   COMPLETED 1h26m   COMPLETED 1h26m 
+
+   wall = time from the configuration's first run start to its last run end (or now)
+   spill_load/load, spill_store/store = share of ROI loads/stores that are spill accesses
+   progress = estimate from the benchmark's earlier run time
+
+Details: cache_scripts/status_cache.sh --2way | --4way | --8way | --fa | --dm  [--test | --train]   cache geometry: --info
