@@ -10,7 +10,8 @@ called from there:
 
 | Script | Purpose |
 | --- | --- |
-| `build_gem5_riscv.sh` | Build `build/RISCV/gem5.opt` through the conda toolchain shim. `--clean` rebuilds from scratch. |
+| `build_gem5_riscv.sh` | Build gem5 through the conda toolchain shim. `BUILD_DIR=build/RISCV_SCHEMA10` builds the metric-schema-10 binary the runner uses (default `build/RISCV`, the schema-9 binary); `--clean` rebuilds from scratch. |
+| `build_stack_pc_map.py` | Write `<binary>.stack_pc_map` next to a SPEC binary: spill/reload PCs from GCC `-dP` dumps of its own build (verified byte-identical), callee-save store PCs from its CFI. Schema 9 only: schema 10 detects spills from addresses alone and takes no map; the maps stay as an offline reference. |
 | `spec_spill_runner.sh` | Run and track individual SPEC workloads. Owns the workload manifest and the per-run state machine. |
 | `launch_spill_batch.sh` | Launch a whole profile through the runner while capping concurrency. **Use this instead of `spec_spill_runner.sh start ... all`.** |
 | `spill_report.sh` | One command: collect every completed run, print the table, write CSV + LaTeX + PDF. |
@@ -24,7 +25,7 @@ per-run directory layout in detail.
 
 ```bash
 # 1. Build (only after changing the detector or the cache model)
-./scripts/build_gem5_riscv.sh
+BUILD_DIR=build/RISCV_SCHEMA10 ./scripts/build_gem5_riscv.sh
 
 # 2. Check that binaries and inputs are in place
 ./scripts/spec_spill_runner.sh check test standard all

@@ -1,0 +1,38 @@
+--- a/benchspec/CPU/548.exchange2_r/src/exchange2.F90
++++ b/benchspec/CPU/548.exchange2_r/src/exchange2.F90
+@@ -1382,6 +1382,17 @@
+   program test_work
+   use brute_force
+      implicit none
++     ! gem5 ROI markers from libm5 (C: void m5_work_*(uint64_t, uint64_t))
++     interface
++        subroutine m5_work_begin(workid, threadid) bind(C, name='m5_work_begin')
++           use, intrinsic :: iso_c_binding, only: c_int64_t
++           integer(c_int64_t), value :: workid, threadid
++        end subroutine m5_work_begin
++        subroutine m5_work_end(workid, threadid) bind(C, name='m5_work_end')
++           use, intrinsic :: iso_c_binding, only: c_int64_t
++           integer(c_int64_t), value :: workid, threadid
++        end subroutine m5_work_end
++     end interface
+       integer :: sudoku1(9,9), i, j, l, m, ss(9,9) , val ,k, knt, original(9, 9), rn(9, 4), &
+                  ii, jj, kk, so(9, 9), sp(9, 9), rv(9, 9, 9), last(4), sfull(9, 9)
+      integer :: i2, ii2, j2, jj2, kk2, val2, stemp, limit = 1, se = 0, mode, nargs
+@@ -1413,6 +1424,8 @@
+ #endif         
+      if(grind) open(3, file='s.txt')
+       
++! === gem5 ROI BEGIN ===
++call m5_work_begin(0_8, 0_8)
+ fine: do k = 1, limit
+      write(*, '(/"Puzzle ",i0)') k
+       call read_raw_data(sudoku1, k)  
+@@ -1577,6 +1590,8 @@
+ write(*, '(a, f10.2)') ' Elapsed time: ', t2-t1
+ #endif
+ end do fine
++call m5_work_end(0_8, 0_8)
++! === gem5 ROI END ===
+ 
+ #ifndef SPEC
+ if(mode == 1) then

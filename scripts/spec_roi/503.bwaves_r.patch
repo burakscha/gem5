@@ -1,0 +1,40 @@
+--- a/benchspec/CPU/503.bwaves_r/src/shell_lam.F
++++ b/benchspec/CPU/503.bwaves_r/src/shell_lam.F
+@@ -2,6 +2,19 @@
+      1                 nuim,nuex2,nuex4,cfl,scheme,conf,ni)
+ 
+       implicit none
++C     gem5 ROI markers from libm5 (C: void m5_work_*(uint64_t, uint64_t))
++      interface
++        subroutine m5_work_begin(workid, threadid)
++     1      bind(C, name='m5_work_begin')
++          use, intrinsic :: iso_c_binding, only: c_int64_t
++          integer(c_int64_t), value :: workid, threadid
++        end subroutine m5_work_begin
++        subroutine m5_work_end(workid, threadid)
++     1      bind(C, name='m5_work_end')
++          use, intrinsic :: iso_c_binding, only: c_int64_t
++          integer(c_int64_t), value :: workid, threadid
++        end subroutine m5_work_end
++      end interface
+ #if defined(SPEC_MPI)
+       include "mpif.h"
+ #endif
+@@ -225,6 +238,8 @@
+       gtm=gtm+tm
+ #endif
+ 
++C === gem5 ROI BEGIN ===
++      call m5_work_begin(0_8, 0_8)
+       do n=1,ni
+ C   Fill overlaped region
+          call fill2(q,nx,ny,nzl)
+@@ -454,6 +469,8 @@
+ 
+       time=time+dt
+       enddo
++      call m5_work_end(0_8, 0_8)
++C === gem5 ROI END ===
+ 
+ #if !defined(SPEC)
+ #if defined(SPEC_MPI)

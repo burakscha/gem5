@@ -1,0 +1,32 @@
+--- a/benchspec/CPU/527.cam4_r/src/ccsm_driver.F90
++++ b/benchspec/CPU/527.cam4_r/src/ccsm_driver.F90
+@@ -29,6 +29,17 @@
+ 
+ 
+    implicit none
++   ! gem5 ROI markers from libm5 (C: void m5_work_*(uint64_t, uint64_t))
++   interface
++      subroutine m5_work_begin(workid, threadid) bind(C, name='m5_work_begin')
++         use, intrinsic :: iso_c_binding, only: c_int64_t
++         integer(c_int64_t), value :: workid, threadid
++      end subroutine m5_work_begin
++      subroutine m5_work_end(workid, threadid) bind(C, name='m5_work_end')
++         use, intrinsic :: iso_c_binding, only: c_int64_t
++         integer(c_int64_t), value :: workid, threadid
++      end subroutine m5_work_end
++   end interface
+ 
+ 
+    !--------------------------------------------------------------------------
+@@ -88,7 +99,11 @@
+    ! routines directly.
+    !--------------------------------------------------------------------------
+    call ccsm_init()
++   ! === gem5 ROI BEGIN ===
++   call m5_work_begin(0_8, 0_8)
+    call ccsm_run()
++   call m5_work_end(0_8, 0_8)
++   ! === gem5 ROI END ===
+    call ccsm_final()
+ 
+ #endif

@@ -1,0 +1,32 @@
+--- a/benchspec/CPU/521.wrf_r/src/wrf.F90
++++ b/benchspec/CPU/521.wrf_r/src/wrf.F90
+@@ -16,6 +16,17 @@
+ !</DESCRIPTION>
+ 
+    IMPLICIT NONE
++   ! gem5 ROI markers from libm5 (C: void m5_work_*(uint64_t, uint64_t))
++   interface
++      subroutine m5_work_begin(workid, threadid) bind(C, name='m5_work_begin')
++         use, intrinsic :: iso_c_binding, only: c_int64_t
++         integer(c_int64_t), value :: workid, threadid
++      end subroutine m5_work_begin
++      subroutine m5_work_end(workid, threadid) bind(C, name='m5_work_end')
++         use, intrinsic :: iso_c_binding, only: c_int64_t
++         integer(c_int64_t), value :: workid, threadid
++      end subroutine m5_work_end
++   end interface
+ 
+ #if (defined(_OPENMP) || defined(SPEC_OPENMP)) && !defined(SPEC_SUPPRESS_OPENMP) && !defined(SPEC_AUTO_SUPPRESS_OPENMP)
+   CALL setfeenv()
+@@ -28,7 +39,11 @@
+   CALL wrf_dfi
+ 
+   ! WRF model time-stepping.  Calls integrate().  
++  ! === gem5 ROI BEGIN ===
++  call m5_work_begin(0_8, 0_8)
+   CALL wrf_run
++  call m5_work_end(0_8, 0_8)
++  ! === gem5 ROI END ===
+ 
+   ! WRF model clean-up.  This calls MPI_FINALIZE() for DM parallel runs.  
+   CALL wrf_finalize

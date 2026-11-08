@@ -31,6 +31,26 @@ benchmarks/xz/*.xz
 benchmarks/xz/*.tar.*
 benchmarks/xalancbmk/*.xml
 benchmarks/xalancbmk/*.xsl
+# Fortran benchmarks: SPEC inputs copied from cpu2017/data (the binary and
+# its stack PC map stay visible).
+benchmarks/bwaves/*
+!benchmarks/bwaves/*.riscv
+!benchmarks/bwaves/*.stack_pc_map
+benchmarks/exchange2/*
+!benchmarks/exchange2/*.riscv
+!benchmarks/exchange2/*.stack_pc_map
+benchmarks/fotonik3d/*
+!benchmarks/fotonik3d/*.riscv
+!benchmarks/fotonik3d/*.stack_pc_map
+benchmarks/roms/*
+!benchmarks/roms/*.riscv
+!benchmarks/roms/*.stack_pc_map
+benchmarks/wrf/*
+!benchmarks/wrf/*.riscv
+!benchmarks/wrf/*.stack_pc_map
+benchmarks/cam4/*
+!benchmarks/cam4/*.riscv
+!benchmarks/cam4/*.stack_pc_map
 benchmarks/xalancbmk/*.xsd
 benchmarks/lbm/*.of
 benchmarks/lbm/*.in
@@ -87,6 +107,7 @@ spec_test.par
 statistics
 test_python_link.c
 *.vtk
+frame_*.yuv
 benchmarks/blender/blendcache_*/
 benchmarks/lbm/report/
 get-pip.py
@@ -130,3 +151,11 @@ general_reports/**/*.synctex.gz
 
 # Scratch directories blender creates in the working directory at run time.
 blender_*/
+
+# Per-input trees (2026-10-15): SPEC input copies and run outputs stay out of
+# git; benchmarks/<bench>/<input>/report/ is meant to be tracked.
+!benchmarks/*/test/
+!benchmarks/*/train/
+!benchmarks/*/ref/
+benchmarks/*/*/inputs/
+benchmarks/*/*/m5out/

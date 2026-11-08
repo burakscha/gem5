@@ -4,7 +4,11 @@
 #
 # Kullanım:
 #   bash build_gem5_riscv.sh           # artımlı build (değişen dosyalar)
-#   bash build_gem5_riscv.sh --clean   # build/RISCV silinir, sıfırdan build
+#   bash build_gem5_riscv.sh --clean   # build dizini silinir, sıfırdan build
+#   BUILD_DIR=build/RISCV_SCHEMA10 bash build_gem5_riscv.sh
+#                                      # başka bir build dizini (varsayılan
+#                                      # build/RISCV); yoksa Kconfig ayarı
+#                                      # build/RISCV'den kopyalanır
 #
 # Bu makinede sistem gcc'si YOK (/usr/bin/gcc kaldırılmış); derleyici olarak
 # gem5_env conda ortamındaki x86_64-conda-linux-gnu-gcc/g++ kullanılır.
@@ -19,6 +23,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 GEM5ENV=/cta/users/bkaya/miniconda3/envs/gem5_env
+BUILD_DIR="${BUILD_DIR:-build/RISCV}"
 SHIM="$(pwd)/toolchain-shim"
 
 # ── 1. Wrapper'ları (yeniden) oluştur ────────────────────────────────────
@@ -54,20 +59,24 @@ echo "✅ Derleyici: $("$SHIM/gcc" --version | head -1)"
 
 # ── 2. Temiz build istendiyse build dizinini sil ─────────────────────────
 if [[ "${1:-}" == "--clean" ]]; then
-    echo "🧹 build/RISCV siliniyor (temiz build)..."
-    rm -rf build/RISCV
+    echo "🧹 $BUILD_DIR siliniyor (temiz build)..."
+    rm -rf "$BUILD_DIR"
+fi
+if [[ ! -f "$BUILD_DIR/gem5.build/config" && -f build/RISCV/gem5.build/config ]]; then
+    mkdir -p "$BUILD_DIR/gem5.build"
+    cp build/RISCV/gem5.build/config "$BUILD_DIR/gem5.build/config"
 fi
 
 # ── 3. Build ─────────────────────────────────────────────────────────────
 echo "🔨 gem5 derleniyor..."
-PATH="$SHIM:$GEM5ENV/bin:$PATH" scons build/RISCV/gem5.opt -j12 \
+PATH="$SHIM:$GEM5ENV/bin:$PATH" scons "$BUILD_DIR/gem5.opt" -j"${JOBS:-12}" \
     CC="$SHIM/gcc" \
     CXX="$SHIM/g++" \
     PYTHON_CONFIG="$GEM5ENV/bin/python3-config"
 
-if [[ ! -s build/RISCV/gem5.opt || ! -x build/RISCV/gem5.opt ]]; then
+if [[ ! -s "$BUILD_DIR/gem5.opt" || ! -x "$BUILD_DIR/gem5.opt" ]]; then
     echo "❌ Build hedefi eksik, boş veya çalıştırılabilir değil" >&2
     exit 1
 fi
 
-echo "✅ Build tamam: build/RISCV/gem5.opt"
+echo "✅ Build tamam: $BUILD_DIR/gem5.opt"

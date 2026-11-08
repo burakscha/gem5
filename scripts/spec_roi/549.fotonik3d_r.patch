@@ -1,0 +1,38 @@
+--- a/benchspec/CPU/549.fotonik3d_r/src/yeemain.F90
++++ b/benchspec/CPU/549.fotonik3d_r/src/yeemain.F90
+@@ -49,6 +49,17 @@
+ #if !defined(SPEC) || defined(SPEC_MPI)
+ include 'mpif.h'
+ #endif
++! gem5 ROI markers from libm5 (C: void m5_work_*(uint64_t, uint64_t))
++interface
++   subroutine m5_work_begin(workid, threadid) bind(C, name='m5_work_begin')
++      use, intrinsic :: iso_c_binding, only: c_int64_t
++      integer(c_int64_t), value :: workid, threadid
++   end subroutine m5_work_begin
++   subroutine m5_work_end(workid, threadid) bind(C, name='m5_work_end')
++      use, intrinsic :: iso_c_binding, only: c_int64_t
++      integer(c_int64_t), value :: workid, threadid
++   end subroutine m5_work_end
++end interface
+ 
+ !------------------------------------------------------------------------------
+ !                     P a r a m e t e r s
+@@ -199,6 +210,8 @@
+   write(*,*) 'Electromagnetic fields allocated, Mbytes = ', bytes
+ 
+   perf = 1000.0_rfp
++  ! === gem5 ROI BEGIN ===
++  call m5_work_begin(0_8, 0_8)
+   do iii=1,number_of_runs
+   
+     !! Inform the user
+@@ -234,6 +247,8 @@
+     end if
+ 
+   end do
++  call m5_work_end(0_8, 0_8)
++  ! === gem5 ROI END ===
+ 
+   if ((my_id==master_id).and.(number_of_runs>1)) then
+     write(*,*) 'number_of_runs = ', number_of_runs

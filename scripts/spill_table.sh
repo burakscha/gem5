@@ -9,7 +9,14 @@
 #   ./scripts/spill_table.sh --wide                # add the cache count columns
 #
 # Reads two files per completed run:
-#   riscv_spill_stats.txt  ROI SUMMARY blocks + GLOBAL SUMMARY (metric schema 7)
+#   riscv_spill_stats.txt  ROI SUMMARY blocks + GLOBAL SUMMARY (metric schema 10,
+#                          canonical names: SP_STORE = roi_spill_store, the
+#                          stores to the stack (read back or not), SP_EVENT =
+#                          roi_spill_event, those read back, SP_LOAD =
+#                          roi_spill_load; found
+#                          from addresses alone. Older summaries are read
+#                          under their own names; for schema 9, SP_STORE are
+#                          its compiler-labelled spill stores.)
 #   stats.txt              gem5 statistics; workbegin/workend dump and reset
 #                          them, so the ROI occupies its own block(s)
 
@@ -56,8 +63,24 @@ spill_field() {
                 }
             }
         }
-        END { printf "%d", total + 0 }
+        # %.0f, not %d: mawk prints %d through a 32-bit int, so any count
+        # above 2147483647 came out as 2147483647.
+        END { printf "%.0f", total + 0 }
     ' "$file"
+}
+
+# A ROI counter under its canonical name, or under the first of the names
+# older summaries (schema 10 of 2026-11-05..07, schema 9) used for it.
+spill_count() {   # FILE NAME OLDER_NAME...
+    local file="$1" name
+    shift
+    for name in "$@"; do
+        if grep -Eq "^#[[:space:]]+$name[[:space:]]*:" "$file"; then
+            spill_field "$file" "$name"
+            return
+        fi
+    done
+    printf '0'
 }
 
 # Sum a gem5 statistic over the ROI blocks of stats.txt. workbegin and workend
@@ -76,7 +99,7 @@ stats_field() {
             } else {
                 for (i in value) total += value[i]
             }
-            printf "%d", total + 0
+            printf "%.0f", total + 0
         }
     ' "$file"
 }
@@ -121,9 +144,16 @@ for bench_dir in "$ROOT_DIR"/benchmarks/*/; do
         roi_load="$(spill_field "$log" roi_load)"
         roi_store="$(spill_field "$log" roi_store)"
 
-        spill_event="$(spill_field "$log" spill_event)"
-        spill_load="$(spill_field "$log" spill_load)"
-        spill_store="$(spill_field "$log" spill_store)"
+        spill_load="$(spill_count "$log" roi_spill_load spill_load)"
+        if grep -Eq '^#[[:space:]]+roi_stack_store[[:space:]]*:' "$log"; then
+            # Schema 10 of 2026-11-05..08: the spill stores were roi_stack_store.
+            spill_store="$(spill_field "$log" roi_stack_store)"
+            spill_event="$(spill_count "$log" roi_spill_event roi_spill_store)"
+        else
+            # Schema 9: spill_store are the compiler-labelled spill stores.
+            spill_store="$(spill_count "$log" roi_spill_store spill_store)"
+            spill_event="$(spill_count "$log" roi_spill_event spill_event)"
+        fi
         spill_total=$(( spill_load + spill_store ))
 
         l1d_hit="$(stats_field "$stats" system.cpu.dcache.demandHits::total "$roi_count")"
@@ -136,15 +166,16 @@ for bench_dir in "$ROOT_DIR"/benchmarks/*/; do
         dram=$l2_miss
         l1_acc=$(( l1d_hit + l1d_miss + l1i_hit + l1i_miss ))
 
-        rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
-            "$run_id" "$total_insts" "$roi_insts" "$spill_event" "$spill_load" "$spill_store" "$spill_total" \
-            "$(pct "$spill_event" "$roi_insts")" "$(pct "$spill_event" "$total_insts")" \
+        rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+            "$run_id" "$total_insts" "$roi_insts" "$spill_load" "$spill_store" "$spill_total" \
+            "$(pct "$spill_store" "$roi_insts")" "$(pct "$spill_store" "$total_insts")" \
             "$(pct "$spill_total" "$roi_insts")" "$(pct "$spill_total" "$total_insts")" \
             "$total_load" "$roi_load" "$(pct "$roi_load" "$total_load")" "$(pct "$spill_load" "$roi_load")" \
             "$total_store" "$roi_store" "$(pct "$roi_store" "$total_store")" "$(pct "$spill_store" "$roi_store")" \
             "$l1d_hit" "$l1d_miss" "$(pct "$l1d_miss" $((l1d_hit + l1d_miss)))" \
             "$l1i_miss" "$(pct "$l1i_miss" $((l1i_hit + l1i_miss)))" \
-            "$l2_hit" "$l2_miss" "$(pct "$dram" "$l1_acc")")")
+            "$l2_hit" "$l2_miss" "$(pct "$dram" "$l1_acc")" \
+            "$spill_event" "$(pct "$spill_event" "$spill_store")")")
     done
 done
 
@@ -167,25 +198,25 @@ printf 'Profile=%s  cache=%s  benchmarks=%d\n\n' "$PROFILE" "$CACHE" "${#rows[@]
 
 {
     if (( WIDE )); then
-        printf 'ID\tBENCHMARK\tTOTAL_INSTS\tROI_INSTS\tSPILL\tSP_LOAD\tSP_STORE\tSP_TOTAL\tSPILL%%ROI\tSPILL%%ALL\tSPMEM%%ROI\tSPMEM%%ALL\tTOTAL_LD\tROI_LD\tROI_LD%%\tSPLD%%ROI_LD\tTOTAL_ST\tROI_ST\tROI_ST%%\tSPST%%ROI_ST\tL1D_HIT\tL1D_MISS\tL1D_MISS%%\tL1I_MISS\tL1I_MISS%%\tL2_HIT\tL2_MISS\tDRAM%%\n'
+        printf 'ID\tBENCHMARK\tTOTAL_INSTS\tROI_INSTS\tSP_LOAD\tSP_STORE\tSP_TOTAL\tSPST%%ROI\tSPST%%ALL\tSPMEM%%ROI\tSPMEM%%ALL\tTOTAL_LD\tROI_LD\tROI_LD%%\tSPLD%%ROI_LD\tTOTAL_ST\tROI_ST\tROI_ST%%\tSPST%%ROI_ST\tL1D_HIT\tL1D_MISS\tL1D_MISS%%\tL1I_MISS\tL1I_MISS%%\tL2_HIT\tL2_MISS\tDRAM%%\tSP_EVENT\tSPEV%%SP_ST\n'
         printf '%s\n' "${rows[@]}" | nl -v0 -w1 -s$'\t'
     else
-        printf 'ID\tBENCHMARK\tTOTAL_INSTS\tROI_INSTS\tSPILL\tSP_LOAD\tSP_STORE\tSPILL%%ROI\tSPILL%%ALL\tSPMEM%%ROI\tROI_LD%%\tSPLD%%ROI_LD\tROI_ST%%\tSPST%%ROI_ST\tL1D_MISS%%\tL1I_MISS%%\tL2_MISS%%\tDRAM%%\n'
+        printf 'ID\tBENCHMARK\tTOTAL_INSTS\tROI_INSTS\tSP_LOAD\tSP_STORE\tSPST%%ROI\tSPST%%ALL\tSPMEM%%ROI\tROI_LD%%\tSPLD%%ROI_LD\tROI_ST%%\tSPST%%ROI_ST\tL1D_MISS%%\tL1I_MISS%%\tL2_MISS%%\tDRAM%%\tSP_EVENT\tSPEV%%SP_ST\n'
         printf '%s\n' "${rows[@]}" | nl -v0 -w1 -s$'\t' | \
             awk -F'\t' 'BEGIN{OFS="\t"} {
-                l2m = ($26 + $27 > 0) ? sprintf("%.3f", 100*$27/($26+$27)) : "n/a"
-                print $1,$2,$3,$4,$5,$6,$7,$9,$10,$11,$15,$16,$19,$20,$23,$25,l2m,$28
+                l2m = ($25 + $26 > 0) ? sprintf("%.3f", 100*$26/($25+$26)) : "n/a"
+                print $1,$2,$3,$4,$5,$6,$8,$9,$10,$14,$15,$18,$19,$22,$24,l2m,$27,$28,$29
             }'
     fi
 } | column -t -s$'\t'
 
 if [[ -n "$CSV" ]]; then
     {
-        printf 'id,benchmark,total_insts,roi_insts,spill_event,spill_load,spill_store,total_spill_insts,'
-        printf 'spill_pct_roi,spill_pct_all,spillmem_pct_roi,spillmem_pct_all,'
+        printf 'id,benchmark,total_insts,roi_total_insts,roi_spill_load,roi_spill_store,roi_spill_insts,'
+        printf 'spill_store_pct_roi,spill_store_pct_all,spillmem_pct_roi,spillmem_pct_all,'
         printf 'total_load,roi_load,roi_load_pct_of_total,spill_load_pct_of_roi_load,'
         printf 'total_store,roi_store,roi_store_pct_of_total,spill_store_pct_of_roi_store,'
-        printf 'l1d_hits,l1d_misses,l1d_miss_pct,l1i_misses,l1i_miss_pct,l2_hits,l2_misses,dram_pct_of_l1_accesses\n'
+        printf 'l1d_hits,l1d_misses,l1d_miss_pct,l1i_misses,l1i_miss_pct,l2_hits,l2_misses,dram_pct_of_l1_accesses,roi_spill_event,spill_event_pct_of_spill_store\n'
         printf '%s\n' "${rows[@]}" | nl -v0 -w1 -s$'\t' | tr '\t' ','
     } > "$CSV"
     printf '\nCSV: %s\n' "$CSV"
