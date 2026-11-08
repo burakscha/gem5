@@ -340,6 +340,17 @@ class TimingSimpleCPU : public BaseSimpleCPU
     // Override base class virtual method
     SpillDetector* getSpillDetectorPtr() override { return &spillDetector; }
 
+    // Open/close a detector ROI without an m5op, for a run restored from a
+    // SimPoint checkpoint (the program's own m5_work_begin lies before the
+    // checkpoint). configs/common/Simulation.py calls these from Python
+    // around the simulated interval and dumps/resets the statistics itself.
+    // Python opens and closes a SimPoint interval between two instructions.
+    void spillRoiBegin(uint64_t workid)
+    {
+        spillDetector.enterROI(workid, false);
+    }
+    void spillRoiEnd(uint64_t workid) { spillDetector.exitROI(workid); }
+
   private:
 
     EventFunctionWrapper fetchEvent;

@@ -49,7 +49,7 @@ from gem5.isas import ISA
 # specific instantiations.
 
 
-class L1Cache(Cache):
+class L1Cache(Cache): #örn
     assoc = 2
     tag_latency = 2
     data_latency = 2

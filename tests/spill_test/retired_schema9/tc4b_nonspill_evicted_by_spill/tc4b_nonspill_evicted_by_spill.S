@@ -75,6 +75,7 @@ _start:
 
     # 2. SPILL STORE @sp+0 -- sp-relative -> evicts sp+64's line
     li      t1, 222
+spill_store_1:
     sd      t1, 0(sp)           # STORE #2 (spill-store candidate)
 
     # 3. NON-SPILL LOAD @sp+64 via a3 -- store_map has an entry for sp+64

@@ -69,6 +69,7 @@ _start:
 
     # 1. SPILL STORE @sp+0 -- sp-relative, installs the (only) cache line
     li      t0, 111
+spill_store_1:
     sd      t0, 0(sp)           # STORE #1 (spill-store candidate)
 
     # 2. NON-SPILL STORE @sp+64 via a computed pointer (a3), NOT sp/s0
@@ -79,6 +80,7 @@ _start:
 
     # 3. SPILL LOAD @sp+0 -- matches STORE #1 in store_map -> genuine spill.
     #    But the cache line now holds sp+64's data -> MISS.
+spill_load_1:
     ld      t2, 0(sp)           # LOAD #1 -> SPILL, and a cache MISS
 
     # ----------------------------------------------------------

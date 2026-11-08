@@ -91,7 +91,6 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
       partitionManager(p.partitioning_manager),
       prefetcher(p.prefetcher),
       writeAllocator(p.write_allocator),
-      spillBypassAlloc(p.spill_bypass_alloc),
       writebackClean(p.writeback_clean),
       tempBlockWriteback(nullptr),
       writebackTempBlockAtomicEvent([this]{ writebackTempBlockAtomic(); },
@@ -127,8 +126,11 @@ BaseCache::BaseCache(const BaseCacheParams &p, unsigned blk_size)
     // forward snoops is overridden in init() once we can query
     // whether the connected requestor is actually snooping or not
 
+    // Ask the tag store, not its indexing policy, how to build a tag: FALRU
+    // has no indexing policy (it is NULL) and overrides extractTag() itself,
+    // while BaseTags::extractTag() forwards to the indexing policy.
     tempBlock = new TempCacheBlk(blkSize,
-        genTagExtractor(tags->params().indexing_policy));
+        [t = tags](Addr addr) { return t->extractTag(addr); });
 
     tags->tagsInit();
     if (prefetcher) {
@@ -399,7 +401,7 @@ BaseCache::handleTimingReqMiss(PacketPtr pkt, MSHR *mshr, CacheBlk *blk,
                 // port and also takes into account the additional
                 // delay of the xbar.
                 mshr->allocateTarget(pkt, forward_time, order++,
-                                     allocOnFill(pkt));
+                                     allocOnFill(pkt->cmd));
                 if (mshr->getNumTargets() >= numTarget) {
                     noTargetMSHR = mshr;
                     setBlocked(Blocked_NoTargets);
@@ -1706,29 +1708,9 @@ BaseCache::allocateBlock(const PacketPtr pkt, PacketList &writebacks)
     // Print victim block's information
     DPRINTF(CacheRepl, "Replacement victim: %s\n", victim->print());
 
-    // Research experiment (eviction attribution): capture the addresses of
-    // any valid blocks about to be evicted, and who is evicting them (this
-    // fill's request), WHILE their tags are still intact. handleEvictions()
-    // below may invalidate them (clearing tag info), and may also abort the
-    // whole allocation (outstanding MSHR match) -- in that case no eviction
-    // actually happens, so we only commit these to the ledger after
-    // handleEvictions() confirms success.
-    const bool evictor_is_spill =
-        pkt->req && (pkt->req->isSpillLoad() || pkt->req->isSpillStore());
-    std::vector<Addr> pending_evictions;
-    for (CacheBlk *evicted : evict_blks) {
-        if (evicted->isValid()) {
-            pending_evictions.push_back(regenerateBlkAddr(evicted));
-        }
-    }
-
     // Try to evict blocks; if it fails, give up on allocation
     if (!handleEvictions(evict_blks, writebacks)) {
         return nullptr;
-    }
-
-    for (Addr evicted_addr : pending_evictions) {
-        recordEviction(evicted_addr, evictor_is_spill);
     }
 
     // Insert new block at victimized entry
@@ -1742,70 +1724,6 @@ BaseCache::allocateBlock(const PacketPtr pkt, PacketList &writebacks)
     }
 
     return victim;
-}
-
-void
-BaseCache::recordEviction(Addr victimAddr, bool evictorIsSpill)
-{
-    // Bound the ledger the same way SpillDetector::store_map is bounded:
-    // if we're full, drop the oldest half so any censoring is visible in
-    // evictionLedgerDropped instead of silently growing forever.
-    if (evictionLedger.size() >= MAX_EVICTION_LEDGER_ENTRIES) {
-        size_t to_drop = evictionLedger.size() / 2;
-        while (to_drop-- > 0 && !evictionLedgerInsertOrder.empty()) {
-            evictionLedger.erase(evictionLedgerInsertOrder.front());
-            evictionLedgerInsertOrder.pop_front();
-            evictionLedgerDropped++;
-        }
-    }
-
-    // A later eviction of the same (still-unresolved) address simply
-    // overwrites the entry -- only the most recent evictor matters for
-    // explaining the next miss on that address. The insertion-order position
-    // is kept as-is so the address still ages out at its original place.
-    auto existing = evictionLedger.find(victimAddr);
-    if (existing != evictionLedger.end()) {
-        existing->second.evictorIsSpill = evictorIsSpill;
-        return;
-    }
-
-    evictionLedgerInsertOrder.push_back(victimAddr);
-    auto order = std::prev(evictionLedgerInsertOrder.end());
-    evictionLedger.emplace(victimAddr, EvictionRecord{evictorIsSpill, order});
-}
-
-void
-BaseCache::attributeMiss(Addr addr, bool accessIsSpill, bool accessIsLoad)
-{
-    auto it = evictionLedger.find(addr);
-    if (it == evictionLedger.end()) {
-        // Not attributable: either a genuine compulsory/cold miss, or the
-        // evicting event aged out of the bounded ledger.
-        return;
-    }
-    const bool evictorIsSpill = it->second.evictorIsSpill;
-    // Erase from both structures so the insertion-order list stays exactly as
-    // long as the map. See the EvictionRecord comment in base.hh.
-    evictionLedgerInsertOrder.erase(it->second.order);
-    evictionLedger.erase(it);
-
-    if (accessIsSpill && accessIsLoad && evictorIsSpill) {
-        stats.spillLoadEvictedBySpill++;
-    } else if (accessIsSpill && accessIsLoad && !evictorIsSpill) {
-        stats.spillLoadEvictedByNonSpill++;
-    } else if (accessIsSpill && !accessIsLoad && evictorIsSpill) {
-        stats.spillStoreEvictedBySpill++;
-    } else if (accessIsSpill && !accessIsLoad && !evictorIsSpill) {
-        stats.spillStoreEvictedByNonSpill++;
-    } else if (!accessIsSpill && accessIsLoad && evictorIsSpill) {
-        stats.nonSpillLoadEvictedBySpill++;
-    } else if (!accessIsSpill && accessIsLoad && !evictorIsSpill) {
-        stats.nonSpillLoadEvictedByNonSpill++;
-    } else if (!accessIsSpill && !accessIsLoad && evictorIsSpill) {
-        stats.nonSpillStoreEvictedBySpill++;
-    } else {
-        stats.nonSpillStoreEvictedByNonSpill++;
-    }
 }
 
 void
@@ -2422,37 +2340,15 @@ BaseCache::CacheStats::CacheStats(BaseCache &c)
     ADD_STAT(dataContractions, statistics::units::Count::get(),
              "number of data contractions"),
     ADD_STAT(spillLoadHits, statistics::units::Count::get(),
-             "number of demand hits for register-spill reload requests"),
+             "demand hits of spill loads (loads that read back a stack "
+             "store)"),
     ADD_STAT(spillLoadMisses, statistics::units::Count::get(),
-             "number of demand misses for register-spill reload requests"),
-    ADD_STAT(spillStoreHits, statistics::units::Count::get(),
-             "number of demand hits for candidate spill-store requests"),
-    ADD_STAT(spillStoreMisses, statistics::units::Count::get(),
-             "number of demand misses for candidate spill-store requests"),
-    ADD_STAT(spillLoadEvictedBySpill, statistics::units::Count::get(),
-             "demand misses on a spill reload whose address was evicted "
-             "by another spill access"),
-    ADD_STAT(spillLoadEvictedByNonSpill, statistics::units::Count::get(),
-             "demand misses on a spill reload whose address was evicted "
-             "by a non-spill access"),
-    ADD_STAT(spillStoreEvictedBySpill, statistics::units::Count::get(),
-             "demand misses on a spill write whose (reused) slot was "
-             "evicted by another spill access"),
-    ADD_STAT(spillStoreEvictedByNonSpill, statistics::units::Count::get(),
-             "demand misses on a spill write whose (reused) slot was "
-             "evicted by a non-spill access"),
-    ADD_STAT(nonSpillLoadEvictedBySpill, statistics::units::Count::get(),
-             "demand misses on an ordinary read whose address was "
-             "evicted by a spill access"),
-    ADD_STAT(nonSpillLoadEvictedByNonSpill, statistics::units::Count::get(),
-             "demand misses on an ordinary read whose address was "
-             "evicted by another ordinary access (control group)"),
-    ADD_STAT(nonSpillStoreEvictedBySpill, statistics::units::Count::get(),
-             "demand misses on an ordinary write whose address was "
-             "evicted by a spill access"),
-    ADD_STAT(nonSpillStoreEvictedByNonSpill, statistics::units::Count::get(),
-             "demand misses on an ordinary write whose address was "
-             "evicted by another ordinary access (control group)"),
+             "demand misses of spill loads (loads that read back a stack "
+             "store)"),
+    ADD_STAT(stackStoreHits, statistics::units::Count::get(),
+             "demand hits of stores to the stack"),
+    ADD_STAT(stackStoreMisses, statistics::units::Count::get(),
+             "demand misses of stores to the stack"),
     cmd(MemCmd::NUM_MEM_CMDS)
 {
     for (int idx = 0; idx < MemCmd::NUM_MEM_CMDS; ++idx)

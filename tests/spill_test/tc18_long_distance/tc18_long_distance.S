@@ -2,7 +2,7 @@
     # (about 120 us of simulated time at the default 2 GHz clock).
     # The retired 50 us tick window would have dropped this pair; the detector
     # must still pair it. Store-to-reload distance is 120,003 committed
-    # instructions (`li t2, 60000` is two), reuse histogram bucket 16.
+    # instructions (`li t2, 60000` is two).
     .text
     .globl _start
     .type _start, @function

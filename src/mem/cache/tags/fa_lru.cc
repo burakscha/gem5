@@ -88,6 +88,15 @@ FALRU::~FALRU()
 void
 FALRU::tagsInit()
 {
+    // Every block needs a tag extractor since the TaggedEntry rewrite
+    // (insert() and match() assert on it). FALRU has no indexing policy;
+    // its tag is the block-aligned address, see FALRU::extractTag().
+    const TaggedEntry::TagExtractor extractor =
+        [this](Addr addr) { return extractTag(addr); };
+    for (unsigned i = 0; i < numBlocks; i++) {
+        blks[i].registerTagExtractor(extractor);
+    }
+
     head = &(blks[0]);
     head->prev = nullptr;
     head->next = &(blks[1]);

@@ -44,6 +44,9 @@
 #include <unistd.h>
 #include <zlib.h>
 
+#include <cstring>
+#include <vector>
+
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -462,12 +465,34 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
         fatal("Memory range size has changed! Saw %lld, expected %lld\n",
               range_size, range.size());
 
+    // Read through a buffer and leave all-zero chunks out: the backing store
+    // is a fresh anonymous mapping that already reads as zero, so writing
+    // the zeros would only make every page of the (mostly unused) simulated
+    // memory resident. A restore then costs the memory the program actually
+    // touched instead of its whole range (4 GiB for --mem-size=4GB), which
+    // is what lets many SimPoint restores run side by side.
+    std::vector<uint8_t> buf(chunk_size);
     uint64_t curr_size = 0;
     uint32_t bytes_read;
     while (curr_size < range.size()) {
-        bytes_read = gzread(compressed_mem, pmem, chunk_size);
+        bytes_read = gzread(compressed_mem, buf.data(), chunk_size);
         if (bytes_read == 0)
             break;
+        bool zero = true;
+        for (uint32_t i = 0; i < bytes_read && zero; i++)
+            zero = buf[i] == 0;
+        if (!zero) {
+            std::memcpy(pmem, buf.data(), bytes_read);
+        } else {
+            // Untouched pages read as zero without being allocated; clear
+            // anything a restore may have written here before.
+            for (uint32_t i = 0; i < bytes_read; i++) {
+                if (pmem[i]) {
+                    std::memset(pmem, 0, bytes_read);
+                    break;
+                }
+            }
+        }
         curr_size += bytes_read;
         pmem += bytes_read;
     }

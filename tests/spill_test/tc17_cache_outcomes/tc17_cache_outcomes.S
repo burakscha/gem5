@@ -1,4 +1,6 @@
-    # Pins the absolute cache outcome of three spill pairs.
+    # Pins the absolute cache outcome of three spill pairs. Their stores
+    # and reloads carry spill_* labels, so they are classified spill
+    # through the stack PC map the test runner builds.
     # Run with a 1-line L1D (64B, direct mapped) and a 1KiB direct-mapped L2,
     # so the L2 has 16 sets and set = (addr >> 6) & 15.
     #
@@ -23,20 +25,25 @@ _start:
 
     # Pair A: A is still the only line in L1D -> hit on both sides.
     li      t0, 1
+spill_store_a:
     sd      t0, 768(sp)
+spill_load_a:
     ld      t1, 768(sp)
 
     # Pair B: B was never touched -> store misses L1 and L2. A non-stack
     # load to L2 set 0 then pushes B out of L1 only, so the reload hits L2.
     li      t0, 2
+spill_store_b:
     sd      t0, 832(sp)
     lla     a3, flush_buf
     ld      t3, 0(a3)
+spill_load_b:
     ld      t1, 832(sp)
 
     # Pair C: store misses L1 and L2. Walking 2 KiB of .bss sweeps every set
     # of the 1 KiB L2 twice, so C is gone from both levels at reload time.
     li      t0, 3
+spill_store_c:
     sd      t0, 896(sp)
     lla     a3, flush_buf
     li      t4, 32
@@ -44,6 +51,7 @@ _start:
     addi    a3, a3, 64
     addi    t4, t4, -1
     bnez    t4, 1b
+spill_load_c:
     ld      t1, 896(sp)
 
     li      a0, 0

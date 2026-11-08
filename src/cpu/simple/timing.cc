@@ -69,102 +69,27 @@
 #include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
-// Architecture-specific register headers
-// gem5 compiles this file separately for each ISA (X86, RISCV, ARM, etc.)
-// Note: gem5 now uses USE_*_ISA macros instead of TARGET_ISA_* (see
-// RELEASE-NOTES.md)
-/*
- * This section includes architecture-specific headers and defines the stack
- * pointer register ID This is compiled separately for each ISA build In
- * SConscript, corresponding USE_*_ISA macros are defined for each ISA build
- * Refer to src/cpu/simple/SConscript for details
- */
-#if defined(USE_X86_ISA)
-#include "arch/x86/regs/int.hh"
-using namespace gem5::X86ISA;
-#define ARCH_STACK_PTR_REG gem5::X86ISA::int_reg::Rsp
-#elif defined(USE_RISCV_ISA)
-#include "arch/riscv/regs/int.hh"
-using namespace gem5::RiscvISA;
-#define ARCH_STACK_PTR_REG gem5::RiscvISA::StackPointerReg
-#elif defined(USE_ARM_ISA)
-#include "arch/arm/regs/int.hh"
-using namespace gem5::ArmISA;
-#define ARCH_STACK_PTR_REG gem5::ArmISA::StackPointerReg
-#elif defined(USE_SPARC_ISA)
-#include "arch/sparc/regs/int.hh"
-using namespace gem5::SparcISA;
-#define ARCH_STACK_PTR_REG gem5::SparcISA::StackPointerReg
-#elif defined(USE_POWER_ISA)
-#include "arch/power/regs/int.hh"
-using namespace gem5::PowerISA;
-#define ARCH_STACK_PTR_REG gem5::PowerISA::StackPointerReg
-#elif defined(USE_MIPS_ISA)
-#include "arch/mips/regs/int.hh"
-using namespace gem5::MipsISA;
-#define ARCH_STACK_PTR_REG gem5::MipsISA::StackPointerReg
-#else
-// Fallback for other architectures - stack pointer tracking will be disabled
-#define ARCH_STACK_PTR_REG RegId()
-#warning "Stack pointer register not defined for this architecture"
-#endif
-
-// Frame pointer register per ISA. Spill/reload code emitted by compilers
-// addresses the stack either SP-relative or FP-relative, so both must be
-// recognized. ISAs without a well-known FP alias fall back to SP (the
-// filter then only matches SP-relative accesses).
 #if defined(USE_RISCV_ISA)
-#define ARCH_FRAME_PTR_REG gem5::RiscvISA::int_reg::S0
-#elif defined(USE_X86_ISA)
-#define ARCH_FRAME_PTR_REG gem5::X86ISA::int_reg::Rbp
-#else
-#define ARCH_FRAME_PTR_REG ARCH_STACK_PTR_REG
+#include "arch/riscv/regs/int.hh"
 #endif
 
 namespace gem5 {
 
-// Returns true when the memory instruction's effective-address BASE register
-// is the stack or frame pointer.
-// This is how compiler-generated spill/reload code addresses spill slots.
-// Note: a scalar local variable accessed via sp-offset looks identical to
-// a register spill at this level — that ambiguity is inherent without
-// compiler metadata. What this filter removes are stack accesses through
-// computed pointers (arrays/structs/buffers on the stack).
-static inline bool isSpFpRelativeMemInst(const StaticInst *si) {
-  if (!si || si->numSrcRegs() == 0)
-    return false;
+namespace {
 
+// The stack pointer, for the SpillDetector's stack-release diagnostic only:
+// it never decides whether an access is a spill.
+Addr
+spillStackPointer(SimpleThread *thread)
+{
 #if defined(USE_RISCV_ISA)
-  // For scalar, compressed, atomic, and vector RISC-V memory instructions,
-  // srcRegIdx(0) is rs1, the effective-address base. A store's later source
-  // operands are the value being written and must not influence this test
-  // (e.g. `sd s0, 0(a3)` is a3-relative, not frame-pointer-relative).
-  const RegId &base = si->srcRegIdx(0);
-  return base == ARCH_STACK_PTR_REG || base == ARCH_FRAME_PTR_REG;
+  return thread->getTC()->getReg(RiscvISA::StackPointerReg);
 #else
-  // The study is validated on RISC-V. Preserve the historical conservative
-  // behavior for other ISAs until each decoder exposes an address-base
-  // operand explicitly.
-  for (int i = 0; i < si->numSrcRegs(); i++) {
-    const RegId &r = si->srcRegIdx(i);
-    if (r == ARCH_STACK_PTR_REG || r == ARCH_FRAME_PTR_REG)
-      return true;
-  }
-  return false;
+  return 0;
 #endif
 }
 
-// Helper function to get stack pointer in an architecture-aware way
-// This is compiled separately for each ISA build
-static inline Addr getStackPointer(SimpleThread *thread) {
-  auto tc = thread->getTC();
-  if (tc) {
-    // Get stack pointer using architecture-specific register ID
-    // ARCH_STACK_PTR_REG is a RegId object that identifies the SP register
-    return tc->getReg(ARCH_STACK_PTR_REG);
-  }
-  return 0;
-}
+} // anonymous namespace
 
 void TimingSimpleCPU::init() { BaseSimpleCPU::init(); }
 
@@ -182,8 +107,12 @@ TimingSimpleCPU::TimingSimpleCPU(const BaseTimingSimpleCPUParams &p)
   // Apply the spill_verbose parameter from the Python SimObject.
   // setVerbose(true)  -> per-spill CSV lines + summary (verbose mode)
   // setVerbose(false) -> compact summary only (default, safe for large runs)
-  spillDetector.configurePcMap(p.spill_pc_map);
   spillDetector.setVerbose(p.spill_verbose);
+#if defined(USE_RISCV_ISA)
+  spillDetector.setTrackStackRelease(p.spill_track_stack_release);
+#else
+  spillDetector.setTrackStackRelease(false);
+#endif
   // SimObjects are destroyed after gem5's output directory has begun
   // teardown, which is too late for SpillDetector's destructor to append the
   // whole-simulation totals.  Exit callbacks run while simout is still valid.
@@ -546,20 +475,17 @@ Fault TimingSimpleCPU::initiateMemRead(Addr addr, unsigned size,
   if (traceData)
     traceData->setMem(addr, size, flags);
 
-  // REGISTER SPILL DETECTION: Track this load instruction
-  // Get architecture-specific stack pointer for spill analysis
-  Addr current_sp = getStackPointer(thread);
-  bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
-  bool is_spill_load = spillDetector.onLoadInstruction(addr, pc, curTick(),
-                                  size, current_sp, sp_fp_rel,
-                                  l1_fragments,
-                                  thread->getTC());
+  // REGISTER SPILL DETECTION: a load that reads back a stack store is a
+  // spill load; tag it so BaseCache counts its hits and misses. A
+  // load-reserved is an atomic operation and out of scope.
+  const bool spill_load = !flags.isSet(Request::LLSC) &&
+      spillDetector.onLoadInstruction(addr, pc, curTick(), size,
+                                      l1_fragments, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
-  // Tag request so BaseCache can count spill-specific hit/miss stats.
-  if (is_spill_load)
+  if (spill_load)
       req->setFlags(Request::SPILL_LOAD);
 
   req->taskId(taskId());
@@ -635,19 +561,22 @@ Fault TimingSimpleCPU::writeMem(uint8_t *data, unsigned size, Addr addr,
   if (traceData)
     traceData->setMem(addr, size, flags);
 
-  // REGISTER SPILL DETECTION: Track this store instruction
-  // Get architecture-specific stack pointer for spill analysis
-  Addr current_sp = getStackPointer(thread);
-  bool sp_fp_rel = isSpFpRelativeMemInst(curStaticInst.get());
-  bool is_spill_store = spillDetector.onStoreInstruction(
-      addr, pc, curTick(), size, current_sp, sp_fp_rel, l1_fragments,
-      thread->getTC());
+  // REGISTER SPILL DETECTION: every store to the stack is tagged so
+  // BaseCache counts its hits and misses; whether it starts a spill event is
+  // known only when (and if) a later load reads it back. A
+  // store-conditional is an atomic operation: never tagged or counted.
+  bool stack_store = false;
+  if (flags.isSet(Request::LLSC))
+    spillDetector.onAtomicWrite(addr, pc, curTick(), size, thread->getTC());
+  else
+    stack_store = spillDetector.onStoreInstruction(
+        addr, pc, curTick(), size, l1_fragments, thread->getTC());
 
   RequestPtr req = std::make_shared<Request>(
       addr, size, flags, dataRequestorId(), pc, thread->contextId());
   req->setByteEnable(byte_enable);
-  if (is_spill_store)
-      req->setFlags(Request::SPILL_STORE);
+  if (stack_store)
+      req->setFlags(Request::STACK_STORE);
 
   req->taskId(taskId());
 
@@ -695,6 +624,9 @@ Fault TimingSimpleCPU::initiateMemAMO(Addr addr, unsigned size,
 
   if (traceData)
     traceData->setMem(addr, size, flags);
+
+  // REGISTER SPILL DETECTION: an AMO is out of scope, but it writes.
+  spillDetector.onAtomicWrite(addr, pc, curTick(), size, thread->getTC());
 
   RequestPtr req =
       std::make_shared<Request>(addr, size, flags, dataRequestorId(), pc,
@@ -891,7 +823,9 @@ void TimingSimpleCPU::advanceInst(const Fault &fault) {
     const Addr pc = thread->pcState().instAddr();
     const bool is_load = curStaticInst && curStaticInst->isLoad();
     const bool is_store = curStaticInst && curStaticInst->isStore();
-    spillDetector.onInstructionCommit(is_load, is_store, pc, curTick());
+    const Addr sp = spillDetector.wantsStackPointer()
+        ? spillStackPointer(thread) : 0;
+    spillDetector.onInstructionCommit(is_load, is_store, pc, curTick(), sp);
 
     advancePC(fault);
   }
@@ -1043,13 +977,17 @@ void TimingSimpleCPU::completeDataAccess(PacketPtr pkt) {
   // Preserve each fragment's L1/L2 result before the response packet is
   // deleted. For a split access this method is invoked once per fragment;
   // SpillDetector aggregates both fragments in the staged instruction.
-  if (pkt->req->isSpillLoad() || pkt->req->isSpillStore()) {
+  if (pkt->req->isStackTagged()) {
     for (unsigned level = 0;
-         level < pkt->req->spillCacheOutcomeCount(); ++level) {
+         level < pkt->req->stackCacheOutcomeCount(); ++level) {
       spillDetector.recordPendingCacheOutcome(
-          level, pkt->req->spillCacheOutcomeWasHit(level));
+          level, pkt->req->stackCacheOutcomeWasHit(level));
     }
   }
+  // A failed store-conditional wrote nothing (extra data 0, the value the
+  // instruction itself reads as failure; set by the ISA or the cache).
+  if (pkt->req->isLLSC() && pkt->isWrite() && pkt->req->getExtraData() == 0)
+    spillDetector.discardPendingInstruction();
 
   updateCycleCounts();
   updateCycleCounters(BaseCPU::CPU_STATE_ON);

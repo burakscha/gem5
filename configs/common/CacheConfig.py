@@ -72,6 +72,10 @@ def _get_cache_opts(level, options):
     if hasattr(options, prefetcher_attr):
         opts["prefetcher"] = _get_hwp(getattr(options, prefetcher_attr))
 
+    tags_attr = f"{level}_tags"
+    if getattr(options, tags_attr, None):
+        opts["tags"] = getattr(m5.objects, getattr(options, tags_attr))()
+
     return opts
 
 

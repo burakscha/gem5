@@ -264,15 +264,14 @@ class Request : public Extensible<Request>
             of FlagsType, so HAS_NO_ADDR's value is that << 1 */
         HAS_NO_ADDR                = 0x0001000000000000,
 
-        /** The request is the load side of a register spill pair.
-         *  Set by TimingSimpleCPU when SpillDetector confirms the load
-         *  reloads a value previously spilled to the stack. */
+        /** Set by TimingSimpleCPU from the SpillDetector (register spill
+         *  study, metric schema 10) so the cache counts hits and misses of
+         *  these accesses. At most one is set on a request. Free bits only:
+         *  0x0020000000000000 is READ_MODIFY_WRITE. */
+        /** A load that reads back a stack store (spill load). */
         SPILL_LOAD                 = 0x0002000000000000,
-
-        /** The request is a candidate store side of a register spill pair.
-         *  A later matching load is required before SpillDetector reports it
-         *  as a confirmed spill store instruction. */
-        SPILL_STORE                = 0x0004000000000000,
+        /** A store to the process stack (read back later or not). */
+        STACK_STORE                = 0x0004000000000000,
         // clang-format on
     };
     static const FlagsType STORE_NO_DATA = CACHE_BLOCK_ZERO |
@@ -490,14 +489,13 @@ class Request : public Extensible<Request>
 
     bool _isGPUFuncAccess;
 
-    // Cache outcomes observed by a spill-tagged data request, in traversal
-    // order (L1 first, L2 second).  This lets TimingSimpleCPU retain the
-    // original store's outcome until a future reload confirms that the store
-    // really belongs to a dynamic spill pair.  It also avoids treating every
-    // SP/FP-relative store as a confirmed spill store in the final report.
-    static constexpr unsigned MaxSpillCacheLevels = 8;
-    std::array<uint8_t, MaxSpillCacheLevels> _spillCacheOutcomes{};
-    uint8_t _spillCacheOutcomeCount = 0;
+    // Cache outcomes observed by a stack-tagged data request, in traversal
+    // order (L1 first, L2 second). TimingSimpleCPU hands them to the
+    // SpillDetector before the response packet is destroyed, so a store's
+    // outcome can still be attributed when a later reload pairs with it.
+    static constexpr unsigned MaxStackCacheLevels = 8;
+    std::array<uint8_t, MaxStackCacheLevels> _stackCacheOutcomes{};
+    uint8_t _stackCacheOutcomeCount = 0;
 
   public:
 
@@ -545,8 +543,8 @@ class Request : public Extensible<Request>
           _extraData(other._extraData), _contextId(other._contextId),
           _pc(other._pc), _reqInstSeqNum(other._reqInstSeqNum),
           _localAccessor(other._localAccessor),
-          _spillCacheOutcomes(other._spillCacheOutcomes),
-          _spillCacheOutcomeCount(other._spillCacheOutcomeCount),
+          _stackCacheOutcomes(other._stackCacheOutcomes),
+          _stackCacheOutcomeCount(other._stackCacheOutcomeCount),
           translateDelta(other.translateDelta),
           accessDelta(other.accessDelta), depth(other.depth)
     {
@@ -618,8 +616,8 @@ class Request : public Extensible<Request>
         depth = 0;
         accessDelta = 0;
         translateDelta = 0;
-        _spillCacheOutcomes.fill(0);
-        _spillCacheOutcomeCount = 0;
+        _stackCacheOutcomes.fill(0);
+        _stackCacheOutcomeCount = 0;
         atomicOpFunctor = std::move(amo_op);
         _localAccessor = nullptr;
     }
@@ -1050,22 +1048,28 @@ class Request : public Extensible<Request>
     bool isInstFetch() const { return _flags.isSet(INST_FETCH); }
     bool hasNoAddr() const { return _flags.isSet(HAS_NO_ADDR); }
     bool isSpillLoad()  const { return _flags.isSet(SPILL_LOAD);  }
-    bool isSpillStore() const { return _flags.isSet(SPILL_STORE); }
-    void
-    recordSpillCacheOutcome(bool hit)
+    bool isStackStore() const { return _flags.isSet(STACK_STORE); }
+    /** A spill load or a stack store. */
+    bool
+    isStackTagged() const
     {
-        if (_spillCacheOutcomeCount < MaxSpillCacheLevels) {
-            _spillCacheOutcomes[_spillCacheOutcomeCount++] = hit ? 1 : 2;
+        return _flags.isSet(SPILL_LOAD | STACK_STORE);
+    }
+    void
+    recordStackCacheOutcome(bool hit)
+    {
+        if (_stackCacheOutcomeCount < MaxStackCacheLevels) {
+            _stackCacheOutcomes[_stackCacheOutcomeCount++] = hit ? 1 : 2;
         }
     }
-    unsigned spillCacheOutcomeCount() const
+    unsigned stackCacheOutcomeCount() const
     {
-        return _spillCacheOutcomeCount;
+        return _stackCacheOutcomeCount;
     }
-    bool spillCacheOutcomeWasHit(unsigned level) const
+    bool stackCacheOutcomeWasHit(unsigned level) const
     {
-        assert(level < _spillCacheOutcomeCount);
-        return _spillCacheOutcomes[level] == 1;
+        assert(level < _stackCacheOutcomeCount);
+        return _stackCacheOutcomes[level] == 1;
     }
     bool
     isPrefetch() const

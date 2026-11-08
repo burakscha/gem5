@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 ARM Limited
+# Copyright (c) 2012-2013 ARM Limited 
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -97,6 +97,11 @@ def get_processes(args):
         process.executable = wrkld
         process.cwd = os.getcwd()
         process.gid = os.getgid()
+        # egid would stay at Process's default (100): a real gid that differs
+        # from the effective one makes perl believe it runs setgid, so it
+        # turns taint checks on (perlbench runs slower code, suns and
+        # splitmail abort with "setuid/setgid execution not supported").
+        process.egid = process.gid
 
         if args.env:
             with open(args.env) as f:

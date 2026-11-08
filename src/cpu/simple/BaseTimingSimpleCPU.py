@@ -26,6 +26,7 @@
 
 from m5.objects.BaseSimpleCPU import BaseSimpleCPU
 from m5.params import *
+from m5.SimObject import PyBindMethod
 
 
 class BaseTimingSimpleCPU(BaseSimpleCPU):
@@ -33,20 +34,31 @@ class BaseTimingSimpleCPU(BaseSimpleCPU):
     cxx_header = "cpu/simple/timing.hh"
     cxx_class = "gem5::TimingSimpleCPU"
 
+    # SimPoint runs: open/close the SpillDetector ROI from Python (see
+    # restoreSimpointCheckpoint in configs/common/Simulation.py).
+    cxx_exports = [
+        PyBindMethod("spillRoiBegin"),
+        PyBindMethod("spillRoiEnd"),
+    ]
+
     # Spill detection verbosity flag.
     # False (default): write only a compact counter summary at ROI end.
     #                  Output file stays tiny regardless of spill count.
-    # True           : write one SPILL line per detected event inside ROI,
+    # True           : write one SPILL line per spill load inside the ROI,
     #                  then the summary.  WARNING: can produce tens of GB for
     #                  long workloads (e.g. MCF had 419M spills -> 38 GB).
     spill_verbose = Param.Bool(
         False,
-        "Log every individual spill event (True) or summary only (False).",
+        "Log every individual spill load (True) or summary only (False).",
     )
-    spill_pc_map = Param.String(
-        "",
-        "Optional compiler-ground-truth PC map: one 'store ADDRESS' or "
-        "'load ADDRESS' entry per line. Empty selects the heuristic mode.",
+
+    # Stack-release diagnostic: reads sp at every committed ROI instruction
+    # and counts spill loads of bytes released (popped) after their store,
+    # diag_load_after_stack_release. Never changes a spill counter.
+    spill_track_stack_release = Param.Bool(
+        True,
+        "Count spill loads that read a stack slot released after its store "
+        "(diagnostic only)",
     )
 
     @classmethod

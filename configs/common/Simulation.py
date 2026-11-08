@@ -187,7 +187,9 @@ def findCptDir(options, cptdir, testsys):
         simpoint_start_insts.append(warmup_length)
         simpoint_start_insts.append(warmup_length + interval_length)
         testsys.cpu[0].simpoint_start_insts = simpoint_start_insts
-        if testsys.switch_cpus != None:
+        # No switch_cpus at all when restoring straight into --cpu-type
+        # (--restore-with-cpu equal to --cpu-type): the attribute is missing.
+        if getattr(testsys, "switch_cpus", None) is not None:
             testsys.switch_cpus[0].simpoint_start_insts = simpoint_start_insts
 
         print("Resuming from SimPoint", end=" ")
@@ -430,7 +432,19 @@ def takeSimpointCheckpoints(simpoints, interval_length, cptdir):
     sys.exit(code)
 
 
-def restoreSimpointCheckpoint():
+def _spill_cpus(testsys):
+    """CPUs whose SpillDetector the SimPoint interval must open and close."""
+    cpus = list(testsys.cpu)
+    if getattr(testsys, "switch_cpus", None):
+        cpus += list(testsys.switch_cpus)
+    return [cpu for cpu in cpus if hasattr(cpu, "spillRoiBegin")]
+
+
+def restoreSimpointCheckpoint(testsys=None):
+    # The SpillDetector sees nothing of the warmup: a store made there does
+    # not pair with a reload in the interval (store and load must both lie
+    # in the ROI).
+    spill_cpus = _spill_cpus(testsys) if testsys is not None else []
     exit_event = m5.simulate()
     exit_cause = exit_event.getCause()
 
@@ -438,11 +452,20 @@ def restoreSimpointCheckpoint():
         print("Warmed up! Dumping and resetting stats!")
         m5.stats.dump()
         m5.stats.reset()
+        # The interval is the SpillDetector's ROI: its counters, like the
+        # statistics just reset, cover exactly the simulated interval.
+        for cpu in spill_cpus:
+            cpu.getCCObject().spillRoiBegin(0)
 
         exit_event = m5.simulate()
         exit_cause = exit_event.getCause()
 
         if exit_cause == "simpoint starting point found":
+            for cpu in spill_cpus:
+                cpu.getCCObject().spillRoiEnd(0)
+            # Close the interval's statistics block: stats.txt holds the
+            # warmup block and then the interval block.
+            m5.stats.dump()
             print("Done running SimPoint!")
             sys.exit(exit_event.getCode())
 
@@ -797,7 +820,7 @@ def run(options, root, testsys, cpu_class):
 
     # Restore from SimPoint checkpoints
     elif options.restore_simpoint_checkpoint:
-        restoreSimpointCheckpoint()
+        restoreSimpointCheckpoint(testsys)
 
     else:
         if options.fast_forward:

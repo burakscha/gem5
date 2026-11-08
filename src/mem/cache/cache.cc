@@ -635,7 +635,7 @@ Cache::handleAtomicReqMiss(PacketPtr pkt, CacheBlk *&blk,
 
                 // write-line request to the cache that promoted
                 // the write to a whole line
-                const bool allocate = allocOnFill(pkt) &&
+                const bool allocate = allocOnFill(pkt->cmd) &&
                     (!writeAllocator || writeAllocator->allocate());
                 blk = handleFill(bus_pkt, blk, writebacks, allocate);
                 assert(blk != NULL);
@@ -646,7 +646,7 @@ Cache::handleAtomicReqMiss(PacketPtr pkt, CacheBlk *&blk,
                 // we're updating cache state to allow us to
                 // satisfy the upstream request from the cache
                 blk = handleFill(bus_pkt, blk, writebacks,
-                                 allocOnFill(pkt));
+                                 allocOnFill(pkt->cmd));
                 satisfyRequest(pkt, blk);
                 maintainClusivity(pkt->fromCache(), blk);
             } else {
