@@ -6,7 +6,7 @@ output stays where it is produced, under
 
 | Directory | Contents |
 | --- | --- |
-| `definitions/` | Methodology documents. `spill_definition.tex` / `.pdf` is the executive summary of how a spill is defined and measured — the rule sets and the counter definitions. |
+| `definitions/` | Methodology documents. `counter_reference_schema10.tex` / `.pdf` is the current one (metric schema 10): every detector counter, the gem5 statistics the reports read and every report formula, each with how to read it, and a worked example (also in Turkish). `spill_definition.tex` / `.pdf` is the earlier executive summary of metric schema 7. |
 | `results/` | Cross-benchmark result reports produced by `./scripts/spill_report.sh`: one directory per profile/cache/date with `results.csv`, `report.tex` and the one-page `report.pdf`. |
 | `notes/` | Working notes kept from earlier experiment rounds. |
 | `validation/` | Evidence that the stack classes match the compiler: GCC `-dP` ground truth vs. the detector, with the scripts that compute it. |
@@ -19,7 +19,11 @@ compared with current results.
 ## Rebuilding a document
 
 ```bash
-# Definition report
+# Counter reference (metric schema 10)
+tectonic --outdir general_reports/definitions \
+    general_reports/definitions/counter_reference_schema10.tex
+
+# Definition report (metric schema 7)
 tectonic --outdir general_reports/definitions \
     general_reports/definitions/spill_definition.tex
 

@@ -1,0 +1,767 @@
+% Counter reference of the register-spill study (metric schema 10): every
+% counter the detector writes, the gem5 statistics the reports read, and every
+% formula the reports compute, each with how to read it.
+% Same preamble and author block as spill_definition.tex (metric schema 7).
+% Section 12 repeats the worked example of section 10 in Turkish.
+% Build:  tectonic general_reports/definitions/counter_reference_schema10.tex
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,top=16mm,bottom=16mm,left=20mm,right=20mm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{microtype}
+\usepackage{titlesec}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\linespread{1.06}\selectfont
+\raggedbottom
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.6em}{}
+\titlespacing*{\section}{0pt}{12pt plus 2pt minus 2pt}{5pt}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{8pt plus 2pt minus 2pt}{3pt}
+
+% Author-block markup kept in the IEEEtran spelling the paper uses, so the same
+% block can be moved between documents unchanged. This report stays
+% single-column: the tables need the full text width to stay legible.
+% The affiliation block contains its own \\ line breaks. article's \author
+% puts each author in a tabular, where a brace group cannot span a row break,
+% so the affiliation goes into a nested tabular instead.
+\newcommand{\IEEEauthorblockN}[1]{{\normalsize #1}}
+\newcommand{\IEEEauthorblockA}[1]{%
+  \\[2pt]{\small\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}
+
+\newcommand{\LongDate}{%
+    \number\day\space
+    \ifcase\month
+    \or January%
+    \or February%
+    \or March%
+    \or April%
+    \or May%
+    \or June%
+    \or July%
+    \or August%
+    \or September%
+    \or October%
+    \or November%
+    \or December%
+    \fi
+    \space \number\year
+}
+
+% X columns whose share of the width can be tuned; C: a counter-name column.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash\hsize=#1\hsize}X}
+\newcolumntype{R}{>{\ttfamily}l}
+\newcolumntype{C}[1]{>{\raggedright\ttfamily\arraybackslash}p{#1}}
+\newcommand{\ct}[1]{\texttt{#1}}
+% A breakable underscore for long counter names.
+\newcommand{\us}{\_\allowbreak}
+
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.28}
+
+\newcommand{\tablehead}[2]{%
+  \nobreak{\small\textbf{Table #1.} #2}\par\nobreak\vspace{2pt}}
+
+\title{
+    \Large Improving CPU Efficiency for Data-Intensive Applications \\
+    \Large through Cache-Aware Spill Optimization \\[6pt]
+    \large Counter Reference: What Is Counted and How to Read It \\[5pt]
+    \normalsize gem5 TimingSimpleCPU $\cdot$ RISC-V (RV64GC)
+    $\cdot$ SPEC CPU2017 $\cdot$ metric schema 10
+}
+
+\author{
+    \IEEEauthorblockN{L\"utfullah Burak Kaya}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        burak.kaya.50711@ozu.edu.tr
+    }
+    \and
+    \IEEEauthorblockN{Assistant Prof.\ Dr.\ \.{I}smail Akt\"urk}
+    \IEEEauthorblockA{
+        Ozyegin University \\
+        ismail.akturk@ozyegin.edu.tr
+    }
+}
+
+\date{\small \LongDate}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\vspace{-9mm}
+
+\section{What is measured}
+
+A spill is detected \emph{dynamically}, from the runtime effective addresses
+of the committed loads and stores alone. No compiler information, no register
+name and no base-register test takes part. A store to the process stack is a
+\emph{spill store}; a later load that reads a byte it wrote is a \emph{spill
+load}; a spill store read back at least once is a \emph{spill event}.
+
+This is an operational definition: \emph{runtime-detected stack store--load
+reuse}, or spill-like memory traffic. Register-allocator spills,
+callee-saved register saves and restores (return address included),
+memory-resident locals and stack-passed arguments all meet it and cannot be
+told apart from addresses alone. The counts are therefore not counts of
+compiler-generated spill instructions.
+
+Counting is confined to the region of interest (ROI), marked by
+\ct{m5\_work\_begin} and \ct{m5\_work\_end} in the benchmark sources. In a
+SimPoint run the ROI is the simulated interval after the warmup. Stores before
+the ROI, the warmup included, are not tracked, so a reload of one never pairs.
+
+\tablehead{1}{Counter names. Ratios are not counters: the report scripts
+compute them. gem5's own statistics keep their names.}
+
+\begin{tabularx}{\textwidth}{@{}C{52mm} X@{}}
+\toprule
+\normalfont\textbf{Name} & \textbf{Scope} \\
+\midrule
+total\_\textit{name} & The whole simulation; for a SimPoint estimate, the
+  whole program (from the qemu profile). \\
+roi\_\textit{name} & Only between the ROI markers; SimPoint: the interval. \\
+diag\_\textit{name} & A technical diagnostic: checks the simulation and the
+  matching, not a result. \\
+roi\_\textit{p}\_\{l1,l2\}\_\{hits,misses\} & The L1D or L2 outcome of the
+  accesses of population \textit{p} $\in$ \{\ct{spill\_store},
+  \ct{spill\_event}, \ct{spill\_load}\}. \\
+\bottomrule
+\end{tabularx}
+
+\section{When a store or a load counts}
+
+\tablehead{2}{The conditions, checked when the instruction commits. S: a
+store, L: a load.}
+
+\begin{tabularx}{\textwidth}{@{}l L{1.30} L{0.70}@{}}
+\toprule
+& \textbf{Condition} & \textbf{Why} \\
+\midrule
+S1 & An ordinary store: not a store-conditional (SC), not an atomic memory
+     operation (AMO)
+   & Atomics are out of scope \\
+S2 & It commits inside the ROI
+   & Measurement window \\
+S3 & Its effective address lies in the process stack,
+     $\ct{stackMin} \le \text{addr} < \ct{stackBase}$
+   & Spill slots live on the stack \\
+S4 & It completes without a fault
+   & A faulted attempt is discarded; the re-executed store counts once \\
+\midrule
+L1 & An ordinary load: not a load-reserved (LR)
+   & As S1 \\
+L2 & It commits inside the ROI
+   & As S2 \\
+L3 & Its effective address lies in the process stack
+   & As S3 \\
+L4 & Its start byte was last written by a store meeting S1--S4. The newest
+     writer owns each byte, so after a partial overwrite the newer store owns
+     the overlapped bytes; the widths may differ
+   & The value read was produced by that store \\
+L5 & The load is later than that store
+   & Written before read \\
+L6 & That store still owns the byte when the load commits
+   & Not overwritten in between \\
+L7 & It completes without a fault
+   & As S4 \\
+\bottomrule
+\end{tabularx}
+
+A store meeting S1--S4 is counted in \ct{roi\_spill\_store}, read back or
+not. A load meeting L1--L7 is counted in \ct{roi\_spill\_load}; the first such
+load of a store also counts that store once in \ct{roi\_spill\_event}. A
+successful SC or AMO still owns the bytes it wrote, so a later load does not
+pair through it with an older store; a failed SC wrote nothing and changes
+nothing. The stack pointer is read only for the stack-release diagnostic; it
+never decides whether an access is a spill.
+
+\section{Detector counters}
+
+The detector writes these to \ct{riscv\_spill\_stats.txt}: one ROI block per
+ROI and one global block.
+
+\tablehead{3}{The counters the detector writes.}
+
+{\small
+\begin{xltabular}{\textwidth}{@{}C{40mm} L{1.0} L{1.0}@{}}
+\toprule
+\normalfont\textbf{Counter} & \textbf{Counted when} & \textbf{How to read it} \\
+\midrule
+\endfirsthead
+\toprule
+\normalfont\textbf{Counter} & \textbf{Counted when} & \textbf{How to read it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+metric\_schema & Constant, 10 here.
+  & Which spill definition produced the result. Results of schema 9 and
+    earlier use other definitions and must not be mixed in. \\
+total\_insts & Every committed instruction of the simulation.
+  & Length of the whole program; the reference for \ct{roi/total}. \\
+total\_load, total\_store & Every committed load or store.
+  & Load and store counts of the whole program. \\
+\midrule
+roi\_total\_insts & Every instruction committed inside the ROI (the markers
+  excluded).
+  & Size of the measured region: the denominator of every ROI ratio. \\
+roi\_load, roi\_store & Loads and stores committed inside the ROI.
+  & All of them, spill or not. LR counts as a load and SC as a store; an AMO
+    is neither. \\
+roi\_spill\_store & A store meeting S1--S4, read back or not.
+  & How often the program wrote a value to the stack: spills, callee saves,
+    stack locals together. \\
+roi\_spill\_event & A spill store read back at least once: one per store, at
+  its first spill load.
+  & How many of those stack writes were actually used again. Never above
+    \ct{roi\_spill\_store} or \ct{roi\_spill\_load}. \\
+roi\_spill\_load & A load meeting L1--L7. Repeats count.
+  & How often the program read a stack-written value back. A slot read three
+    times counts three, so it can exceed \ct{roi\_spill\_event}. \\
+\midrule
+roi\_\textit{p}\us l1\us hits, roi\_\textit{p}\us l1\us misses
+  & L1D hits and misses of population \textit{p}'s accesses.
+  & How much of that traffic L1D served, and how much went down to L2. \\
+roi\_\textit{p}\us l2\us hits, roi\_\textit{p}\us l2\us misses
+  & L2 hits and misses of population \textit{p}'s L1D misses.
+  & The misses went on to DRAM: the most expensive accesses. \\
+roi\_\textit{p}\us split\us insts
+  & Instructions of \textit{p} whose access crosses a cache-line boundary;
+    each makes two accesses.
+  & Why L1 accesses can exceed the instruction count. Normally small. \\
+roi\_spill\_event\us * & The store side of each event: the store's own
+  outcome when it executed, added once at its first reload.
+  & ``How did the stores that were read back fare in the cache?'' \\
+\midrule
+diag\us store\us map\us evicted
+  & Store-table entries dropped at the size cap ($2^{20}$ entries).
+  & Must be 0. Otherwise some pairs were lost and the spill counts are too
+    low. \\
+diag\us load\us after\us stack\us release
+  & Spill loads of a byte that lay below \ct{sp} at some point after its
+    store: the stack there had been released.
+  & A suspicious pair: another frame may have reused the address. It does not
+    change the main counters. \\
+diag\us event\us after\us stack\us release
+  & Spill events whose first spill load is such a load.
+  & The same suspicion on the event side. \\
+\end{xltabular}
+}
+
+\section{gem5 statistics the reports read}
+
+Only the ROI block of \ct{stats.txt} is read. The statistics are dumped and
+reset at the ROI boundaries.
+
+\tablehead{4}{gem5 statistics used. L1D is \ct{system.cpu.dcache}, L2 is
+\ct{system.l2}.}
+
+{\small
+\begin{xltabular}{\textwidth}{@{}C{52mm} L{0.75} L{1.25}@{}}
+\toprule
+\normalfont\textbf{Statistic} & \textbf{Used in} & \textbf{How to read it} \\
+\midrule
+\endfirsthead
+\toprule
+\normalfont\textbf{Statistic} & \textbf{Used in} & \textbf{How to read it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+L1D demandHits, demandMisses, demandAccesses (\ct{::total})
+  & \ct{L1D\_miss}
+  & Overall success of L1D in this configuration: every load and store,
+    spill or not. \\
+L1D ReadReq.misses, ReadReq.accesses
+  & \ct{other\_ld\_L1miss}
+  & Ordinary loads. Removing the spill loads leaves the other loads. \\
+L1D WriteReq.misses, WriteReq.accesses
+  & \ct{other\_st\_L1miss}
+  & Ordinary stores. Removing the spill stores leaves the other stores. \\
+L2 demandHits, demandMisses
+  & \ct{L2\_local\_miss}
+  & Every request reaching L2: the L1D \emph{and} L1I misses. \\
+L1D and L2 stackStoreHits, stackStoreMisses
+  & Cross-check
+  & Added by this project. The name is historical; the values must equal
+    \ct{roi\_spill\_store\_l1/l2\_*}. \\
+L1D and L2 spillLoadHits, spillLoadMisses
+  & Cross-check
+  & Added by this project; must equal \ct{roi\_spill\_load\_l1/l2\_*}. If they
+    are equal, the detector and the caches saw the same accesses. \\
+simInsts, numLoadInsts, numStoreInsts
+  & Tests only
+  & gem5's ROI block covers the detector's ROI: \ct{simInsts} $=$
+    \ct{roi\_total\_insts} $+ 1$, the end marker. \\
+\end{xltabular}
+}
+
+LR, SC and AMO accesses reach the cache as other request types, so they are in
+neither \ct{ReadReq} nor \ct{WriteReq}, and so in no ``other'' rate.
+
+\section{Values the reports compute}
+
+\tablehead{5}{Derived values.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}C{44mm} L{0.9} L{1.1}@{}}
+\toprule
+\normalfont\textbf{Name} & \textbf{Formula} & \textbf{How to read it} \\
+\midrule
+roi\_spill\_insts & \ct{roi\_spill\_load} $+$ \ct{roi\_spill\_store}
+  & All spill-like instructions. \\
+roi\_total\_mem & \ct{roi\_load} $+$ \ct{roi\_store}
+  & All memory instructions of the ROI. \\
+roi\_unread\_spill\_store & \ct{roi\_spill\_store} $-$ \ct{roi\_spill\_event}
+  & Stack writes never read back inside the ROI: overwritten first, dead, or
+    still unread when the ROI ended. \\
+roi\_non\_spill\_store & \ct{roi\_store} $-$ \ct{roi\_spill\_store}
+  & Stores outside the stack (heap, globals), and SC. \\
+\bottomrule
+\end{tabularx}
+}
+
+\section{Program ratios}
+
+They do not depend on the cache, so all five configurations show the same
+values. Every ratio is a percentage.
+
+\tablehead{6}{Program ratios.}
+
+{\small
+\begin{xltabular}{\textwidth}{@{}C{36mm} L{0.95} L{1.05}@{}}
+\toprule
+\normalfont\textbf{Ratio} & \textbf{Formula ($\times 100$)} & \textbf{How to read it} \\
+\midrule
+\endfirsthead
+\toprule
+\normalfont\textbf{Ratio} & \textbf{Formula ($\times 100$)} & \textbf{How to read it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+roi/total & \ct{roi\_total\_insts} / \ct{total\_insts}
+  & How much of the program was measured. Full runs: 95--100\%; low values
+    mean the ROI may not represent the program. \\
+load/roi & \ct{roi\_load} / \ct{roi\_total\_insts}
+  & Read intensity of the program. \\
+store/roi & \ct{roi\_store} / \ct{roi\_total\_insts}
+  & Write intensity of the program. \\
+spill/roi & (\ct{roi\_spill\_load} $+$ \ct{roi\_spill\_store}) /
+  \ct{roi\_total\_insts}
+  & \textbf{The main metric}: the share of instructions that write a value
+    to the stack or read one back. High: register pressure, or many calls. \\
+spill\_load/load & \ct{roi\_spill\_load} / \ct{roi\_load}
+  & Share of the loads that read a stack-written value back. \\
+spill\_store/store & \ct{roi\_spill\_store} / \ct{roi\_store}
+  & Share of the stores that go to the stack, read back or not. \\
+spill\_event/store & \ct{roi\_spill\_event} / \ct{roi\_store}
+  & Share of the stores that write a value which is later read back. \\
+spill\_event/ spill\_store & \ct{roi\_spill\_event} / \ct{roi\_spill\_store}
+  & Reuse rate of stack writes. Near 100\%: almost every stack write is used
+    again; low: many stack writes are never read. \\
+spill/mem & (\ct{roi\_spill\_load} $+$ \ct{roi\_spill\_store}) /
+  (\ct{roi\_load} $+$ \ct{roi\_store})
+  & Share of the memory traffic that is spill-like. Unlike
+    \ct{spill/roi}, the denominator holds memory instructions only. \\
+\end{xltabular}
+}
+
+\section{Cache miss rates}
+
+These depend on the configuration: the program and its instructions are the
+same, only the hits and misses change. An \emph{access} is one request of a
+load or store to a cache (a cross-line instruction makes two); a \emph{hit}
+ends at that level; a \emph{miss} goes one level down (L1D $\to$ L2 $\to$
+DRAM). The caches are write-allocate: a store miss first fetches the line.
+An L2 rate is \emph{local}: its denominator is the L1D misses of that kind.
+
+\tablehead{7}{Miss rates, in percent ($\times 100$). \textit{p} accesses
+$=$ \ct{roi\_}\textit{p}\ct{\_l1\_hits} $+$
+\ct{roi\_}\textit{p}\ct{\_l1\_misses}; likewise for L2.}
+
+{\small
+\begin{xltabular}{\textwidth}{@{}C{34mm} L{1.05} L{0.95}@{}}
+\toprule
+\normalfont\textbf{Rate} & \textbf{Formula} & \textbf{How to read it} \\
+\midrule
+\endfirsthead
+\toprule
+\normalfont\textbf{Rate} & \textbf{Formula} & \textbf{How to read it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+L1D\_miss & L1D demand misses / L1D demand accesses
+  & Overall L1D miss rate; the basic value to compare configurations. \\
+spill\_ld\_L1miss & spill-load L1 misses / spill-load L1 accesses
+  & Usually low: the slot was written shortly before, so its line is often
+    still in L1D. \\
+other\_ld\_L1miss & (ReadReq misses $-$ spill-load L1 misses) / (ReadReq
+  accesses $-$ spill-load L1 accesses)
+  & \textbf{Read next to} \ct{spill\_ld\_L1miss}: do spill loads miss less or
+    more than ordinary loads? \\
+spill\_st\_L1miss & spill-store L1 misses / spill-store L1 accesses
+  & Miss rate of all stack writes. \\
+spill\_event\_L1miss & spill-event L1 misses / spill-event L1 accesses
+  & Miss rate of the stack writes that were read back. \\
+unread\_st\_L1miss & (spill-store $-$ spill-event L1 misses) / (spill-store
+  $-$ spill-event L1 accesses)
+  & Miss rate of the stack writes never read back. \\
+other\_st\_L1miss & (WriteReq misses $-$ spill-store L1 misses) / (WriteReq
+  accesses $-$ spill-store L1 accesses)
+  & Ordinary stores; compare with \ct{spill\_st\_L1miss}. \\
+\midrule
+L2\_local\_miss & L2 demand misses / L2 demand accesses
+  & Share of the requests reaching L2 (L1D and L1I misses) that went on to
+    DRAM. \\
+spill\_ld\_L2local & spill-load L2 misses / spill-load L2 accesses
+  & Of the spill loads that missed L1D, the share that missed L2 too. \\
+spill\_st\_L2local & spill-store L2 misses / spill-store L2 accesses
+  & The same for all stack writes. \\
+spill\_event\_L2local & spill-event L2 misses / spill-event L2 accesses
+  & The same for the stack writes read back. \\
+unread\_st\_L2local & (spill-store $-$ spill-event L2 misses) / (spill-store
+  $-$ spill-event L2 accesses)
+  & The same for the stack writes never read back. \\
+\end{xltabular}
+}
+
+The denominators of the L2 local rates can be tiny (a few accesses can give
+66.7\%). Read them together with the absolute counts.
+
+\section{Combining results}
+
+\tablehead{8}{How several results become one number.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}l L{1.0} L{1.0}@{}}
+\toprule
+\textbf{Where} & \textbf{Formula} & \textbf{How to read it} \\
+\midrule
+SimPoint estimate
+  & $C = N \cdot \sum_i w_i\, c_i / n_i \,\big/ \sum_i w_i$: $N$ the ROI
+    length from the qemu profile, $n_i$ and $c_i$ the instructions and the
+    counter of point $i$, $w_i$ its weight
+  & A ref result is a weighted estimate, not a full run; its ratios are
+    weighted per-instruction ratios. \\
+pooled & $\sum$ numerators $/ \sum$ denominators over all completed runs
+  & Large runs dominate: the share of the total traffic. \\
+mean & Average of the per-benchmark values
+  & Every benchmark weighs the same: the typical benchmark. \\
+\bottomrule
+\end{tabularx}
+}
+
+\section{Identities every result satisfies}
+
+The test suite asserts these, and every completed result is checked against
+them:
+\begin{align*}
+\ct{roi\_spill\_event} &\le \ct{roi\_spill\_store} \le \ct{roi\_store} \\
+\ct{roi\_spill\_event} &\le \ct{roi\_spill\_load} \le \ct{roi\_load} \\
+\ct{roi\_}p\ct{\_l1\_hits} + \ct{roi\_}p\ct{\_l1\_misses}
+  &= \text{count of } p + \ct{roi\_}p\ct{\_split\_insts} \\
+\ct{roi\_}p\ct{\_l2\_hits} + \ct{roi\_}p\ct{\_l2\_misses}
+  &= \ct{roi\_}p\ct{\_l1\_misses} \\
+\ct{roi\_spill\_event\_*} &\le \ct{roi\_spill\_store\_*} \\
+\text{gem5 } \ct{stackStore*} = \ct{roi\_spill\_store\_*}, &\quad
+\text{gem5 } \ct{spillLoad*} = \ct{roi\_spill\_load\_*}
+\end{align*}
+
+\section{Worked example}
+
+\subsection*{A.\ Which instruction counts where}
+
+The fragment runs inside the ROI; \ct{a2} and \ct{a3} point to the heap.
+
+\tablehead{9}{Contribution of each instruction (empty: no change).}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l c c c c c X@{}}
+\toprule
+\normalfont\textbf{Instruction} & \textbf{store} & \textbf{load}
+  & \textbf{spill st.} & \textbf{event} & \textbf{spill ld.} & \textbf{Why} \\
+\midrule
+addi sp, sp, -32 & & & & & & Not a memory instruction \\
+sd a0, 16(sp) & $+1$ & & $+1$ & & & Ordinary store to the stack \\
+sd a1, 8(sp) & $+1$ & & $+1$ & & & Stack store; never read: unread \\
+sw t0, 0(a2) & $+1$ & & & & & Heap store: a non-spill store \\
+ld t1, 0(a3) & & $+1$ & & & & Heap load: an other load \\
+ld a0, 16(sp) & & $+1$ & & $+1$ & $+1$ & Owner is the first \ct{sd}; its
+  first reload: an event \\
+ld a2, 16(sp) & & $+1$ & & & $+1$ & Same store read again: no new event \\
+amoadd.w t2, t3, (a4) & & & & & & Atomic: neither load nor store \\
+addi sp, sp, 32 & & & & & & Not a memory instruction \\
+\midrule
+\normalfont\textbf{Total} & 3 & 3 & 2 & 1 & 2 & \ct{roi\_total\_insts} $=$ 9 \\
+\bottomrule
+\end{tabularx}
+}
+
+Derived: \ct{roi\_unread\_spill\_store} $= 2 - 1 = 1$ (the slot
+\ct{8(sp)}), \ct{roi\_non\_spill\_store} $= 3 - 2 = 1$ (the heap store).
+
+\subsection*{B.\ From counters to ratios}
+
+Assume a run reports \ct{total\_insts} $=$ 1000, \ct{total\_load} $=$ 300,
+\ct{total\_store} $=$ 150; \ct{roi\_total\_insts} $=$ 800, \ct{roi\_load} $=$
+240, \ct{roi\_store} $=$ 120; \ct{roi\_spill\_store} $=$ 60,
+\ct{roi\_spill\_event} $=$ 45, \ct{roi\_spill\_load} $=$ 70.
+
+\tablehead{10}{Program ratios of the example.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l l r X@{}}
+\toprule
+\normalfont\textbf{Ratio} & \textbf{Calculation} & \textbf{Value}
+  & \textbf{Reading} \\
+\midrule
+roi/total & 800 / 1000 & 80.00\% & 80\% of the program was measured \\
+spill/roi & (70 $+$ 60) / 800 & 16.25\% & About 16 of every 100
+  instructions write to or read back from the stack \\
+spill\_load/load & 70 / 240 & 29.17\% & Nearly a third of the loads are
+  stack read-backs \\
+spill\_store/store & 60 / 120 & 50.00\% & Half of the stores go to the
+  stack \\
+spill\_event/store & 45 / 120 & 37.50\% & 37.5\% of the stores write a value
+  that is read later \\
+spill\_event/spill\_store & 45 / 60 & 75.00\% & Three quarters of the stack
+  writes are used again; 15 never are \\
+spill/mem & 130 / 360 & 36.11\% & About a third of the memory traffic is
+  spill-like \\
+\bottomrule
+\end{tabularx}
+}
+
+For the cache, assume no cross-line accesses and these outcomes:
+spill stores 54 L1 hits and 6 misses, of which the spill events 42 and 3;
+spill loads 68 and 2; L1D \ct{ReadReq} 240 accesses and 30 misses,
+\ct{WriteReq} 120 and 18; at L2, spill stores 4 hits and 2 misses (events 3
+and 0), spill loads 1 and 1; L2 in total 60 accesses (48 from L1D, 12 from
+L1I) and 15 misses.
+
+\tablehead{11}{Miss rates of the example.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l l r X@{}}
+\toprule
+\normalfont\textbf{Rate} & \textbf{Calculation} & \textbf{Value}
+  & \textbf{Reading} \\
+\midrule
+spill\_ld\_L1miss & 2 / (68 $+$ 2) & 2.86\% & Spill loads almost always hit
+  \ldots \\
+other\_ld\_L1miss & (30 $-$ 2) / (240 $-$ 70) & 16.47\% & \ldots\ ordinary
+  loads miss far more: spill traffic is cache friendly \\
+spill\_st\_L1miss & 6 / (54 $+$ 6) & 10.00\% & All stack writes \\
+spill\_event\_L1miss & 3 / (42 $+$ 3) & 6.67\% & Stack writes read back \\
+unread\_st\_L1miss & (6 $-$ 3) / (60 $-$ 45) & 20.00\% & Stack writes never
+  read miss more \\
+other\_st\_L1miss & (18 $-$ 6) / (120 $-$ 60) & 20.00\% & Ordinary stores \\
+L1D\_miss & 48 / 360 & 13.33\% & All L1D accesses \\
+L2\_local\_miss & 15 / 60 & 25.00\% & All L2 accesses \\
+spill\_ld\_L2local & 1 / (1 $+$ 1) & 50.00\% & Denominator 2: too few to
+  interpret \\
+unread\_st\_L2local & (2 $-$ 0) / (6 $-$ 3) & 66.67\% & Denominator 3: too
+  few to interpret \\
+\bottomrule
+\end{tabularx}
+}
+
+{\raggedright Checks: $45 \le 60 \le 120$, $45 \le 70 \le 240$, $54 + 6 = 60$ and
+$4 + 2 = 6$ hold. At L1D gem5 must report \ct{stackStoreHits} $=$ 54,
+\ct{stackStoreMisses} $=$ 6, \ct{spillLoadHits} $=$ 68,
+\ct{spillLoadMisses} $=$ 2, and at L2 4, 2, 1 and 1.\par}
+
+\section{Implementation and verification}
+
+\begin{tabularx}{\textwidth}{@{}X l@{}}
+\toprule
+\textbf{Component} & \textbf{Source} \\
+\midrule
+Rules and counters
+  & \texttt{src/cpu/simple/spill\_detector.\{hh,cc\}} \\
+Commit hook, request tags, LR/SC/AMO handling
+  & \texttt{src/cpu/simple/timing.cc} \\
+SimPoint ROI (the interval)
+  & \texttt{configs/common/Simulation.py} \\
+Per-population cache counters
+  & \texttt{src/mem/cache/base.\{hh,cc\}} \\
+Ratios and miss rates
+  & \texttt{cache\_scripts/cache\_status.py} \\
+SimPoint estimates
+  & \texttt{cache\_scripts/simpoint\_combine.py} \\
+\bottomrule
+\end{tabularx}
+
+The rules are covered by 27 hand-verified RISC-V assembly test cases in
+\texttt{tests/spill\_test/}: partial overwrites, atomics, a SimPoint interval,
+frame reuse and stack growth among them. They assert every identity above and
+that the gem5 cache statistics and the detector counters agree at both cache
+levels. On 12 November 2026 every completed schema-10 result of the campaign,
+170 test runs and 3405 SimPoint points, satisfied every identity;
+\ct{diag\_store\_map\_evicted} was 0 everywhere, and
+\ct{diag\_load\_after\_stack\_release} was 0.05\% of the spill loads.
+
+% ---- Turkish version of the worked example (section 10) ----
+% The engine's T1 fonts lack the Turkish letters as Unicode input, so the
+% text uses LaTeX accent commands (\c{s}, \u{g}, {\i}, \.{I}, ...). English
+% hyphenation patterns would split Turkish words wrongly: hyphenation is off.
+\clearpage
+\begingroup
+\hyphenpenalty=10000 \exhyphenpenalty=10000 \emergencystretch=3em
+
+\section{\"Ornek (T\"urk\c{c}e)}
+
+Bu b\"ol\"um, 10.\ b\"ol\"umdeki \"orne\u{g}in T\"urk\c{c}e anlat{\i}m{\i}d{\i}r.
+
+\subsection*{A.\ Hangi komut hangi sayac{\i} art{\i}r{\i}r?}
+
+Kod par\c{c}as{\i} ROI i\c{c}inde \c{c}al{\i}\c{s}{\i}yor; \ct{a2} ve \ct{a3} heap'i g\"osteriyor.
+
+\tablehead{12}{Her komutun saya\c{c}lara katk{\i}s{\i} (bo\c{s}: de\u{g}i\c{s}mez).}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l c c c c c X@{}}
+\toprule
+\normalfont\textbf{Komut} & \textbf{store} & \textbf{load}
+  & \textbf{spill st.} & \textbf{event} & \textbf{spill ld.} & \textbf{Neden} \\
+\midrule
+addi sp, sp, -32 & & & & & & Bellek komutu de\u{g}il \\
+sd a0, 16(sp) & $+1$ & & $+1$ & & & Stack'e normal store \\
+sd a1, 8(sp) & $+1$ & & $+1$ & & & Stack'e store; hi\c{c} okunmayacak: unread \\
+sw t0, 0(a2) & $+1$ & & & & & Heap'e yaz{\i}yor: non-spill store \\
+ld t1, 0(a3) & & $+1$ & & & & Heap'ten okuyor: other load \\
+ld a0, 16(sp) & & $+1$ & & $+1$ & $+1$ & Byte'{\i}n sahibi ilk \ct{sd}; ilk
+  reload oldu\u{g}u i\c{c}in event \\
+ld a2, 16(sp) & & $+1$ & & & $+1$ & Ayn{\i} store'un ikinci okumas{\i}: yeni
+  event yok \\
+amoadd.w t2, t3, (a4) & & & & & & Atomic: hi\c{c}bir load/store sayac{\i}na
+  girmez \\
+addi sp, sp, 32 & & & & & & Bellek komutu de\u{g}il \\
+\midrule
+\normalfont\textbf{Toplam} & 3 & 3 & 2 & 1 & 2 & \ct{roi\_total\_insts} $=$ 9 \\
+\bottomrule
+\end{tabularx}
+}
+
+T\"uretilenler: \ct{roi\_unread\_spill\_store} $= 2 - 1 = 1$ (\ct{8(sp)}
+slot'u), \ct{roi\_non\_spill\_store} $= 3 - 2 = 1$ (heap store'u).
+
+\subsection*{B.\ Say{\i}larla oranlar}
+
+Bir ko\c{s}unun \c{s}u sonu\c{c}lar{\i} verdi\u{g}ini d\"u\c{s}\"unelim:
+\begin{itemize}
+\setlength{\itemsep}{1pt}\setlength{\topsep}{2pt}
+\item T\"um program: \ct{total\_insts} $=$ 1000, \ct{total\_load} $=$ 300,
+  \ct{total\_store} $=$ 150
+\item ROI: \ct{roi\_total\_insts} $=$ 800, \ct{roi\_load} $=$ 240,
+  \ct{roi\_store} $=$ 120
+\item Spill saya\c{c}lar{\i}: \ct{roi\_spill\_store} $=$ 60,
+  \ct{roi\_spill\_event} $=$ 45, \ct{roi\_spill\_load} $=$ 70
+\end{itemize}
+
+\tablehead{13}{\"Orne\u{g}in program oranlar{\i}.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l l r X@{}}
+\toprule
+\normalfont\textbf{Oran} & \textbf{Hesap} & \textbf{Sonu\c{c}} & \textbf{Yorum} \\
+\midrule
+roi/total & 800 / 1000 & \%80,00 & Program{\i}n \%80'ini \"ol\c{c}t\"uk \\
+spill/roi & (70 $+$ 60) / 800 & \textbf{\%16,25} & Her 100 komuttan yakla\c{s}{\i}k
+  16's{\i} stack'e yazma ya da stack'ten geri okuma \\
+spill\_load/load & 70 / 240 & \%29,17 & Load'lar{\i}n yakla\c{s}{\i}k \"u\c{c}te biri
+  stack'ten geri okuma \\
+spill\_store/store & 60 / 120 & \%50,00 & Store'lar{\i}n yar{\i}s{\i} stack'e gidiyor \\
+spill\_event/store & 45 / 120 & \%37,50 & Store'lar{\i}n \%37,5'i stack'e
+  yaz{\i}l{\i}p sonra okunan de\u{g}er \\
+spill\_event/spill\_store & 45 / 60 & \%75,00 & Stack'e yaz{\i}lanlar{\i}n d\"ortte
+  \"u\c{c}\"u geri kullan{\i}lm{\i}\c{s}; 15'i (unread) hi\c{c} okunmam{\i}\c{s} \\
+spill/mem & 130 / 360 & \%36,11 & Bellek trafi\u{g}inin yakla\c{s}{\i}k \"u\c{c}te biri
+  spill-like \\
+\bottomrule
+\end{tabularx}
+}
+
+Cache taraf{\i} i\c{c}in cache line s{\i}n{\i}r{\i}n{\i} a\c{s}an access olmad{\i}\u{g}{\i}n{\i}
+(\ct{split\_insts} $=$ 0) ve \c{s}u sonu\c{c}lar{\i} varsayal{\i}m:
+\begin{itemize}
+\setlength{\itemsep}{1pt}\setlength{\topsep}{2pt}
+\item Spill store'lar: L1'de 54 hit, 6 miss; bunlardan spill event olanlar
+  42 hit, 3 miss
+\item Spill load'lar: L1'de 68 hit, 2 miss
+\item L1D \ct{ReadReq}: 240 access, 30 miss; \ct{WriteReq}: 120 access, 18
+  miss
+\item L2: spill store'lar 4 hit, 2 miss (event'ler 3 hit, 0 miss); spill
+  load'lar 1 hit, 1 miss
+\item L2 toplam{\i}: 60 access (48'i L1D'den, 12'si L1I'dan), 15 miss
+\end{itemize}
+
+\tablehead{14}{\"Orne\u{g}in miss oranlar{\i}.}
+
+{\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}l l r X@{}}
+\toprule
+\normalfont\textbf{Oran} & \textbf{Hesap} & \textbf{Sonu\c{c}} & \textbf{Yorum} \\
+\midrule
+spill\_ld\_L1miss & 2 / (68 $+$ 2) & \textbf{\%2,86} & Spill load'lar
+  neredeyse hep hit ediyor \ldots \\
+other\_ld\_L1miss & (30 $-$ 2) / (240 $-$ 70) & \textbf{\%16,47} & \ldots\
+  normal load'lar \c{c}ok daha fazla miss ediyor \\
+spill\_st\_L1miss & 6 / (54 $+$ 6) & \%10,00 & B\"ut\"un stack yazmalar{\i} \\
+spill\_event\_L1miss & 3 / (42 $+$ 3) & \%6,67 & Geri okunan stack
+  yazmalar{\i} \\
+unread\_st\_L1miss & (6 $-$ 3) / (60 $-$ 45) & \%20,00 & Hi\c{c} okunmayanlar
+  daha \c{c}ok miss ediyor \\
+other\_st\_L1miss & (18 $-$ 6) / (120 $-$ 60) & \%20,00 & Spill olmayan
+  store'lar \\
+L1D\_miss & 48 / 360 & \%13,33 & B\"ut\"un L1D access'leri \\
+L2\_local\_miss & 15 / 60 & \%25,00 & B\"ut\"un L2 access'leri \\
+spill\_ld\_L2local & 1 / (1 $+$ 1) & \%50,00 & Payda 2: yorumlamak i\c{c}in \c{c}ok
+  az \\
+unread\_st\_L2local & (2 $-$ 0) / (6 $-$ 3) & \%66,67 & Payda 3: yorumlamak
+  i\c{c}in \c{c}ok az \\
+\bottomrule
+\end{tabularx}
+}
+
+\textbf{Okumas{\i}:}
+\begin{itemize}
+\setlength{\itemsep}{1pt}\setlength{\topsep}{2pt}
+\item Spill load'lar L1D'de \c{c}ok az miss ediyor: di\u{g}er load'lardaki
+  \%16,47'ye kar\c{s}{\i} \%2,86. Yani spill trafi\u{g}i cache dostu; stack'e yaz{\i}lan
+  de\u{g}er geri okunurken genelde h\^al\^a L1'de.
+\item Hi\c{c} okunmayan spill store'lar (\%20) okunanlardan (\%6,67) daha \c{c}ok
+  miss ediyor. L2 local oranlar{\i} ise bu kadar k\"u\c{c}\"uk paydalarla
+  yorumlanmamal{\i}.
+\item Kontrol: $45 \le 60 \le 120$, $45 \le 70 \le 240$, $54 + 6 = 60$ ve
+  $4 + 2 = 6$ tutuyor. gem5'in L1D'de \ct{stackStoreHits} $=$ 54,
+  \ct{stackStoreMisses} $=$ 6, \ct{spillLoadHits} $=$ 68,
+  \ct{spillLoadMisses} $=$ 2; L2'de 4, 2, 1 ve 1 g\"ostermesi gerekir.
+\end{itemize}
+
+\subsection*{C.\ Ger\c{c}ek veriden iki u\c{c}}
+
+Test girdisi, small-2way konfig\"urasyonu:
+\begin{itemize}
+\setlength{\itemsep}{1pt}\setlength{\topsep}{2pt}
+\item \textbf{cactuBSSN:} \ct{spill/roi} \%33,48,
+  \ct{spill\_event/spill\_store} \%99,36. Komutlar{\i}n \"u\c{c}te biri spill-like
+  ve stack'e yaz{\i}lan neredeyse her \c{s}ey geri okunuyor; register bask{\i}s{\i} \c{c}ok
+  y\"uksek.
+\item \textbf{parest:} \ct{spill/roi} \%2,13. Spill trafi\u{g}i az.
+\end{itemize}
+
+\endgroup
+
+\end{document}
