@@ -10,6 +10,11 @@ ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
 GEM5_BIN="${GEM5_BIN:-$ROOT_DIR/build/RISCV_SCHEMA10/gem5.opt}"
 GEM5_CONFIG="${GEM5_CONFIG:-$ROOT_DIR/configs/deprecated/example/se.py}"
 ANALYZER="$ROOT_DIR/scripts/spill_report.py"
+# Where run outputs go: benchmarks/ unless SPILL_RESULTS_ROOT names another
+# tree (the replacement-policy experiment uses cache_results/, see
+# cache_scripts/policy_campaign.sh). Binaries and inputs always come from
+# benchmarks/.
+RESULTS_ROOT="${SPILL_RESULTS_ROOT:-$ROOT_DIR/benchmarks}"
 
 usage() {
     cat <<'EOF'
@@ -33,6 +38,12 @@ CACHE:   SIZE or SIZE-ORG
                  fa   fully associative L1D + L2 (FALRU)
            no ORG: L1D 2-way, L2 8-way (se.py defaults, schema-7 runs)
            L1I is 2-way in every profile.
+         SIZE-ORG-POLICY (ORG not fa): the same organisation with one
+           replacement policy in L1I, L1D and L2 (default LRU):
+                 lru__ LRU  plru_ tree PLRU  fifo_ FIFO  rand_ random
+                 srrip SRRIP  brrip BRRIP
+           padded with "_" to five letters, so that every policy's run paths
+           have the same length (the path reaches the program's arguments).
 TARGET:  run ID, benchmark name, or "all"
 
 Examples:
@@ -47,6 +58,7 @@ Examples:
 Results are never overwritten. Every start creates a timestamped directory
 benchmarks/<benchmark>/<input>/m5out/<cache>/<run_id>_<HHMM_DDMMYYYY> and
 updates the "latest_*" links (index: benchmarks/<benchmark>/m5out_<benchmark>/).
+SPILL_RESULTS_ROOT=DIR puts both under DIR instead of benchmarks/.
 EOF
 }
 
@@ -60,8 +72,11 @@ valid_profile() {
 }
 
 valid_cache() {
-    [[ "$1" =~ ^(standard|small)(-(dm|fa|nway|([0-9]+)way))?$ ]] || return 1
+    [[ "$1" =~ ^(standard|small)(-(dm|fa|nway|([0-9]+)way)(-(lru|plru|fifo|rand|srrip|brrip)_*)?)?$ ]] ||
+        return 1
     local n="${BASH_REMATCH[4]}"
+    # FALRU tags are always LRU: a policy there would be a silent no-op.
+    [[ -n "${BASH_REMATCH[5]}" && "${BASH_REMATCH[3]}" == fa ]] && return 1
     # N-way: a power of two; gem5 itself rejects one that leaves no full set.
     [[ -z "$n" ]] || (( n > 0 && (n & (n - 1)) == 0 ))
 }
@@ -626,15 +641,16 @@ selected_manifest() {
 #   benchmarks/<benchmark>/<input>/m5out/<cache>/<run_id>_<HHMM_DDMMYYYY>
 # benchmarks/<benchmark>/<input>/report/ holds the input's reports. (Runs
 # before 2026-10-15 lie in benchmarks/<benchmark>/m5out_<benchmark>/.)
+# SPILL_RESULTS_ROOT replaces benchmarks/ here and in run_base.
 run_outbase() {
-    printf '%s/benchmarks/%s/%s/m5out/%s' "$ROOT_DIR" "$1" "$2" "$3"
+    printf '%s/%s/%s/m5out/%s' "$RESULTS_ROOT" "$1" "$2" "$3"
 }
 
 # The latest_<profile>_<cache>_<run_id> links that find a run's newest output
 # stay in one index directory per benchmark, whichever tree the run is in.
 run_base() {
     local benchmark="$1"
-    printf '%s/benchmarks/%s/m5out_%s' "$ROOT_DIR" "$benchmark" "$benchmark"
+    printf '%s/%s/m5out_%s' "$RESULTS_ROOT" "$benchmark" "$benchmark"
 }
 
 # One symlink per (profile, cache, run_id) pointing at that combination's most
@@ -773,8 +789,10 @@ verify_gem5_build() {
 # organisation of L1D and L2 (see the usage text). The options themselves are
 # defined in configs/common/Options.py and applied in CacheConfig.py.
 cache_options() {
-    local size="${1%%-*}" org="" opts
+    local size="${1%%-*}" org="" policy="" rp="" opts
     [[ "$1" == *-* ]] && org="${1#*-}"
+    # SIZE-ORG-POLICY: one replacement policy in L1I, L1D and L2.
+    if [[ "$org" == *-* ]]; then policy="${org#*-}"; org="${org%%-*}"; fi
     opts='--cpu-type=TimingSimpleCPU --caches --l2cache --mem-size=4GB'
     case "$size" in
       standard) ;;   # se.py defaults: L1D 64KiB, L1I 32KiB, L2 2MiB
@@ -787,6 +805,17 @@ cache_options() {
       nway) opts+=' --l1d_assoc=8 --l2_assoc=16' ;;
       fa)   opts+=' --l1d_tags=FALRU --l2_tags=FALRU' ;;
     esac
+    # The policy name is padded with "_" (valid_cache); RRIPRP is SRRIP.
+    case "${policy%%_*}" in
+      '')    ;;
+      lru)   rp=LRURP ;;
+      plru)  rp=TreePLRURP ;;
+      fifo)  rp=FIFORP ;;
+      rand)  rp=RandomRP ;;
+      srrip) rp=RRIPRP ;;
+      brrip) rp=BRRIPRP ;;
+    esac
+    [[ -n "$rp" ]] && opts+=" --l1i_rp=$rp --l1d_rp=$rp --l2_rp=$rp"
     printf '%s\n' "$opts"
 }
 
@@ -947,7 +976,7 @@ command_start() {
         # Two runs of the same run ID within one minute (also from two hosts
         # sharing /cta/users) would otherwise land in the same directory;
         # mkdir is atomic, so exactly one of them gets each name.
-        mkdir -p "$base" "$ROOT_DIR/benchmarks/$benchmark/$profile/report" "$(run_base "$benchmark")"
+        mkdir -p "$base" "$RESULTS_ROOT/$benchmark/$profile/report" "$(run_base "$benchmark")"
         local candidate="$outdir" suffix=1
         until mkdir "$candidate" 2>/dev/null; do
             suffix=$((suffix + 1))

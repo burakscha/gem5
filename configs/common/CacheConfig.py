@@ -76,6 +76,12 @@ def _get_cache_opts(level, options):
     if getattr(options, tags_attr, None):
         opts["tags"] = getattr(m5.objects, getattr(options, tags_attr))()
 
+    rp_attr = f"{level}_rp"
+    if getattr(options, rp_attr, None):
+        opts["replacement_policy"] = ObjectList.rp_list.get(
+            getattr(options, rp_attr)
+        )()
+
     return opts
 
 

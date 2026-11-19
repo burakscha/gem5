@@ -210,6 +210,18 @@ def addNoISAOptions(parser):
             help=f"{level} tag store (default: the cache class's own, "
             "BaseSetAssoc)",
         )
+    # Replacement policy per cache level (register spill study): a
+    # BaseReplacementPolicy subclass (--list-rp-types), e.g. LRURP,
+    # TreePLRURP, FIFORP, RandomRP, RRIPRP (SRRIP) or BRRIPRP. Default: the
+    # cache class's own, LRURP. FALRU tags are always LRU and ignore it.
+    for level in ("l1d", "l1i", "l2"):
+        parser.add_argument(
+            f"--{level}_rp",
+            choices=ObjectList.rp_list.get_names(),
+            default=None,
+            help=f"{level} replacement policy (default: the cache class's "
+            "own, LRURP)",
+        )
 
     # Enable Ruby
     parser.add_argument("--ruby", action="store_true")

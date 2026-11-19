@@ -1,0 +1,6 @@
+# Run outputs, the runner's latest_* links and the campaign's runtime files
+# stay out of git; this README and the reports under <benchmark>/<input>/report/
+# are kept.
+*/*/m5out/
+*/m5out_*/
+_campaign/
