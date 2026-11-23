@@ -317,8 +317,19 @@ L1D: {ir.geometry_cell(test["geometry"][cfg].get("L1D"))}; L2: {ir.geometry_cell
 # --------------------------------------------------------------------------
 # Output
 # --------------------------------------------------------------------------
+STAMP = re.compile(r"Data as of \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.")
+
+
 def write(path: Path, text: str, engine: str | None, log: list[str]) -> None:
-    path.write_text(ir.to_ascii(text))
+    """Write a report and compile it, unless only its 'Data as of' stamp would
+    change: then the file and its PDF are kept, so a refresh touches only the
+    reports whose numbers changed."""
+    text = ir.to_ascii(text)
+    if (path.exists() and (path.with_suffix(".pdf").exists() or not engine)
+            and STAMP.sub("", path.read_text()) == STAMP.sub("", text)):
+        log.append(f"{path}: unchanged, kept")
+        return
+    path.write_text(text)
     status = "tex"
     if engine:
         r = subprocess.run([engine, "--outdir", str(path.parent), str(path)],

@@ -1,6 +1,6 @@
 # Register-spill results, metric schema 10 (Overleaf export)
 
-Exported 2026-11-19 10:30 by `cache_scripts/overleaf_export.py`; run it again to refresh.
+Exported 2026-11-23 19:18 by `cache_scripts/overleaf_export.py`; run it again to refresh.
 Every `.tex` file is a standalone document (pdfLaTeX or XeLaTeX) next to its PDF.
 
 In Overleaf: New Project -> Upload Project -> the zip of this folder. Overleaf
@@ -20,8 +20,8 @@ Benchmark reports:
 |---|---|
 | test | 23: cactuBSSN, parest, deepsjeng, leela, namd, lbm, nab, xz, imagick, blender, povray, omnetpp, xalancbmk, x264, gcc, mcf, perlbench, bwaves, exchange2, fotonik3d, roms, wrf, cam4 |
 | ref_simpoint | 23: cactuBSSN, parest, deepsjeng, leela, namd, lbm, nab, xz, imagick, blender, povray, omnetpp, xalancbmk, x264, gcc, mcf, perlbench, bwaves, exchange2, fotonik3d, roms, wrf, cam4 |
-| train | 4: bwaves, exchange2, fotonik3d, cam4 |
+| train | 7: deepsjeng, leela, bwaves, exchange2, fotonik3d, wrf, cam4 |
 
 Not yet (a run of the benchmark has not finished in every configuration):
 
-- train: cactuBSSN, parest, deepsjeng, leela, namd, lbm, nab, xz, imagick, blender, povray, omnetpp, xalancbmk, x264, gcc, mcf, perlbench, roms, wrf
+- train: cactuBSSN, parest, namd, lbm, nab, xz, imagick, blender, povray, omnetpp, xalancbmk, x264, gcc, mcf, perlbench, roms
